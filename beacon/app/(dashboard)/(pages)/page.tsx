@@ -1,5 +1,5 @@
-import { InstanceList } from "@/components/instance-list";
+import { Home } from "@/components/home";
 
-export default function Home() {
-  return <InstanceList />;
+export default function HomePage() {
+  return <Home />;
 }

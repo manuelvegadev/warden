@@ -15,8 +15,12 @@ import {
 } from "@/components/ui/breadcrumb";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
+import { HOME } from "@/lib/instance-routes";
 
-const PAGES: Record<string, string> = { "/settings/java": "Java runtimes", "/settings/account": "Account" };
+const PAGES: Record<string, string> = {
+  "/settings/java": "Java runtimes",
+  "/settings/account": "Account",
+};
 
 /** Sidebar trigger + breadcrumb. Two shapes: Beacon › <instance> › <section>, or Beacon › <page>. */
 export function SiteHeader() {
@@ -44,9 +48,9 @@ export function SiteHeader() {
         <BreadcrumbList>
           <BreadcrumbItem>
             {crumbs.length === 0 ? (
-              <BreadcrumbPage>Instances</BreadcrumbPage>
+              <BreadcrumbPage>{HOME.label}</BreadcrumbPage>
             ) : (
-              <BreadcrumbLink render={<Link href="/" />}>Instances</BreadcrumbLink>
+              <BreadcrumbLink render={<Link href={HOME.href} />}>{HOME.label}</BreadcrumbLink>
             )}
           </BreadcrumbItem>
           {crumbs.map((c, i) => (

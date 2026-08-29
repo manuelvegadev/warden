@@ -1,10 +1,11 @@
 "use client";
 
-import { Coffee, KeyRound, LogOut, Server, UserRound } from "lucide-react";
+import { Coffee, House, KeyRound, LogOut, Server, UserRound } from "lucide-react";
 import Link from "next/link";
 import { useParams, usePathname, useRouter } from "next/navigation";
-import { SECTIONS } from "@/components/instance/sections";
+import { sectionsFor } from "@/components/instance/sections";
 import { InstanceSwitcher } from "@/components/instance-switcher";
+import { useInstances } from "@/components/instances-store";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -27,8 +28,9 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
+import { DEFAULT_SOFTWARE } from "@/lib/api";
 import { signOut } from "@/lib/auth-client";
-import { instanceHref } from "@/lib/instance-routes";
+import { HOME, instanceHref } from "@/lib/instance-routes";
 
 type Item = { href: string; label: string; icon: React.ComponentType<{ className?: string }>; active: boolean };
 
@@ -51,15 +53,17 @@ export function AppSidebar({ user }: { user: { name: string; email: string; role
   const pathname = usePathname();
   const router = useRouter();
   const { id: instanceId } = useParams<{ id?: string }>();
+  const { instances } = useInstances();
+  const software = instances.find((i) => i.id === instanceId)?.software ?? DEFAULT_SOFTWARE;
 
   const main: Item[] = instanceId
-    ? SECTIONS.map((s) => ({
+    ? sectionsFor(software).map((s) => ({
         href: instanceHref(instanceId, s.slug),
         label: s.label,
         icon: s.icon,
         active: pathname === instanceHref(instanceId, s.slug),
       }))
-    : [{ href: "/", label: "All instances", icon: Server, active: pathname === "/" }];
+    : [{ ...HOME, icon: House, active: pathname === HOME.href }];
   const secondary: Item[] = [
     { href: "/settings/java", label: "Java runtimes", icon: Coffee, active: pathname.startsWith("/settings/java") },
   ];
