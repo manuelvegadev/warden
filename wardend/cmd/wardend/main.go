@@ -17,6 +17,8 @@ import (
 	"github.com/manuelvega/warden/wardend/internal/instance"
 	"github.com/manuelvega/warden/wardend/internal/java"
 	"github.com/manuelvega/warden/wardend/internal/metrics"
+	"github.com/manuelvega/warden/wardend/internal/mojang"
+	"github.com/manuelvega/warden/wardend/internal/skins"
 	"github.com/manuelvega/warden/wardend/internal/store"
 	"github.com/manuelvega/warden/wardend/internal/tasks"
 	"github.com/manuelvega/warden/wardend/internal/ws"
@@ -63,16 +65,29 @@ func main() {
 	}
 
 	reg := catalog.NewRegistry(cfg.UserAgent(version))
-	instance.SetUserAgent(cfg.UserAgent(version))
+	mj := mojang.New(cfg.UserAgent(version))
+	instance.SetMojang(mj)
 	jm := java.NewManager(cfg.DataDir, reg, cfg.UserAgent(version))
 	mgr.SetJavaResolver(jm)
 	tm := tasks.NewManager(hub)
 	sampler := metrics.NewSampler(mgr, st, hub, cfg.DataDir)
+	sk := skins.New(cfg.DataDir, mj)
+	var sched *instance.BackupScheduler
+	sched = instance.NewBackupScheduler(mgr, func(inst *instance.Instance) {
+		tm.Run(ctx, "backup", inst.Manifest.ID, func(ctx context.Context, report tasks.Reporter) error {
+			_, err := inst.Backup(ctx, "schedule", "", report)
+			if err == nil {
+				sched.Done(inst.Manifest.ID)
+			}
+			return err
+		})
+	})
+	go sched.Run(ctx)
 	go sampler.Run(ctx)
 
 	srv := &http.Server{
 		Addr:              cfg.Listen,
-		Handler:           api.NewRouter(api.Deps{Config: cfg, Manager: mgr, Verifier: verifier, Catalog: reg, Tasks: tm, Java: jm, Metrics: sampler, Store: st, WS: hub, Version: version}),
+		Handler:           api.NewRouter(api.Deps{Config: cfg, Manager: mgr, Verifier: verifier, Catalog: reg, Tasks: tm, Java: jm, Metrics: sampler, Store: st, Skins: sk, WS: hub, Version: version}),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 

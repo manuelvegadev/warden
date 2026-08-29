@@ -13,6 +13,7 @@ import (
 	"github.com/manuelvega/warden/wardend/internal/instance"
 	"github.com/manuelvega/warden/wardend/internal/java"
 	"github.com/manuelvega/warden/wardend/internal/metrics"
+	"github.com/manuelvega/warden/wardend/internal/skins"
 	"github.com/manuelvega/warden/wardend/internal/store"
 	"github.com/manuelvega/warden/wardend/internal/tasks"
 )
@@ -27,6 +28,7 @@ type Deps struct {
 	Java     *java.Manager
 	Metrics  *metrics.Sampler
 	Store    *store.Store
+	Skins    *skins.Service
 	WS       http.Handler
 	Version  string
 }
@@ -82,6 +84,10 @@ func NewRouter(d Deps) http.Handler {
 	mux.HandleFunc("POST /api/v1/instances/{id}/eula", auth.RequireAdmin(s.eula))
 	mux.HandleFunc("GET /api/v1/instances/{id}/players", s.listPlayers)
 	mux.HandleFunc("GET /api/v1/instances/{id}/players/{name}/sessions", s.playerSessions)
+	mux.HandleFunc("GET /api/v1/players/{name}/skin", s.playerSkin)
+	mux.HandleFunc("GET /api/v1/instances/{id}/players/{name}/stats", s.playerStats)
+	mux.HandleFunc("GET /api/v1/instances/{id}/players/{name}/advancements", s.playerAdvancements)
+	mux.HandleFunc("POST /api/v1/instances/{id}/players/{name}/action", auth.RequireAdmin(s.playerAction))
 	mux.HandleFunc("GET /api/v1/instances/{id}/events", s.listEvents)
 
 	// Configuration and access lists
@@ -90,6 +96,11 @@ func NewRouter(d Deps) http.Handler {
 	mux.HandleFunc("GET /api/v1/instances/{id}/command", s.launchCommand)
 	mux.HandleFunc("GET /api/v1/instances/{id}/upgrade", s.checkUpgrade)
 	mux.HandleFunc("POST /api/v1/instances/{id}/upgrade", auth.RequireAdmin(s.startUpgrade))
+	mux.HandleFunc("GET /api/v1/instances/{id}/backups", s.listBackups)
+	mux.HandleFunc("POST /api/v1/instances/{id}/backups", auth.RequireAdmin(s.createBackup))
+	mux.HandleFunc("GET /api/v1/instances/{id}/backups/{name}/download", s.downloadBackup)
+	mux.HandleFunc("POST /api/v1/instances/{id}/backups/{name}/restore", auth.RequireAdmin(s.restoreBackup))
+	mux.HandleFunc("DELETE /api/v1/instances/{id}/backups/{name}", auth.RequireAdmin(s.deleteBackup))
 	mux.HandleFunc("GET /api/v1/instances/{id}/files", s.listConfigFiles)
 	mux.HandleFunc("GET /api/v1/instances/{id}/files/content", s.getConfigFile)
 	mux.HandleFunc("PUT /api/v1/instances/{id}/files/content", auth.RequireAdmin(s.putConfigFile))
@@ -116,7 +127,7 @@ func NewRouter(d Deps) http.Handler {
 	mux.HandleFunc("POST /api/v1/instances/{id}/plugins", auth.RequireAdmin(s.installPlugin))
 
 	// Files, backups (see docs/api.md) — later phases
-	for _, p := range []string{"backups", "schedule"} {
+	for _, p := range []string{"schedule"} {
 		mux.HandleFunc("/api/v1/instances/{id}/"+p, notImplemented)
 		mux.HandleFunc("/api/v1/instances/{id}/"+p+"/", notImplemented)
 	}

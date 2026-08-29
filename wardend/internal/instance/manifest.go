@@ -27,6 +27,7 @@ type Manifest struct {
 	RestartPolicy string            `json:"restartPolicy"` // never|on-crash|always
 	StopTimeoutS  int               `json:"stopTimeoutSeconds"`
 	Plugins       []InstalledPlugin `json:"plugins"`
+	Backups       BackupSettings    `json:"backups"`
 	Upgrades      []UpgradeRecord   `json:"upgrades,omitempty"` // newest last
 	CreatedAt     time.Time         `json:"createdAt"`
 }
@@ -56,6 +57,19 @@ type InstalledPlugin struct {
 
 const manifestFile = "instance.json"
 
+// Normalize fills the zero value with the defaults the panel shows: daily, keep 7, full scope.
+func (b *BackupSettings) Normalize() {
+	if b.EveryHours <= 0 {
+		b.EveryHours = 24
+	}
+	if b.Keep < 0 {
+		b.Keep = 0
+	}
+	if b.Scope != "worlds" {
+		b.Scope = "full"
+	}
+}
+
 func readManifest(dir string) (*Manifest, error) {
 	b, err := os.ReadFile(filepath.Join(dir, manifestFile))
 	if err != nil {
@@ -65,6 +79,7 @@ func readManifest(dir string) (*Manifest, error) {
 	if err := json.Unmarshal(b, &m); err != nil {
 		return nil, err
 	}
+	m.Backups.Normalize()
 	return &m, nil
 }
 

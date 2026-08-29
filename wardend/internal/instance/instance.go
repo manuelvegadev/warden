@@ -40,6 +40,10 @@ type Instance struct {
 	rootOnce    sync.Once                  // realServerDir cache
 	rootReal    string
 	rootErr     error
+	backupLock  sync.Mutex   // one backup/restore at a time per instance
+	lineWaiters []lineWaiter // awaitLine subscribers
+	uuidCache   map[string]uuidEntry
+	statsCache  map[string]statsEntry // KnownPlayers: parsed play time per stats file, keyed by path
 	state       State
 	cmd         *exec.Cmd
 	stdin       io.WriteCloser
@@ -202,6 +206,7 @@ func (i *Instance) pump(r io.Reader) {
 		if i.captureTPS(text) {
 			continue
 		}
+		i.notifyLine(text)
 		i.pushLine(levelOf(text), text)
 		if ev := mc.Parse(text); ev != nil {
 			i.handleEvent(ev)
@@ -470,8 +475,8 @@ func (i *Instance) LaunchCommand() LaunchCommand {
 	return out
 }
 
-// requireStopped is the precondition for operations that replace server files.
-func (i *Instance) requireStopped() error {
+// RequireStopped is the precondition for operations that replace server files.
+func (i *Instance) RequireStopped() error {
 	if st := i.State(); st != StateStopped && st != StateCrashed {
 		return ErrMustBeStopped
 	}

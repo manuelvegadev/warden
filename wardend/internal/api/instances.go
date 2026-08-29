@@ -151,15 +151,16 @@ func (s *server) installInstance(w http.ResponseWriter, r *http.Request) {
 }
 
 type patchInstanceReq struct {
-	Name          *string  `json:"name"`
-	MemoryMB      *int     `json:"memoryMb"`
-	JVMPreset     *string  `json:"jvmFlagsPreset"`
-	JVMFlags      []string `json:"jvmFlags"`
-	JavaRuntime   *string  `json:"javaRuntime"`
-	JavaPath      *string  `json:"javaPath"`
-	Autostart     *bool    `json:"autostart"`
-	RestartPolicy *string  `json:"restartPolicy"`
-	StopTimeoutS  *int     `json:"stopTimeoutSeconds"`
+	Name          *string                  `json:"name"`
+	MemoryMB      *int                     `json:"memoryMb"`
+	JVMPreset     *string                  `json:"jvmFlagsPreset"`
+	JVMFlags      []string                 `json:"jvmFlags"`
+	JavaRuntime   *string                  `json:"javaRuntime"`
+	JavaPath      *string                  `json:"javaPath"`
+	Autostart     *bool                    `json:"autostart"`
+	RestartPolicy *string                  `json:"restartPolicy"`
+	StopTimeoutS  *int                     `json:"stopTimeoutSeconds"`
+	Backups       *instance.BackupSettings `json:"backups"`
 }
 
 func (s *server) patchInstance(w http.ResponseWriter, r *http.Request) {
@@ -203,6 +204,10 @@ func (s *server) patchInstance(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.StopTimeoutS != nil {
 		m.StopTimeoutS = *req.StopTimeoutS
+	}
+	if req.Backups != nil {
+		req.Backups.Normalize()
+		m.Backups = *req.Backups
 	}
 	if err := inst.SaveManifest(); err != nil {
 		writeError(w, 500, "save_failed", err.Error())

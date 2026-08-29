@@ -128,6 +128,7 @@ func (m *Manager) Create(man *Manifest) (*Instance, error) {
 	if _, exists := m.byID[man.ID]; exists {
 		return nil, ErrExists
 	}
+	man.Backups.Normalize()
 	for _, other := range m.byID {
 		if other.Manifest.Port == man.Port || other.Manifest.RconPort == man.Port {
 			return nil, ErrPortInUse

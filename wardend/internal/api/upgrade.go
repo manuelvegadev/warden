@@ -30,9 +30,7 @@ func (s *server) startUpgrade(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	// The task runs asynchronously; check the precondition now so the caller gets a 409, not a failed task.
-	if st := inst.State(); st != instance.StateStopped && st != instance.StateCrashed {
-		writeError(w, 409, "invalid_state", instance.ErrMustBeStopped.Error())
+	if !s.requireStopped(w, inst) {
 		return
 	}
 	t := s.Tasks.Run(r.Context(), "upgrade", inst.Manifest.ID, func(ctx context.Context, report tasks.Reporter) error {

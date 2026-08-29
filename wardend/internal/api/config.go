@@ -20,6 +20,16 @@ func (s *server) instanceOr404(w http.ResponseWriter, r *http.Request) (*instanc
 	return inst, true
 }
 
+// requireStopped writes a 409 and returns false when the instance still has a server process.
+// Tasks re-check inside; this is the synchronous answer callers expect.
+func (s *server) requireStopped(w http.ResponseWriter, inst *instance.Instance) bool {
+	if err := inst.RequireStopped(); err != nil {
+		writeError(w, 409, "invalid_state", err.Error())
+		return false
+	}
+	return true
+}
+
 func (s *server) instanceJSON(w http.ResponseWriter, r *http.Request, fn func(*instance.Instance) (any, error)) {
 	inst, ok := s.instanceOr404(w, r)
 	if !ok {
