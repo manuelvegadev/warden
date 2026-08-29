@@ -4,7 +4,7 @@ import { Clock, Coffee, Cpu, HardDrive, Hash, MemoryStick, Network, Package, Use
 import { useUptime } from "@/components/instance/resource-cards";
 import { StateBadge } from "@/components/state-badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { formatBytes, type InstanceStatus, type Manifest, type MetricSample } from "@/lib/api";
+import { formatBytes, type InstanceStatus, type Manifest, type MetricSample, softwareLabel } from "@/lib/api";
 import { mono } from "@/lib/utils";
 
 const monoNum = `${mono} tabular-nums`;
@@ -78,7 +78,7 @@ export function InstanceSidebar({
       <Card className="py-0">
         <CardContent className="px-4 py-3">
           <div className="mb-1 text-xs text-muted-foreground">Server</div>
-          <Row icon={Package} label="Software" value={`${manifest.software} ${manifest.mcVersion}`} />
+          <Row icon={Package} label="Software" value={softwareLabel(manifest)} />
           <Row icon={Hash} label="Build" value={manifest.build ? `#${manifest.build}` : "—"} />
           <Row icon={Network} label="Port" value={manifest.port} />
           <Row icon={HardDrive} label="Size" value={metrics ? formatBytes(metrics.diskUsed) : "—"} />

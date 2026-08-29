@@ -171,7 +171,7 @@ export function Console({
       </div>
       <div
         ref={frameRef}
-        className="flex h-[420px] flex-col justify-center overflow-hidden rounded-md border bg-[#0a0a0a] p-2"
+        className="flex h-[min(60vh,640px)] flex-col justify-center overflow-hidden rounded-md border bg-[#0a0a0a] p-2"
       >
         <div ref={hostRef} className="h-full" />
       </div>

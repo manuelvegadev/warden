@@ -91,7 +91,7 @@ export function PropertiesEditor({ id, running }: { id: string; running: boolean
 
   return (
     <div className="grid gap-8">
-      <div className="mt-2 flex items-center gap-3">
+      <div className="flex items-center gap-3">
         <ModeToggle mode={mode} onChange={setMode} />
         {mode === "form" ? (
           <>

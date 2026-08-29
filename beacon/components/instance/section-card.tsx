@@ -12,6 +12,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
  * (e.g. an add form) and collapsible body.
  */
 export function SectionCard({
+  id,
   title,
   subtitle,
   status,
@@ -21,6 +22,7 @@ export function SectionCard({
   defaultOpen = true,
   children,
 }: {
+  id?: string;
   title: string;
   subtitle?: string;
   status?: React.ReactNode;
@@ -72,7 +74,7 @@ export function SectionCard({
   }
 
   return (
-    <div className="grid gap-3">
+    <div id={id} className="grid gap-3">
       <div className="flex items-end justify-between gap-4">
         {heading}
         {action}
