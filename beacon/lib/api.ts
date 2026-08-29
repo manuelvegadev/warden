@@ -75,6 +75,44 @@ export interface ServerEvent {
   text: string;
 }
 
+export interface ServerProperty {
+  key: string;
+  type: "bool" | "int" | "string" | "enum";
+  default: string;
+  enum?: string[];
+  min?: number;
+  max?: number;
+  group: string;
+  description: string;
+  requiresRestart: boolean;
+  managed?: boolean;
+  common?: boolean;
+  value: string;
+  known: boolean;
+}
+
+export interface WhitelistEntry {
+  uuid: string;
+  name: string;
+}
+
+export interface OpEntry {
+  uuid: string;
+  name: string;
+  level: number;
+  bypassesPlayerLimit: boolean;
+}
+
+export interface BanEntry {
+  uuid?: string;
+  ip?: string;
+  name?: string;
+  created: string;
+  source: string;
+  expires: string;
+  reason: string;
+}
+
 export interface UpdateInstanceInput {
   name?: string;
   memoryMb?: number;
@@ -167,18 +205,21 @@ export class ApiError extends Error {
   }
 }
 
-export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
+type ApiInit = RequestInit & { text?: boolean };
+
+/** Calls the BFF. JSON in/out by default; `text: true` returns the body as a string. Errors map to ApiError. */
+export async function api<T>(path: string, { text, ...init }: ApiInit = {}): Promise<T> {
   const res = await fetch(`/api/wardend${path}`, {
     ...init,
-    headers: { "Content-Type": "application/json", ...(init.headers as Record<string, string>) },
+    headers: { "Content-Type": text ? "text/plain" : "application/json", ...(init.headers as Record<string, string>) },
   });
-  if (res.status === 204) return undefined as T;
-  const body = await res.json().catch(() => ({}));
   if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
     const e = body?.error ?? {};
     throw new ApiError(res.status, e.code ?? "unknown", e.message ?? res.statusText);
   }
-  return body as T;
+  if (res.status === 204) return undefined as T;
+  return (text ? await res.text() : await res.json()) as T;
 }
 
 const post = <T>(path: string, body?: unknown) =>
@@ -206,6 +247,29 @@ export const instances = {
     api<PlayerSession[]>(`/instances/${id}/players/${encodeURIComponent(name)}/sessions`),
   events: (id: string, kinds: string[], limit = 100) =>
     api<ServerEvent[]>(`/instances/${id}/events?kind=${kinds.join(",")}&limit=${limit}`),
+  properties: (id: string) => api<ServerProperty[]>(`/instances/${id}/properties`),
+  updateProperties: (id: string, updates: Record<string, string>) =>
+    api<{ restartRequired: boolean }>(`/instances/${id}/properties`, { method: "PUT", body: JSON.stringify(updates) }),
+  propertiesRaw: (id: string) => api<string>(`/instances/${id}/properties/raw`, { text: true }),
+  updatePropertiesRaw: (id: string, text: string) =>
+    api<{ restartRequired: boolean }>(`/instances/${id}/properties/raw`, {
+      method: "PUT",
+      body: text,
+      headers: { "Content-Type": "text/plain" },
+    }),
+  whitelist: (id: string) => api<WhitelistEntry[]>(`/instances/${id}/whitelist`),
+  whitelistAdd: (id: string, name: string) => post<void>(`/instances/${id}/whitelist/${encodeURIComponent(name)}`),
+  whitelistRemove: (id: string, name: string) =>
+    api<void>(`/instances/${id}/whitelist/${encodeURIComponent(name)}`, { method: "DELETE" }),
+  ops: (id: string) => api<OpEntry[]>(`/instances/${id}/ops`),
+  opAdd: (id: string, name: string, level: number) =>
+    post<void>(`/instances/${id}/ops/${encodeURIComponent(name)}`, { level }),
+  opRemove: (id: string, name: string) =>
+    api<void>(`/instances/${id}/ops/${encodeURIComponent(name)}`, { method: "DELETE" }),
+  bans: (id: string) => api<{ players: BanEntry[]; ips: BanEntry[] }>(`/instances/${id}/bans`),
+  ban: (id: string, target: string, reason?: string) => post<void>(`/instances/${id}/bans`, { target, reason }),
+  pardon: (id: string, target: string) =>
+    api<void>(`/instances/${id}/bans/${encodeURIComponent(target)}`, { method: "DELETE" }),
   logs: (id: string) => api<LogFile[]>(`/instances/${id}/logs`),
   logTail: (id: string, file: string, tail: number) =>
     api<{ file: string; lines: string[] }>(`/instances/${id}/logs/${encodeURIComponent(file)}?tail=${tail}`),
