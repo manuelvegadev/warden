@@ -11,8 +11,5 @@ pnpm dev                          # http://localhost:3000 → the first register
 
 Check: `curl localhost:3000/api/auth/ok` → `{"ok":true}`; JWKS at `/api/auth/jwks`.
 
-## Deployment with Dokploy
-1. Application → **Dockerfile**, *Build path* `beacon/`.
-2. Volume: `/data` (SQLite).
-3. Env: `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL=https://beacon.example.com`, `WARDEND_URL` (internal), `WARDEND_PANEL_KEY`; build arg `NEXT_PUBLIC_WARDEND_WS_URL=wss://wardend.example.com`.
-4. On wardend: `WARDEND_PANEL_JWKS_URL=https://beacon.example.com/api/auth/jwks`, `WARDEND_PANEL_ISSUER=https://beacon.example.com`, `WARDEND_PANEL_KEY`, `WARDEND_ALLOWED_ORIGINS=https://beacon.example.com`.
+## Deployment
+See [`docs/deploy.md`](../docs/deploy.md) (Dokploy for Beacon, systemd + TLS for wardend) and [`.env.example`](.env.example) for every variable.

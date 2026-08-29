@@ -41,7 +41,7 @@
 
 ## Phase 4 — Operations
 - [x] Backups (save-off/save-all flush/tar.zst with sidecar), restore with pre-restore safety copy, download/delete, in-daemon scheduler with keep/max-size retention
-- [ ] TLS built into the daemon; optional daemon Dockerfile
+- [x] TLS built into the daemon (files / ACME / self-signed), systemd unit + install script, optional daemon Dockerfile, deployment guide (`docs/deploy.md`)
 - [ ] Multi-node in the panel (several daemons)
 - [ ] Other providers: Purpur, Fabric, Vanilla
 

@@ -28,3 +28,6 @@ docs(adr): managed java runtimes (ADR-010)
 - `beacon/`: `pnpm typecheck`, `pnpm lint` (Biome; `pnpm lint:fix` applies safe fixes and formatting)
 - Editors: the root `.editorconfig` mirrors Biome (2 spaces, LF, 120 cols) and gofmt (tabs); install the Biome editor extension for format-on-save
 - Record non-trivial decisions as an ADR in `docs/adr/`.
+
+## Continuous integration
+`.github/workflows/ci.yml` runs on every push to `main` and on pull requests: `make lint test linux` for wardend (gofmt, vet, race tests; the linux/amd64 binary is uploaded as an artifact); Biome and `next build` (which type-checks) for Beacon; and, in parallel, both container images are built (not pushed). Run the same locally before opening a PR: `make lint test` in `wardend/`, `pnpm lint && pnpm build` in `beacon/`.

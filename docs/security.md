@@ -38,7 +38,7 @@ Browser ──WSS + single-use ticket (1st message)─────────�
 3. **WebSocket**: the client requests `POST /api/ws-ticket` from the panel → the panel requests `POST /auth/ws-ticket` from the daemon (with the user's JWT) → the daemon returns a **random, opaque, single-use ticket with a 30 s lifetime**, bound to the user. The browser opens `wss://wardend…/api/v1/ws` and sends `{"type":"auth","ticket":"…"}` as the **first message**. The daemon validates `Origin` against `WARDEND_ALLOWED_ORIGINS`, redeems the ticket (atomic deletion) and closes if there is no auth within 5 s. Reconnection = new ticket.
 4. **Roles**: `admin` (everything) and `operator` (start/stop/commands/players, no deleting instances or managing users). The daemon enforces permissions; the panel only hides buttons.
 5. **Panel ↔ daemon (server to server)**: in addition to the user's JWT, the panel identifies itself with `X-Panel-Key: <shared secret>` (`WARDEND_PANEL_KEY`). Without that header, the daemon rejects `/auth/login` and `/auth/ws-ticket`. This way, even if the daemon is on the Internet, only the panel can start sessions. Optional: **mTLS** between the two if they are on different hosts.
-6. **Transport**: TLS mandatory outside `localhost`. Recommended: daemon on `127.0.0.1:8080` with Dokploy's Traefik (same host) or Caddy as a reverse proxy with HTTPS; alternative: `WARDEND_TLS_CERT/KEY` for native TLS. HSTS.
+6. **Transport**: TLS mandatory outside `localhost`, terminated by wardend itself (`WARDEND_TLS`: `acme` via Let's Encrypt, `files`, or `self-signed` for LANs; TLS 1.2+) because the browser's WebSocket reaches the daemon directly — ADR-011 and `docs/deploy.md`. `off` only behind a reverse proxy on the same box.
 7. **Daemon hardening**:
    - Rate limit on `/auth/login` (5/min per IP) and progressive per-user lockout; audit of logins and of every command sent (`events`).
    - File paths canonicalized and confined to `servers/<id>/server/`; no symlinks outside; size limits on uploads.
@@ -53,7 +53,7 @@ Browser ──WSS + single-use ticket (1st message)─────────�
 - [ ] daemon: `Origin` validation on WS upgrade; close on auth inactivity
 - [ ] panel: `lib/session.ts` with encrypted cookie; route handlers `app/api/[...path]/route.ts` as proxy; `app/api/ws-ticket`
 - [ ] panel: CSP, `next.config` headers
-- [ ] docs: deployment guide with Traefik/Dokploy and variables (`WARDEND_PANEL_KEY`, `WARDEND_ALLOWED_ORIGINS`, `PANEL_SESSION_SECRET`, internal `WARDEND_URL` vs public `NEXT_PUBLIC_WARDEND_WS_URL`)
+- [x] docs: deployment guide (`docs/deploy.md`): Dokploy for Beacon, systemd + native TLS for wardend, variables on both sides
 
 ## 7. Update (ADR-009)
 **Better Auth** is adopted in the panel: identity moves to the panel (SQLite/Postgres), the daemon verifies JWTs **offline via JWKS** (`/api/auth/jwks`) with `aud="wardend"`, and the WS uses the short-lived JWT from `/api/auth/token` as the first message instead of the opaque ticket. Everything else in §5 (BFF, `HttpOnly` cookie, `X-Panel-Key`, `Origin`, TLS, hardening) remains in force.
