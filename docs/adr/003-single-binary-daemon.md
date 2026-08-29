@@ -8,7 +8,7 @@ Pterodactyl separates panel and daemon and puts each server in Docker (multi-nod
 ## Decision
 - **A single `wardend` binary** containing: instance supervisor, API, WebSocket and UI.
 - Each instance is a directory (`/var/lib/warden/servers/<id>/`) with an `instance.json` (jar, version, JVM flags, memory, port, autostart), and the `java` process is launched with `os/exec` as a child process of the daemon.
-- No Docker. Isolation comes from running the daemon as a dedicated user (`minecraft`) and, in the future, cgroups v2 per instance for CPU/RAM limits.
+- No Docker. Isolation comes from running the daemon as a dedicated user (`warden`) and, in the future, cgroups v2 per instance for CPU/RAM limits.
 - Panel persistence in **SQLite** (users, sessions, metrics history, player events).
 - Installation: `systemd` unit `warden.service`.
 

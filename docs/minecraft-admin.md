@@ -11,7 +11,7 @@ A collection of official and community documentation relevant to the panel.
 ## Requirements
 - Paper 1.20.5+ requires **Java 21**; 1.17–1.20.4 Java 17; ≤1.16 Java 8/11. Recommended: Temurin/Adoptium (`apt install temurin-21-jre` from the Adoptium repo) or Ubuntu's `openjdk-21-jre-headless`.
 - RAM: `Xmx` = available physical RAM − 1–1.5 GB (the JVM uses memory outside the heap). `Xms` = `Xmx` with Aikar.
-- Dedicated user without a shell (`minecraft`), never root.
+- Dedicated user without a shell (`warden`), never root.
 
 ## Startup command (Paper + Aikar's flags)
 ```

@@ -4,8 +4,8 @@ After=network-online.target
 Wants=network-online.target
 
 [Service]
-User=minecraft
-Group=minecraft
+User=warden
+Group=warden
 ExecStart=/usr/local/bin/wardend
 Environment=WARDEND_LISTEN=127.0.0.1:8080
 Environment=WARDEND_DATA_DIR=/var/lib/warden

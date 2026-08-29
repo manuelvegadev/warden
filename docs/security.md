@@ -43,7 +43,7 @@ Browser ──WSS + single-use ticket (1st message)─────────�
    - Rate limit on `/auth/login` (5/min per IP) and progressive per-user lockout; audit of logins and of every command sent (`events`).
    - File paths canonicalized and confined to `servers/<id>/server/`; no symlinks outside; size limits on uploads.
    - External downloads: HTTPS only, allowed hosts (`fill-data.papermc.io`, `hangarcdn.papermc.io`, `cdn.modrinth.com`, `github.com` for `externalUrl`), hash verification, timeouts.
-   - `minecraft` user without a shell, `systemd` with `NoNewPrivileges`, `ProtectSystem`, `ReadWritePaths`.
+   - `warden` user without a shell, `systemd` with `NoNewPrivileges`, `ProtectSystem`, `ReadWritePaths`.
    - Headers: `X-Content-Type-Options`, `Referrer-Policy`, strict CSP on the panel.
    - Secrets never in an `instance.json` readable by others: `rcon.password` is generated per instance and RCON listens only on `127.0.0.1`.
 8. **API tokens** (for scripts/CI): `Authorization: Bearer wd_<random>` created in Settings, with `aud: "api"`, revocable, hashed in DB.

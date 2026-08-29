@@ -54,4 +54,4 @@ docs/                   research, ADRs, API
 - JWT signed with a secret generated on first startup (`<data>/secret.key`), 12 h expiry, refresh by re-login.
 - File paths always resolved and checked to be inside `servers/<id>/server/` (anti path-traversal).
 - Rate limit on `/auth/login`.
-- The daemon runs as the `minecraft` user; the panel has no access to anything on the host.
+- The daemon runs as the `warden` user; the panel has no access to anything on the host.
