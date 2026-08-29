@@ -1,12 +1,12 @@
 "use client";
 
+import { Input } from "@warden/ui/components/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@warden/ui/components/select";
+import { Switch } from "@warden/ui/components/switch";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { SaveBar, SectionCard, SettingRow } from "@/components/instance/section-card";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { useDraft } from "@/hooks/use-draft";
 import { instances, type JavaRuntime, java, type Manifest } from "@/lib/api";
 import { mono } from "@/lib/utils";

@@ -1,5 +1,18 @@
 "use client";
 
+import { Badge } from "@warden/ui/components/badge";
+import { Button } from "@warden/ui/components/button";
+import { Checkbox } from "@warden/ui/components/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@warden/ui/components/dialog";
+import { Input } from "@warden/ui/components/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@warden/ui/components/select";
 import { Download, ExternalLink, Search, X } from "lucide-react";
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -11,19 +24,6 @@ import {
 } from "@/components/instance/plugin-details-dialog";
 import { PluginIcon } from "@/components/instance/plugin-icon";
 import { CATALOG_SOURCES, PluginSourceBadge } from "@/components/instance/plugin-source-badge";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { compactNum, type PluginHit, type PluginVersion, plugins } from "@/lib/api";
 import { mono } from "@/lib/utils";
 

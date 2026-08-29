@@ -1,4 +1,4 @@
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent } from "@warden/ui/components/card";
 import { mono } from "@/lib/utils";
 
 /**

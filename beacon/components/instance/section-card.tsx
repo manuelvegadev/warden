@@ -1,13 +1,13 @@
 "use client";
 
+import { Badge } from "@warden/ui/components/badge";
+import { Button } from "@warden/ui/components/button";
+import { Card, CardContent } from "@warden/ui/components/card";
+import { Label } from "@warden/ui/components/label";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@warden/ui/components/tooltip";
 import { Check, ChevronDown, Copy } from "lucide-react";
 import { useId, useState } from "react";
 import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 /**
  * Titled card with divided rows — the shared "settings list" chrome used by the Properties and

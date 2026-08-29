@@ -1,4 +1,5 @@
-import { type badgeTone, formatDate } from "@/lib/utils";
+import type { badgeTone } from "@warden/ui/lib/badge-tone";
+import { formatDate } from "@/lib/utils";
 
 // Browser-side client. Everything goes through the BFF /api/wardend (ADR-008): no tokens in JS, no CORS.
 

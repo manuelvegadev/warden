@@ -1,11 +1,11 @@
 "use client";
 
+import { Badge } from "@warden/ui/components/badge";
+import { Button } from "@warden/ui/components/button";
+import { Progress } from "@warden/ui/components/progress";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@warden/ui/components/table";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useWardendSocket, type WsMessage } from "@/hooks/use-wardend-socket";
 import { formatBytes, type JavaRelease, type JavaRuntime, java, type Task } from "@/lib/api";
 

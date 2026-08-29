@@ -1,16 +1,17 @@
 "use client";
 
+import { Button } from "@warden/ui/components/button";
+import { Input } from "@warden/ui/components/input";
+import { cn } from "@warden/ui/lib/utils";
 import { FileText, Search } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { languageFor } from "@/components/instance/code-editor";
 import { SaveBar } from "@/components/instance/section-card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { useTextDraft } from "@/hooks/use-text-draft";
 import { type ConfigFile, files, formatBytes } from "@/lib/api";
-import { cn, mono } from "@/lib/utils";
+import { mono } from "@/lib/utils";
 
 // CodeMirror is heavy; load it with the section, not with the app shell.
 const CodeEditor = dynamic(() => import("./code-editor").then((m) => m.CodeEditor), {

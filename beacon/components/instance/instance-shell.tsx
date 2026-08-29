@@ -1,5 +1,7 @@
 "use client";
 
+import { Alert, AlertDescription, AlertTitle } from "@warden/ui/components/alert";
+import { Button } from "@warden/ui/components/button";
 import { useRouter } from "next/navigation";
 import { useCallback } from "react";
 import { Controls } from "@/components/instance/controls";
@@ -8,8 +10,6 @@ import { ResourceCards } from "@/components/instance/resource-cards";
 import { InstanceSidebar } from "@/components/instance/sidebar";
 import { TaskBanner } from "@/components/instance/task-banner";
 import { StateBadge } from "@/components/state-badge";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
 
 /**
  * Instance page chrome: a header (name, controls, stat tiles) and below it the section content next

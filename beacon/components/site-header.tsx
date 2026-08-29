@@ -1,10 +1,5 @@
 "use client";
 
-import Link from "next/link";
-import { useParams, usePathname } from "next/navigation";
-import { Fragment } from "react";
-import { sectionBySlug } from "@/components/instance/sections";
-import { useInstances } from "@/components/instances-store";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -12,9 +7,14 @@ import {
   BreadcrumbList,
   BreadcrumbPage,
   BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb";
-import { Separator } from "@/components/ui/separator";
-import { SidebarTrigger } from "@/components/ui/sidebar";
+} from "@warden/ui/components/breadcrumb";
+import { Separator } from "@warden/ui/components/separator";
+import { SidebarTrigger } from "@warden/ui/components/sidebar";
+import Link from "next/link";
+import { useParams, usePathname } from "next/navigation";
+import { Fragment } from "react";
+import { sectionBySlug } from "@/components/instance/sections";
+import { useInstances } from "@/components/instances-store";
 import { HOME } from "@/lib/instance-routes";
 
 const PAGES: Record<string, string> = {

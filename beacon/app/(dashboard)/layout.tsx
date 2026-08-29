@@ -1,10 +1,10 @@
+import { SidebarInset, SidebarProvider } from "@warden/ui/components/sidebar";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { AppSidebar } from "@/components/app-sidebar";
 import { CreateInstanceDialog } from "@/components/create-instance-dialog";
 import { InstancesProvider } from "@/components/instances-store";
 import { SiteHeader } from "@/components/site-header";
-import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { WardendConfigProvider } from "@/components/wardend-config";
 import type { InstanceSummary } from "@/lib/api";
 import { getSession } from "@/lib/session";

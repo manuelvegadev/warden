@@ -1,9 +1,9 @@
 "use client";
 
+import { Button } from "@warden/ui/components/button";
 import { useCallback } from "react";
 import { CodeEditor } from "@/components/instance/code-editor";
 import { SaveBar } from "@/components/instance/section-card";
-import { Button } from "@/components/ui/button";
 import { useTextDraft } from "@/hooks/use-text-draft";
 import { instances } from "@/lib/api";
 

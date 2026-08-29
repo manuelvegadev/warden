@@ -1,6 +1,6 @@
+import { Toaster } from "@warden/ui/components/sonner";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Google_Sans_Code } from "next/font/google";
-import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });

@@ -1,12 +1,12 @@
 "use client";
 
+import { Button } from "@warden/ui/components/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@warden/ui/components/card";
+import { Input } from "@warden/ui/components/input";
+import { Label } from "@warden/ui/components/label";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useState } from "react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { signIn, signUp } from "@/lib/auth-client";
 
 export function LoginForm({ next = "/" }: { next?: string }) {

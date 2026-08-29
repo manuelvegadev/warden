@@ -1,12 +1,7 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { type FormEvent, useEffect, useMemo, useState } from "react";
-import { toast } from "sonner";
-import { SectionCard, SettingRow } from "@/components/instance/section-card";
-import { useInstances } from "@/components/instances-store";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Button } from "@warden/ui/components/button";
+import { Checkbox } from "@warden/ui/components/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -14,10 +9,15 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+} from "@warden/ui/components/dialog";
+import { Input } from "@warden/ui/components/input";
+import { Label } from "@warden/ui/components/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@warden/ui/components/select";
+import { useRouter } from "next/navigation";
+import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
+import { SectionCard, SettingRow } from "@/components/instance/section-card";
+import { useInstances } from "@/components/instances-store";
 import {
   type Build,
   catalog,

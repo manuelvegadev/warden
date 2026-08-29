@@ -1,14 +1,14 @@
 "use client";
 
+import { Button } from "@warden/ui/components/button";
+import { Input } from "@warden/ui/components/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@warden/ui/components/select";
+import { Switch } from "@warden/ui/components/switch";
 import { FileCode2, ListChecks } from "lucide-react";
 import dynamic from "next/dynamic";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { CopyButton, SaveBar, SectionCard, SettingRow } from "@/components/instance/section-card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { instances, type ServerProperty } from "@/lib/api";
 import { mono } from "@/lib/utils";
 

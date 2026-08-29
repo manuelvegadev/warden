@@ -1,6 +1,6 @@
-import { Badge } from "@/components/ui/badge";
+import { Badge } from "@warden/ui/components/badge";
+import { badgeTone } from "@warden/ui/lib/badge-tone";
 import { SOFTWARE, softwareName } from "@/lib/api";
-import { badgeTone } from "@/lib/utils";
 
 /** Colored badge naming the server software (Paper, Purpur, Fabric, Vanilla). */
 export function SoftwareBadge({ software, className = "" }: { software: string; className?: string }) {

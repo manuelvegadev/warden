@@ -1,12 +1,6 @@
 "use client";
 
-import { Coffee, House, KeyRound, LogOut, Server, UserRound } from "lucide-react";
-import Link from "next/link";
-import { useParams, usePathname, useRouter } from "next/navigation";
-import { sectionsFor } from "@/components/instance/sections";
-import { InstanceSwitcher } from "@/components/instance-switcher";
-import { useInstances } from "@/components/instances-store";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@warden/ui/components/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,7 +9,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from "@warden/ui/components/dropdown-menu";
 import {
   Sidebar,
   SidebarContent,
@@ -27,7 +21,13 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-} from "@/components/ui/sidebar";
+} from "@warden/ui/components/sidebar";
+import { Coffee, House, KeyRound, LogOut, Server, UserRound } from "lucide-react";
+import Link from "next/link";
+import { useParams, usePathname, useRouter } from "next/navigation";
+import { sectionsFor } from "@/components/instance/sections";
+import { InstanceSwitcher } from "@/components/instance-switcher";
+import { useInstances } from "@/components/instances-store";
 import { DEFAULT_SOFTWARE } from "@/lib/api";
 import { signOut } from "@/lib/auth-client";
 import { HOME, instanceHref } from "@/lib/instance-routes";

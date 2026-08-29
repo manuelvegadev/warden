@@ -1,12 +1,7 @@
 "use client";
 
-import { Award, Ban, Crown, MessageSquare, UserX } from "lucide-react";
-import dynamic from "next/dynamic";
-import { type FormEvent, useEffect, useState } from "react";
-import { toast } from "sonner";
-import { PlayerFace } from "@/components/instance/player-face";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Badge } from "@warden/ui/components/badge";
+import { Button } from "@warden/ui/components/button";
 import {
   Dialog,
   DialogContent,
@@ -14,10 +9,16 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+} from "@warden/ui/components/dialog";
+import { Input } from "@warden/ui/components/input";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@warden/ui/components/sheet";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@warden/ui/components/tabs";
+import { badgeTone } from "@warden/ui/lib/badge-tone";
+import { Award, Ban, Crown, MessageSquare, UserX } from "lucide-react";
+import dynamic from "next/dynamic";
+import { type FormEvent, useEffect, useState } from "react";
+import { toast } from "sonner";
+import { PlayerFace } from "@/components/instance/player-face";
 import { useAction } from "@/hooks/use-action";
 import {
   type Advancement,
@@ -30,7 +31,7 @@ import {
   skins,
   type TopCategory,
 } from "@/lib/api";
-import { badgeTone, formatDateTime, formatDuration, mono } from "@/lib/utils";
+import { formatDateTime, formatDuration, mono } from "@/lib/utils";
 
 // three.js is heavy; load the 3D viewer only when a player card opens.
 const SkinViewer3D = dynamic(() => import("./skin-viewer").then((m) => m.SkinViewer3D), { ssr: false });

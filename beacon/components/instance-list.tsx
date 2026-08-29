@@ -1,10 +1,10 @@
 "use client";
 
+import { Card, CardContent } from "@warden/ui/components/card";
 import Link from "next/link";
 import { useInstances } from "@/components/instances-store";
 import { SoftwareBadge } from "@/components/software-badge";
 import { StateBadge } from "@/components/state-badge";
-import { Card, CardContent } from "@/components/ui/card";
 import { hasBuilds } from "@/lib/api";
 import { instanceHref } from "@/lib/instance-routes";
 import { mono } from "@/lib/utils";

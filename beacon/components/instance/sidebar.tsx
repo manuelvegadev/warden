@@ -1,8 +1,8 @@
 "use client";
 
+import { Card, CardContent } from "@warden/ui/components/card";
 import { Clock, Coffee, Cpu, HardDrive, Hash, MemoryStick, Network, Package, Users } from "lucide-react";
 import { StateBadge } from "@/components/state-badge";
-import { Card, CardContent } from "@/components/ui/card";
 import { useUptime } from "@/hooks/use-uptime";
 import {
   formatBytes,

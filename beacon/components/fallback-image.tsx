@@ -1,8 +1,8 @@
 "use client";
 
+import { cn } from "@warden/ui/lib/utils";
 import type { LucideIcon } from "lucide-react";
 import { useState } from "react";
-import { cn } from "@/lib/utils";
 
 /** Square image with an icon placeholder when there is no source or it fails to load. */
 export function FallbackImage({

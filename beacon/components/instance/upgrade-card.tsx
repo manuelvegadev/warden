@@ -1,13 +1,14 @@
 "use client";
 
+import { Badge } from "@warden/ui/components/badge";
+import { Button } from "@warden/ui/components/button";
+import { badgeTone } from "@warden/ui/lib/badge-tone";
 import { ArrowRight, ArrowUpCircle, History, RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { SectionCard } from "@/components/instance/section-card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
   hasBuilds,
   type InstanceState,
@@ -20,7 +21,7 @@ import {
   type UpgradeCheck,
   type UpgradeTarget,
 } from "@/lib/api";
-import { badgeTone, formatDate, formatDateTime, mono } from "@/lib/utils";
+import { formatDate, formatDateTime, mono } from "@/lib/utils";
 
 /**
  * Server software card: current build, newer build / newer Minecraft version from the

@@ -1,8 +1,6 @@
 "use client";
 
-import { type FormEvent, type KeyboardEvent, useEffect, useRef, useState } from "react";
-import { Logs } from "@/components/instance/logs";
-import { Button } from "@/components/ui/button";
+import { Button } from "@warden/ui/components/button";
 import {
   Dialog,
   DialogContent,
@@ -10,8 +8,10 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
+} from "@warden/ui/components/dialog";
+import { Input } from "@warden/ui/components/input";
+import { type FormEvent, type KeyboardEvent, useEffect, useRef, useState } from "react";
+import { Logs } from "@/components/instance/logs";
 import type { ConsoleLine } from "@/lib/api";
 import { mono } from "@/lib/utils";
 import "@xterm/xterm/css/xterm.css";

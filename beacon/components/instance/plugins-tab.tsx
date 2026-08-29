@@ -1,5 +1,10 @@
 "use client";
 
+import { Badge } from "@warden/ui/components/badge";
+import { Button } from "@warden/ui/components/button";
+import { DropdownMenuGroup, DropdownMenuItem, DropdownMenuSeparator } from "@warden/ui/components/dropdown-menu";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@warden/ui/components/table";
+import { badgeTone } from "@warden/ui/lib/badge-tone";
 import { ArrowUpCircle, Power, Trash2, Upload } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -10,14 +15,10 @@ import { PluginSourceBadge } from "@/components/instance/plugin-source-badge";
 import { InstallPluginsDialog } from "@/components/instance/plugins-install-dialog";
 import { RowActions } from "@/components/instance/row-actions";
 import { SectionCard } from "@/components/instance/section-card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { DropdownMenuGroup, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useAction } from "@/hooks/use-action";
 import { useFileDrag } from "@/hooks/use-file-drag";
 import { formatBytes, type PluginFile, type PluginUpdate, plugins, type Task } from "@/lib/api";
-import { badgeTone, formatDate, mono } from "@/lib/utils";
+import { formatDate, mono } from "@/lib/utils";
 
 const isPluginUpload = (f: File) => /\.(jar|zip)$/i.test(f.name);
 

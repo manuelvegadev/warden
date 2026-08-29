@@ -1,8 +1,6 @@
 "use client";
 
-import { Area, AreaChart, CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
-import { SERIES_1, SERIES_2 } from "@/components/instance/sparkline";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@warden/ui/components/card";
 import {
   type ChartConfig,
   ChartContainer,
@@ -10,7 +8,9 @@ import {
   ChartLegendContent,
   ChartTooltip,
   ChartTooltipContent,
-} from "@/components/ui/chart";
+} from "@warden/ui/components/chart";
+import { Area, AreaChart, CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
+import { SERIES_1, SERIES_2 } from "@/components/instance/sparkline";
 import type { MetricPoint } from "@/hooks/use-metrics-history";
 import { formatBytes } from "@/lib/api";
 

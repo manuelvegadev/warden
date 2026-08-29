@@ -1,11 +1,11 @@
 "use client";
 
+import { Button } from "@warden/ui/components/button";
 import { Activity, Clock, Cpu, HardDrive, MemoryStick, Monitor, Server, Users } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { InstanceList } from "@/components/instance-list";
 import { useInstances } from "@/components/instances-store";
 import { StatTile } from "@/components/stat-tile";
-import { Button } from "@/components/ui/button";
 import { Uptime } from "@/hooks/use-uptime";
 import { useWardendSocket, type WsMessage } from "@/hooks/use-wardend-socket";
 import { formatBytes, type InstanceStatus, type SystemInfo, system } from "@/lib/api";

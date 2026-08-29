@@ -1,5 +1,8 @@
 "use client";
 
+import { Badge } from "@warden/ui/components/badge";
+import { Button } from "@warden/ui/components/button";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@warden/ui/components/dialog";
 import { Code2, Download, ExternalLink } from "lucide-react";
 import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
@@ -9,9 +12,6 @@ import remarkGfm from "remark-gfm";
 import { toast } from "sonner";
 import { PluginIcon } from "@/components/instance/plugin-icon";
 import { PluginSourceBadge, sourceLabel } from "@/components/instance/plugin-source-badge";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { compactNum, type PluginHit, plugins } from "@/lib/api";
 
 /** Identifies a catalog project; `null` closes the details dialog. */

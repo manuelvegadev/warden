@@ -1,11 +1,11 @@
 "use client";
 
+import { Alert, AlertDescription, AlertTitle } from "@warden/ui/components/alert";
+import { Button } from "@warden/ui/components/button";
+import { Progress } from "@warden/ui/components/progress";
 import { CheckCircle2, CircleAlert, Loader2 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
 import { type Task, taskLabel } from "@/lib/api";
 
 const LINGER_MS = 5000;

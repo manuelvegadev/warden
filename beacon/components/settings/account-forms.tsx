@@ -1,12 +1,12 @@
 "use client";
 
+import { Button } from "@warden/ui/components/button";
+import { Input } from "@warden/ui/components/input";
+import { Label } from "@warden/ui/components/label";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useState } from "react";
 import { toast } from "sonner";
 import { SectionCard } from "@/components/instance/section-card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth-client";
 
 export function AccountForms({ name, email }: { name: string; email: string }) {

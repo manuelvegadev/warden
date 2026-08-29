@@ -1,15 +1,15 @@
 "use client";
 
-import { useState } from "react";
-import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
+import { Button } from "@warden/ui/components/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from "@warden/ui/components/dropdown-menu";
+import { useState } from "react";
+import { toast } from "sonner";
 import { type InstanceState, instances } from "@/lib/api";
 
 export function Controls({ id, state, onDeleted }: { id: string; state: InstanceState; onDeleted: () => void }) {

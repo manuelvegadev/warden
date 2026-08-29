@@ -1,14 +1,15 @@
 "use client";
 
+import { Badge } from "@warden/ui/components/badge";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@warden/ui/components/table";
+import { badgeTone } from "@warden/ui/lib/badge-tone";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { PlayerFace } from "@/components/instance/player-face";
 import { PlayerSheet } from "@/components/instance/player-sheet";
 import { SectionCard } from "@/components/instance/section-card";
-import { Badge } from "@/components/ui/badge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { instances, type Player, type ServerEvent } from "@/lib/api";
-import { badgeTone, formatDateTime, formatDuration } from "@/lib/utils";
+import { formatDateTime, formatDuration } from "@/lib/utils";
 
 /** Player history from the daemon store; `online` comes from the live status so it refreshes on join/leave. */
 export function PlayersTab({ id, online, isAdmin }: { id: string; online: string[]; isAdmin: boolean }) {

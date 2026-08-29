@@ -1,5 +1,6 @@
-import { Badge } from "@/components/ui/badge";
-import { badgeTone, cn } from "@/lib/utils";
+import { Badge } from "@warden/ui/components/badge";
+import { badgeTone } from "@warden/ui/lib/badge-tone";
+import { cn } from "@warden/ui/lib/utils";
 
 /** Where a jar came from: display label and badge colour. Single place to extend when a source is added. */
 export const PLUGIN_SOURCES: Record<string, { label: string; className: string }> = {

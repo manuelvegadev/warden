@@ -1,10 +1,5 @@
 "use client";
 
-import { Check, ChevronsUpDown, Plus, Server } from "lucide-react";
-import Link from "next/link";
-import { useState } from "react";
-import { useInstances } from "@/components/instances-store";
-import { StateBadge } from "@/components/state-badge";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,8 +8,13 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
+} from "@warden/ui/components/dropdown-menu";
+import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@warden/ui/components/sidebar";
+import { Check, ChevronsUpDown, Plus, Server } from "lucide-react";
+import Link from "next/link";
+import { useState } from "react";
+import { useInstances } from "@/components/instances-store";
+import { StateBadge } from "@/components/state-badge";
 import { softwareLabel } from "@/lib/api";
 import { instanceHref } from "@/lib/instance-routes";
 
