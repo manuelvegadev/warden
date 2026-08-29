@@ -9,25 +9,55 @@ import (
 	"regexp"
 	"sort"
 	"sync"
+	"time"
+
+	"github.com/manuelvega/warden/wardend/internal/bus"
 )
 
 var idRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{1,31}$`)
 
 var ErrNotFound = errors.New("instance not found")
 var ErrInvalidID = errors.New("invalid instance id")
+var ErrExists = errors.New("instance id already exists")
+var ErrPortInUse = errors.New("port already used by another instance")
 
 // Manager knows every instance under serversDir.
 type Manager struct {
 	root string
+	bc   bus.Broadcaster
+	java JavaResolver
 	mu   sync.RWMutex
 	byID map[string]*Instance
 }
 
-func NewManager(serversDir string) *Manager {
-	return &Manager{root: serversDir, byID: map[string]*Instance{}}
+func NewManager(serversDir string, bc bus.Broadcaster) *Manager {
+	if bc == nil {
+		bc = bus.Nop{}
+	}
+	return &Manager{root: serversDir, bc: bc, byID: map[string]*Instance{}}
 }
 
-// LoadAll reads every <root>/<id>/instance.json.
+// SetJavaResolver wires the Java runtime manager.
+func (m *Manager) SetJavaResolver(r JavaResolver) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.java = r
+	for _, i := range m.byID {
+		i.java = r
+	}
+}
+
+// SetBroadcaster wires the WebSocket hub after construction (hub needs the manager too).
+func (m *Manager) SetBroadcaster(bc bus.Broadcaster) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.bc = bc
+	for _, i := range m.byID {
+		i.bc = bc
+	}
+}
+
+// LoadAll reads each <root>/<id>/instance.json.
 func (m *Manager) LoadAll() error {
 	entries, err := os.ReadDir(m.root)
 	if err != nil {
@@ -45,7 +75,12 @@ func (m *Manager) LoadAll() error {
 			slog.Warn("skipping instance dir", "dir", dir, "err", err)
 			continue
 		}
-		m.byID[man.ID] = &Instance{Dir: dir, Manifest: man, state: StateStopped}
+		inst := newInstance(dir, man, m.bc)
+		inst.java = m.java
+		if man.Jar == "" {
+			inst.state = StateInstalling // install never finished; UI can retry
+		}
+		m.byID[man.ID] = inst
 		slog.Info("loaded instance", "id", man.ID, "mc", man.MCVersion)
 	}
 	return nil
@@ -72,7 +107,7 @@ func (m *Manager) List() []*Instance {
 	return out
 }
 
-// Create writes the manifest and the directory tree. Downloading the jar is a separate task (tasks).
+// Create validates the manifest and writes the directory tree. Downloading the jar is a task (Install).
 func (m *Manager) Create(man *Manifest) (*Instance, error) {
 	if !idRe.MatchString(man.ID) {
 		return nil, ErrInvalidID
@@ -80,7 +115,12 @@ func (m *Manager) Create(man *Manifest) (*Instance, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if _, exists := m.byID[man.ID]; exists {
-		return nil, errors.New("instance id already exists")
+		return nil, ErrExists
+	}
+	for _, other := range m.byID {
+		if other.Manifest.Port == man.Port || other.Manifest.RconPort == man.Port {
+			return nil, ErrPortInUse
+		}
 	}
 	dir := filepath.Join(m.root, man.ID)
 	for _, sub := range []string{"server", "server/plugins", "backups"} {
@@ -88,17 +128,46 @@ func (m *Manager) Create(man *Manifest) (*Instance, error) {
 			return nil, err
 		}
 	}
+	if man.CreatedAt.IsZero() {
+		man.CreatedAt = time.Now().UTC()
+	}
 	if err := man.save(dir); err != nil {
 		return nil, err
 	}
-	inst := &Instance{Dir: dir, Manifest: man, state: StateInstalling}
+	inst := newInstance(dir, man, m.bc)
+	inst.java = m.java
+	inst.state = StateInstalling
 	m.byID[man.ID] = inst
 	return inst, nil
 }
 
+// Delete stops the instance and moves its directory to <data>/trash/<id>-<ts> (or removes it when purge).
+func (m *Manager) Delete(ctx context.Context, id string, purge bool) error {
+	inst, err := m.Get(id)
+	if err != nil {
+		return err
+	}
+	if inst.State() != StateStopped && inst.State() != StateCrashed && inst.State() != StateInstalling {
+		if err := inst.Stop(ctx); err != nil && !errors.Is(err, ErrNotRunning) {
+			return err
+		}
+	}
+	m.mu.Lock()
+	delete(m.byID, id)
+	m.mu.Unlock()
+	if purge {
+		return os.RemoveAll(inst.Dir)
+	}
+	trash := filepath.Join(filepath.Dir(m.root), "trash")
+	if err := os.MkdirAll(trash, 0o750); err != nil {
+		return err
+	}
+	return os.Rename(inst.Dir, filepath.Join(trash, id+"-"+time.Now().UTC().Format("20060102-150405")))
+}
+
 func (m *Manager) AutostartAll(ctx context.Context) {
 	for _, i := range m.List() {
-		if i.Manifest.Autostart {
+		if i.Manifest.Autostart && i.State() == StateStopped {
 			if err := i.Start(ctx); err != nil {
 				slog.Warn("autostart failed", "id", i.Manifest.ID, "err", err)
 			}
@@ -109,7 +178,9 @@ func (m *Manager) AutostartAll(ctx context.Context) {
 func (m *Manager) StopAll(ctx context.Context) {
 	var wg sync.WaitGroup
 	for _, i := range m.List() {
-		if i.State() != StateRunning {
+		switch i.State() {
+		case StateRunning, StateStarting:
+		default:
 			continue
 		}
 		wg.Add(1)

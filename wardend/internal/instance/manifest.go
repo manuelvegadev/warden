@@ -14,8 +14,9 @@ type Manifest struct {
 	Software      string            `json:"software"`  // "paper"
 	MCVersion     string            `json:"mcVersion"` // "1.21.8"
 	Build         int               `json:"build"`
-	Jar           string            `json:"jar"` // jar file name inside server/
-	JavaPath      string            `json:"javaPath,omitempty"`
+	Jar           string            `json:"jar"`                   // jar file name inside server/
+	JavaRuntime   string            `json:"javaRuntime,omitempty"` // managed runtime id (e.g. "temurin-25"); "" = auto
+	JavaPath      string            `json:"javaPath,omitempty"`    // explicit binary; overrides JavaRuntime
 	MemoryMB      int               `json:"memoryMb"`
 	JVMPreset     string            `json:"jvmFlagsPreset"` // aikar|basic|custom
 	JVMFlags      []string          `json:"jvmFlags,omitempty"`
