@@ -1,0 +1,19 @@
+# Build context is the repository root (beacon/Dockerfile depends on packages/ui). Keep host
+# artefacts and secrets out of the image; the stages install and build from scratch.
+**/node_modules
+**/.next
+**/dist
+**/.astro
+**/data
+**/.env
+**/.env.*
+!**/.env.example
+.git
+.github
+.idea
+.claude
+docs
+landing
+wardend
+deploy
+**/*.md

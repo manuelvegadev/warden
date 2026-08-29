@@ -32,4 +32,9 @@ COPY --from=build --chown=beacon:beacon /repo/beacon/public ./beacon/public
 USER beacon
 VOLUME ["/data"]
 EXPOSE 3000
+# /api/auth/ok answers once the schema is migrated and Better Auth is up (instrumentation.ts).
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD ["node", "-e", "fetch('http://127.0.0.1:3000/api/auth/ok').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+# Run with an init process (compose `init: true` / `docker run --init`): node as PID 1 does not
+# reap children or forward SIGTERM by itself, so stops would wait for the 10 s kill.
 CMD ["node", "beacon/server.js"]

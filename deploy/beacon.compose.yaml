@@ -8,21 +8,47 @@
 #
 # Every variable is documented in beacon.env.example (docs/deploy.md §2). Put the panel behind an
 # HTTPS reverse proxy (Caddy, Traefik, Dokploy) and set BETTER_AUTH_URL to that public URL.
+# Upgrade: `BEACON_TAG=0.3 docker compose -f beacon.compose.yaml pull && … up -d`.
 name: warden
 
 services:
   beacon:
-    image: ghcr.io/manuelvegadev/warden-beacon:latest
+    # Pin a release line (0.2, 0.2.0) rather than `latest` for predictable upgrades.
+    image: ghcr.io/manuelvegadev/warden-beacon:${BEACON_TAG:-latest}
     container_name: warden-beacon
     restart: unless-stopped
+    # Tiny init as PID 1: reaps children and forwards SIGTERM so `docker stop` is immediate.
+    init: true
+    stop_grace_period: 15s
     ports:
+      # Bind to localhost when a reverse proxy on this host terminates HTTPS: "127.0.0.1:3000:3000".
       - "3000:3000"
     env_file: beacon.env
     volumes:
-      - beacon-data:/data
+      - beacon-data:/data # SQLite (users, sessions, JWKS keys); back it up with the daemon's data
       # Only when wardend uses WARDEND_TLS=self-signed: copy its certificate here and set
       # NODE_EXTRA_CA_CERTS=/certs/wardend.crt in beacon.env.
       #- ./wardend.crt:/certs/wardend.crt:ro
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/auth/ok').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # Uncomment to cap the panel on small hosts (Next.js + SQLite idle around 150 MB).
+    #deploy:
+    #  resources:
+    #    limits:
+    #      memory: 512m
 
 volumes:
   beacon-data:

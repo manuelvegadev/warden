@@ -83,6 +83,8 @@ docker compose -f beacon.compose.yaml up -d
 
 Then in wardend's env set `WARDEND_PANEL_ISSUER` to Beacon's URL and the same panel key, and restart wardend. Put the panel behind an HTTPS reverse proxy and use that URL as `BETTER_AUTH_URL`.
 
+What the compose file does for you: pins the image line with `BEACON_TAG` (default `latest`; set `0.2` for predictable upgrades), runs an init process as PID 1 so `docker stop` is immediate, health-checks `/api/auth/ok`, drops all capabilities and `no-new-privileges`, caps log files, and keeps SQLite in the `beacon-data` volume (include it in backups). The image itself is built from the repo root with a root `.dockerignore`, runs as the unprivileged `beacon` user and declares the same `HEALTHCHECK`.
+
 ### 2c. On Dokploy
 
 1. Create an application from the image `ghcr.io/manuelvegadev/warden-beacon:latest` (or Dockerfile build type with build path `.` and Dockerfile `beacon/Dockerfile` — the panel depends on `packages/ui`, ADR-014).

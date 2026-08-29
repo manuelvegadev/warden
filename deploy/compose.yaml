@@ -38,6 +38,7 @@ services:
       context: ..            # workspace root: the panel depends on packages/ui
       dockerfile: beacon/Dockerfile
     restart: unless-stopped
+    init: true
     depends_on: [wardend]
     ports:
       - "3000:3000"
