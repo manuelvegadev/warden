@@ -29,14 +29,11 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useFileDrag } from "@/hooks/use-file-drag";
 import { formatBytes, type PluginFile, type PluginUpdate, plugins, type Task } from "@/lib/api";
-import { badgeTone, mono } from "@/lib/utils";
+import { badgeTone, formatDate, mono } from "@/lib/utils";
 
 const isPluginUpload = (f: File) => /\.(jar|zip)$/i.test(f.name);
 
-const installedOn = (iso?: string) =>
-  iso && !iso.startsWith("0001")
-    ? new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })
-    : "—";
+const installedOn = (iso?: string) => (iso && !iso.startsWith("0001") ? formatDate(iso) : "—");
 
 /** Installed plugins table with per-row actions, upload, and the catalog installer. */
 export function PluginsTab({

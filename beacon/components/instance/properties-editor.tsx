@@ -1,13 +1,12 @@
 "use client";
 
-import { Check, Copy, FileCode2, ListChecks } from "lucide-react";
+import { FileCode2, ListChecks } from "lucide-react";
 import dynamic from "next/dynamic";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { SectionCard } from "@/components/instance/section-card";
+import { CopyButton, SaveBar, SectionCard, SettingRow } from "@/components/instance/section-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { instances, type ServerProperty } from "@/lib/api";
@@ -140,16 +139,13 @@ export function PropertiesEditor({ id, running }: { id: string; running: boolean
               ))}
             </div>
           )}
-          <div className="sticky bottom-0 flex items-center justify-end gap-3 border-t bg-background/95 px-4 py-3 backdrop-blur">
-            {dirty && (
-              <Button variant="ghost" onClick={() => setDraft({})}>
-                Discard
-              </Button>
-            )}
-            <Button onClick={save} disabled={!dirty || pending}>
-              {pending ? "Saving…" : `Save ${dirty ? `(${Object.keys(draft).length})` : ""}`}
-            </Button>
-          </div>
+          <SaveBar
+            dirty={dirty}
+            pending={pending}
+            count={Object.keys(draft).length}
+            onDiscard={() => setDraft({})}
+            onSave={save}
+          />
         </>
       )}
     </div>
@@ -187,55 +183,33 @@ const PropertyRow = memo(function PropertyRow({
   running: boolean;
   onChange: (p: ServerProperty, v: string) => void;
 }) {
-  const dirty = value !== p.value;
+  const hint = (text: string) => (
+    <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{text}</span>
+  );
   return (
-    <div
-      className={`group flex items-center gap-4 px-5 py-3 ${dirty ? "bg-primary/5 shadow-[inset_2px_0_0_0_var(--primary)]" : ""}`}
+    <SettingRow
+      id={`prop-${p.key}`}
+      label={<span className={`${mono} text-xs`}>{p.key}</span>}
+      description={p.description}
+      dirty={value !== p.value}
+      badges={
+        <>
+          {p.requiresRestart && running && hint("restart")}
+          {p.managed && hint("managed")}
+        </>
+      }
+      trailing={
+        <CopyButton
+          value={value}
+          label="Copy value"
+          className="size-7 shrink-0 opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100"
+        />
+      }
     >
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <Label htmlFor={`prop-${p.key}`} className={`${mono} text-xs`}>
-            {p.key}
-          </Label>
-          {p.requiresRestart && running && (
-            <span className="text-[10px] uppercase tracking-wide text-muted-foreground">restart</span>
-          )}
-          {p.managed && <span className="text-[10px] uppercase tracking-wide text-muted-foreground">managed</span>}
-        </div>
-        {p.description && <p className="mt-0.5 text-xs text-muted-foreground">{p.description}</p>}
-      </div>
-      <div className="w-56 shrink-0">
-        <Field p={p} value={value} onChange={(v) => onChange(p, v)} />
-      </div>
-      <CopyButton value={value} />
-    </div>
+      <Field p={p} value={value} onChange={(v) => onChange(p, v)} />
+    </SettingRow>
   );
 });
-
-function CopyButton({ value }: { value: string }) {
-  const [copied, setCopied] = useState(false);
-  return (
-    <Button
-      type="button"
-      variant="ghost"
-      size="icon"
-      aria-label="Copy value"
-      title="Copy value"
-      className="size-7 shrink-0 opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100"
-      onClick={async () => {
-        try {
-          await navigator.clipboard.writeText(value);
-          setCopied(true);
-          setTimeout(() => setCopied(false), 1200);
-        } catch {
-          toast.error("Clipboard unavailable");
-        }
-      }}
-    >
-      {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
-    </Button>
-  );
-}
 
 function Field({ p, value, onChange }: { p: ServerProperty; value: string; onChange: (v: string) => void }) {
   const disabled = p.managed;

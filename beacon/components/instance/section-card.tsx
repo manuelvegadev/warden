@@ -1,9 +1,12 @@
 "use client";
 
-import { ChevronDown } from "lucide-react";
+import { Check, ChevronDown, Copy } from "lucide-react";
 import { useId, useState } from "react";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 /**
@@ -117,5 +120,118 @@ export function StatusHint({
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
+  );
+}
+
+/**
+ * One setting inside a SectionCard: label + description on the left, the control on the right.
+ * `dirty` paints the changed-row highlight; `trailing` sits after the control (badges, copy button).
+ */
+export function SettingRow({
+  id,
+  label,
+  description,
+  dirty,
+  wide,
+  badges,
+  trailing,
+  children,
+}: {
+  id?: string;
+  label: React.ReactNode;
+  description?: React.ReactNode;
+  dirty?: boolean;
+  wide?: boolean;
+  badges?: React.ReactNode;
+  trailing?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      className={`group flex items-center gap-4 px-5 py-3 ${dirty ? "bg-primary/5 shadow-[inset_2px_0_0_0_var(--primary)]" : ""}`}
+    >
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <Label htmlFor={id} className="text-sm">
+            {label}
+          </Label>
+          {badges}
+        </div>
+        {description && <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>}
+      </div>
+      <div className={wide ? "w-full max-w-md shrink-0" : "w-56 shrink-0"}>{children}</div>
+      {trailing}
+    </div>
+  );
+}
+
+/** Copies `value` to the clipboard and flashes a check for a moment. */
+export function CopyButton({
+  value,
+  label = "Copy",
+  showLabel,
+  className,
+}: {
+  value: string;
+  label?: string;
+  showLabel?: boolean;
+  className?: string;
+}) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size={showLabel ? "sm" : "icon"}
+      aria-label={label}
+      title={label}
+      className={className}
+      onClick={async () => {
+        try {
+          await navigator.clipboard.writeText(value);
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1200);
+        } catch {
+          toast.error("Clipboard unavailable");
+        }
+      }}
+    >
+      {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+      {showLabel && label}
+    </Button>
+  );
+}
+
+/** Sticky footer for editors: Discard while dirty, optional extra buttons, and Save. */
+export function SaveBar({
+  dirty,
+  pending,
+  count,
+  hint,
+  onDiscard,
+  onSave,
+  children,
+}: {
+  dirty: boolean;
+  pending: boolean;
+  count?: number;
+  hint?: React.ReactNode;
+  onDiscard: () => void;
+  onSave: () => void;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className="sticky bottom-0 flex items-center justify-end gap-3 border-t bg-background/95 px-4 py-3 backdrop-blur">
+      {hint && <span className="mr-auto text-xs text-muted-foreground">{hint}</span>}
+      {dirty && (
+        <Button variant="ghost" onClick={onDiscard}>
+          Discard
+        </Button>
+      )}
+      {children}
+      <Button onClick={onSave} disabled={!dirty || pending}>
+        {pending ? "Saving…" : dirty && count ? `Save (${count})` : "Save"}
+      </Button>
+    </div>
   );
 }

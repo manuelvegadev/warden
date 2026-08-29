@@ -6,13 +6,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { instances, type Player, type PlayerSession, type ServerEvent } from "@/lib/api";
+import { formatDateTime } from "@/lib/utils";
 
 const fmtDuration = (s: number) => {
   const h = Math.floor(s / 3600);
   const m = Math.floor((s % 3600) / 60);
   return h ? `${h}h ${m}m` : `${m}m`;
 };
-const fmtTime = (iso: string) => new Date(iso).toLocaleString();
 
 /** Player history from the daemon store; `online` and `version` come from the live status so it refreshes on join/leave. */
 export function PlayersTab({ id, online }: { id: string; online: string[] }) {
@@ -83,8 +83,8 @@ export function PlayersTab({ id, online }: { id: string; online: string[] }) {
                   )}
                 </TableCell>
                 <TableCell>{fmtDuration(p.playTimeSeconds)}</TableCell>
-                <TableCell className="text-muted-foreground">{fmtTime(p.lastSeen)}</TableCell>
-                <TableCell className="text-muted-foreground">{fmtTime(p.firstSeen)}</TableCell>
+                <TableCell className="text-muted-foreground">{formatDateTime(p.lastSeen)}</TableCell>
+                <TableCell className="text-muted-foreground">{formatDateTime(p.firstSeen)}</TableCell>
               </TableRow>
             ))}
           </TableBody>
@@ -100,7 +100,7 @@ export function PlayersTab({ id, online }: { id: string; online: string[] }) {
             <ul className="grid gap-1 text-muted-foreground">
               {sessions.map((s) => (
                 <li key={s.joinedAt}>
-                  {fmtTime(s.joinedAt)} → {s.leftAt ? fmtTime(s.leftAt) : "now"}
+                  {formatDateTime(s.joinedAt)} → {s.leftAt ? formatDateTime(s.leftAt) : "now"}
                 </li>
               ))}
               {sessions.length === 0 && <li>No sessions recorded.</li>}

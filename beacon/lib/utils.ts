@@ -15,3 +15,9 @@ export const badgeTone = {
   amber: "border-amber-500/30 bg-amber-500/15 text-amber-500",
   muted: "bg-muted text-muted-foreground",
 } as const;
+
+/** Locale date, e.g. "Aug 29, 2026". Client-side only (locale differs from the server). */
+export const formatDate = (iso: string) =>
+  new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+/** Locale date + time. Client-side only. */
+export const formatDateTime = (iso: string) => new Date(iso).toLocaleString();
