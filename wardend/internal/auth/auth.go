@@ -53,7 +53,7 @@ type Options struct {
 func NewVerifier(ctx context.Context, o Options) (*Verifier, error) {
 	v := &Verifier{issuer: o.Issuer, panelKey: o.PanelKey, jwksURL: o.JWKSURL}
 	if o.JWKSURL == "" {
-		slog.Warn("auth: WARDEND_PANEL_JWKS_URL is empty; the whole API stays protected with no access (dev mode)")
+		slog.Warn("auth: WARDEND_PANEL_JWKS_URL is empty; every authenticated request will fail; set WARDEND_PANEL_JWKS_URL and WARDEND_PANEL_ISSUER to Beacon's URL (or use `make run`)")
 		v.devMode = true
 		return v, nil
 	}
@@ -62,7 +62,12 @@ func NewVerifier(ctx context.Context, o Options) (*Verifier, error) {
 		return nil, err
 	}
 	// Refresh every hour; on an unknown `kid` jwx refreshes on demand in Lookup.
-	if err := c.Register(ctx, o.JWKSURL, jwk.WithMinInterval(time.Hour)); err != nil {
+	// WithWaitReady(false): never block startup on the panel being reachable; the first Verify fetches lazily.
+	if err := c.Register(ctx, o.JWKSURL,
+		jwk.WithMinInterval(time.Hour),
+		jwk.WithWaitReady(false),
+		jwk.WithHTTPClient(&http.Client{Timeout: 10 * time.Second}),
+	); err != nil {
 		return nil, fmt.Errorf("register jwks %s: %w", o.JWKSURL, err)
 	}
 	v.cache = c
@@ -74,7 +79,7 @@ var ErrUnauthorized = errors.New("unauthorized")
 // Verify validates the signature (JWKS), iss, aud, exp and returns the Principal.
 func (v *Verifier) Verify(ctx context.Context, raw string) (*Principal, error) {
 	if v.devMode {
-		return nil, ErrUnauthorized
+		return nil, fmt.Errorf("%w: wardend has no WARDEND_PANEL_JWKS_URL configured, so it cannot verify Beacon tokens", ErrUnauthorized)
 	}
 	set, err := v.cache.Lookup(ctx, v.jwksURL)
 	if err != nil {
