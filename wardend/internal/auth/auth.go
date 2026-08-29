@@ -10,10 +10,12 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/lestrrat-go/httprc/v3"
 	"github.com/lestrrat-go/jwx/v3/jwk"
+	"github.com/lestrrat-go/jwx/v3/jws"
 	"github.com/lestrrat-go/jwx/v3/jwt"
 )
 
@@ -37,11 +39,14 @@ type Principal struct {
 func (p Principal) IsAdmin() bool { return p.Role == RoleAdmin }
 
 type Verifier struct {
-	issuer   string
-	panelKey string
-	cache    *jwk.Cache
-	jwksURL  string
-	devMode  bool // no JWKS configured: local development only, rejects everything except /health
+	issuer    string
+	panelKey  string
+	cache     *jwk.Cache
+	mu        sync.Mutex
+	lastFetch time.Time
+	lastErr   error
+	jwksURL   string
+	devMode   bool // no JWKS configured: local development only, rejects everything except /health
 }
 
 type Options struct {
@@ -61,8 +66,8 @@ func NewVerifier(ctx context.Context, o Options) (*Verifier, error) {
 	if err != nil {
 		return nil, err
 	}
-	// Refresh every hour; on an unknown `kid` jwx refreshes on demand in Lookup.
-	// WithWaitReady(false): never block startup on the panel being reachable; the first Verify fetches lazily.
+	// Background refresh every hour; unknown kids and cold caches are handled by provideKey.
+	// WithWaitReady(false): never block startup on the panel being reachable.
 	if err := c.Register(ctx, o.JWKSURL,
 		jwk.WithMinInterval(time.Hour),
 		jwk.WithWaitReady(false),
@@ -76,17 +81,16 @@ func NewVerifier(ctx context.Context, o Options) (*Verifier, error) {
 
 var ErrUnauthorized = errors.New("unauthorized")
 
+// jwksRetry bounds how often the JWKS is re-fetched (panel unreachable, or an unknown key id).
+const jwksRetry = 5 * time.Second
+
 // Verify validates the signature (JWKS), iss, aud, exp and returns the Principal.
 func (v *Verifier) Verify(ctx context.Context, raw string) (*Principal, error) {
 	if v.devMode {
 		return nil, fmt.Errorf("%w: wardend has no WARDEND_PANEL_JWKS_URL configured, so it cannot verify Beacon tokens", ErrUnauthorized)
 	}
-	set, err := v.cache.Lookup(ctx, v.jwksURL)
-	if err != nil {
-		return nil, fmt.Errorf("jwks lookup: %w", err)
-	}
 	tok, err := jwt.Parse([]byte(raw),
-		jwt.WithKeySet(set),
+		jwt.WithKeyProvider(jws.KeyProviderFunc(v.provideKey)),
 		jwt.WithIssuer(v.issuer),
 		jwt.WithAudience(Audience),
 		jwt.WithAcceptableSkew(30*time.Second),
@@ -112,7 +116,57 @@ func (v *Verifier) Verify(ctx context.Context, raw string) (*Principal, error) {
 	return p, nil
 }
 
-// CheckPanelKey compares X-Panel-Key in constant time. If no key is configured, it is not required.
+// provideKey hands jws the key named by the token's kid. The cached set is tried first; a miss
+// (panel rotated its keys) or an empty cache (panel started after the daemon) triggers one
+// throttled refresh before giving up.
+func (v *Verifier) provideKey(ctx context.Context, sink jws.KeySink, sig *jws.Signature, _ *jws.Message) error {
+	hdr := sig.ProtectedHeaders()
+	kid, _ := hdr.KeyID()
+	alg, ok := hdr.Algorithm()
+	if !ok {
+		return errors.New("token has no alg header")
+	}
+	set, err := v.cache.Lookup(ctx, v.jwksURL)
+	if err == nil {
+		if key, found := set.LookupKeyID(kid); found {
+			sink.Key(alg, key)
+			return nil
+		}
+	}
+	set, err = v.refresh(ctx)
+	if err != nil {
+		return fmt.Errorf("jwks: %w", err)
+	}
+	key, found := set.LookupKeyID(kid)
+	if !found {
+		return fmt.Errorf("key %q not in the panel's JWKS", kid)
+	}
+	sink.Key(alg, key)
+	return nil
+}
+
+// refresh re-fetches the key set, at most once per jwksRetry; inside the window it returns the
+// last outcome (the cached set, or the last fetch error).
+func (v *Verifier) refresh(ctx context.Context) (jwk.Set, error) {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	if time.Since(v.lastFetch) < jwksRetry {
+		if v.lastErr != nil {
+			return nil, v.lastErr
+		}
+		return v.cache.Lookup(ctx, v.jwksURL)
+	}
+	v.lastFetch = time.Now()
+	set, err := v.cache.Refresh(ctx, v.jwksURL)
+	v.lastErr = err
+	if err != nil {
+		slog.Warn("auth: jwks fetch failed; retrying on the next request", "url", v.jwksURL, "err", err)
+		return nil, err
+	}
+	slog.Info("auth: jwks loaded", "url", v.jwksURL)
+	return set, nil
+}
+
 func (v *Verifier) CheckPanelKey(r *http.Request) bool {
 	if v.panelKey == "" {
 		return true

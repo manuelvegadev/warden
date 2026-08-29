@@ -97,12 +97,16 @@ func Build(o Options) (cfg *tls.Config, acmeHTTP http.Handler, err error) {
 	return cfg, acmeHTTP, nil
 }
 
-// ensureSelfSigned creates <dir>/wardend.crt + wardend.key once (ECDSA P-256, 10 years) with the
-// given hosts as SANs (plus localhost and the loopback addresses), and reuses them afterwards.
+// ensureSelfSigned creates <dir>/wardend.crt + wardend.key (ECDSA P-256, 10 years) with the
+// given hosts as SANs (plus localhost, host.docker.internal and the loopback addresses). An existing pair is reused
+// only while it still covers every requested host; otherwise it is regenerated (browsers and
+// the panel must trust the new one).
 func ensureSelfSigned(dir string, hosts []string) (certFile, keyFile string, err error) {
 	certFile, keyFile = filepath.Join(dir, "wardend.crt"), filepath.Join(dir, "wardend.key")
-	if _, err := tls.LoadX509KeyPair(certFile, keyFile); err == nil {
+	if pair, err := tls.LoadX509KeyPair(certFile, keyFile); err == nil && pair.Leaf != nil && coversHosts(pair.Leaf, hosts) {
 		return certFile, keyFile, nil
+	} else if err == nil {
+		slog.Info("tls: self-signed certificate does not cover all hosts; regenerating", "hosts", hosts)
 	}
 	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return "", "", err
@@ -120,8 +124,9 @@ func ensureSelfSigned(dir string, hosts []string) (certFile, keyFile string, err
 		KeyUsage:              x509.KeyUsageDigitalSignature,
 		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 		BasicConstraintsValid: true,
-		DNSNames:              []string{"localhost"},
-		IPAddresses:           []net.IP{net.IPv4(127, 0, 0, 1), net.IPv6loopback},
+		// host.docker.internal lets a panel container on this box trust the daemon (docs/deploy.md).
+		DNSNames:    []string{"localhost", "host.docker.internal"},
+		IPAddresses: []net.IP{net.IPv4(127, 0, 0, 1), net.IPv6loopback},
 	}
 	for _, h := range hosts {
 		if ip := net.ParseIP(h); ip != nil {
@@ -145,4 +150,13 @@ func ensureSelfSigned(dir string, hosts []string) (certFile, keyFile string, err
 		return "", "", err
 	}
 	return certFile, keyFile, nil
+}
+
+func coversHosts(cert *x509.Certificate, hosts []string) bool {
+	for _, h := range hosts {
+		if h != "" && cert.VerifyHostname(h) != nil {
+			return false
+		}
+	}
+	return true
 }

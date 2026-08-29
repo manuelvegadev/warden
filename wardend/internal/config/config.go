@@ -38,7 +38,7 @@ func Load() (*Config, error) {
 			Mode:     env("WARDEND_TLS", tlsconf.ModeOff),
 			CertFile: os.Getenv("WARDEND_TLS_CERT"),
 			KeyFile:  os.Getenv("WARDEND_TLS_KEY"),
-			Hosts:    splitList(os.Getenv("WARDEND_TLS_HOSTS")),
+			Hosts:    SplitList(os.Getenv("WARDEND_TLS_HOSTS")),
 			Email:    os.Getenv("WARDEND_TLS_EMAIL"),
 			HTTPAddr: ":80",
 		},
@@ -56,7 +56,7 @@ func Load() (*Config, error) {
 	if err := c.TLS.Validate(); err != nil {
 		return nil, err
 	}
-	c.AllowedOrigins = splitList(os.Getenv("WARDEND_ALLOWED_ORIGINS"))
+	c.AllowedOrigins = SplitList(os.Getenv("WARDEND_ALLOWED_ORIGINS"))
 	abs, err := filepath.Abs(c.DataDir)
 	if err != nil {
 		return nil, err
@@ -84,7 +84,8 @@ func (c *Config) LogLevel() slog.Level {
 	return slog.LevelInfo
 }
 
-func splitList(v string) []string {
+// SplitList parses a comma-separated variable, trimming blanks.
+func SplitList(v string) []string {
 	var out []string
 	for _, s := range strings.Split(v, ",") {
 		if s = strings.TrimSpace(s); s != "" {

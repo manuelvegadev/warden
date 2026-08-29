@@ -32,11 +32,27 @@ func TestSelfSignedIsReusedAndHasSANs(t *testing.T) {
 	if err := cert.VerifyHostname("localhost"); err != nil {
 		t.Fatal(err)
 	}
-	info1, _ := os.Stat(c1)
-	c2, _, _ := ensureSelfSigned(dir, nil)
-	info2, _ := os.Stat(c2)
-	if !info1.ModTime().Equal(info2.ModTime()) {
-		t.Fatal("certificate regenerated instead of reused")
+	b1, _ := os.ReadFile(c1)
+	c2, _, _ := ensureSelfSigned(dir, []string{"mc.example.lan"})
+	if b2, _ := os.ReadFile(c2); string(b1) != string(b2) {
+		t.Fatal("certificate regenerated although it covered the hosts")
+	}
+	// host.docker.internal is always a SAN; a genuinely new host forces a fresh certificate.
+	if err := cert.VerifyHostname("host.docker.internal"); err != nil {
+		t.Fatal(err)
+	}
+	c3, _, err := ensureSelfSigned(dir, []string{"mc.example.lan", "other.example.lan"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	b3, _ := os.ReadFile(c3)
+	if string(b3) == string(b1) {
+		t.Fatal("certificate not regenerated for a new host")
+	}
+	block, _ = pem.Decode(b3)
+	cert, _ = x509.ParseCertificate(block.Bytes)
+	if err := cert.VerifyHostname("other.example.lan"); err != nil {
+		t.Fatal(err)
 	}
 }
 
