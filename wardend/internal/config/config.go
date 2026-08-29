@@ -3,6 +3,8 @@ package config
 
 import (
 	"errors"
+
+	"github.com/manuelvega/warden/wardend/internal/tlsconf"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -18,6 +20,9 @@ type Config struct {
 	PanelJWKSURL   string   // WARDEND_PANEL_JWKS_URL, e.g. https://beacon.example.com/api/auth/jwks
 	PanelIssuer    string   // WARDEND_PANEL_ISSUER, = the panel's BETTER_AUTH_URL
 	PanelKey       string   // WARDEND_PANEL_KEY, shared secret (X-Panel-Key)
+	// WARDEND_TLS (off|files|acme|self-signed), WARDEND_TLS_CERT/KEY, WARDEND_TLS_HOSTS (comma-separated),
+	// WARDEND_TLS_EMAIL, WARDEND_TLS_HTTP_ADDR (ACME challenge/redirect listener, default ":80"; set empty to disable).
+	TLS tlsconf.Options
 }
 
 func Load() (*Config, error) {
@@ -29,22 +34,35 @@ func Load() (*Config, error) {
 		PanelJWKSURL: os.Getenv("WARDEND_PANEL_JWKS_URL"),
 		PanelIssuer:  os.Getenv("WARDEND_PANEL_ISSUER"),
 		PanelKey:     os.Getenv("WARDEND_PANEL_KEY"),
+		TLS: tlsconf.Options{
+			Mode:     env("WARDEND_TLS", tlsconf.ModeOff),
+			CertFile: os.Getenv("WARDEND_TLS_CERT"),
+			KeyFile:  os.Getenv("WARDEND_TLS_KEY"),
+			Hosts:    splitList(os.Getenv("WARDEND_TLS_HOSTS")),
+			Email:    os.Getenv("WARDEND_TLS_EMAIL"),
+			HTTPAddr: ":80",
+		},
+	}
+	if v, set := os.LookupEnv("WARDEND_TLS_HTTP_ADDR"); set {
+		c.TLS.HTTPAddr = v // explicitly empty disables the listener
+	}
+	// The JWKS lives at a fixed path under the issuer; the URL is only an override.
+	if c.PanelJWKSURL == "" && c.PanelIssuer != "" {
+		c.PanelJWKSURL = strings.TrimRight(c.PanelIssuer, "/") + "/api/auth/jwks"
 	}
 	if c.PanelJWKSURL != "" && c.PanelIssuer == "" {
 		return nil, errors.New("WARDEND_PANEL_ISSUER is required when WARDEND_PANEL_JWKS_URL is set")
 	}
-	if o := os.Getenv("WARDEND_ALLOWED_ORIGINS"); o != "" {
-		for _, s := range strings.Split(o, ",") {
-			if s = strings.TrimSpace(s); s != "" {
-				c.AllowedOrigins = append(c.AllowedOrigins, s)
-			}
-		}
+	if err := c.TLS.Validate(); err != nil {
+		return nil, err
 	}
+	c.AllowedOrigins = splitList(os.Getenv("WARDEND_ALLOWED_ORIGINS"))
 	abs, err := filepath.Abs(c.DataDir)
 	if err != nil {
 		return nil, err
 	}
 	c.DataDir = abs
+	c.TLS.DataDir = abs
 	return c, nil
 }
 
@@ -64,6 +82,16 @@ func (c *Config) LogLevel() slog.Level {
 		return slog.LevelError
 	}
 	return slog.LevelInfo
+}
+
+func splitList(v string) []string {
+	var out []string
+	for _, s := range strings.Split(v, ",") {
+		if s = strings.TrimSpace(s); s != "" {
+			out = append(out, s)
+		}
+	}
+	return out
 }
 
 func env(k, def string) string {

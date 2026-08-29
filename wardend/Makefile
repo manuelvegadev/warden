@@ -13,7 +13,11 @@ run:
 	WARDEND_PANEL_ISSUER=http://localhost:3000 \
 	WARDEND_PANEL_KEY=$(PANEL_KEY) \
 	go run ./cmd/wardend
+# lint + test are what CI runs (.github/workflows/ci.yml).
+lint:
+	@out=$$(gofmt -l ./cmd ./internal); if [ -n "$$out" ]; then echo "gofmt needed:"; echo "$$out"; exit 1; fi
+	go vet ./...
 test:
-	go test ./...
+	go test -race -count=1 ./...
 linux:
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags '$(LDFLAGS)' -o bin/wardend-linux-amd64 ./cmd/wardend

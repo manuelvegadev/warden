@@ -21,6 +21,7 @@ import (
 	"github.com/manuelvega/warden/wardend/internal/skins"
 	"github.com/manuelvega/warden/wardend/internal/store"
 	"github.com/manuelvega/warden/wardend/internal/tasks"
+	"github.com/manuelvega/warden/wardend/internal/tlsconf"
 	"github.com/manuelvega/warden/wardend/internal/ws"
 )
 
@@ -30,6 +31,12 @@ func main() {
 	cfg, err := config.Load()
 	if err != nil {
 		slog.Error("config", "err", err)
+		os.Exit(1)
+	}
+	// TLS material is validated and loaded before anything else so a bad setup fails at once.
+	tlsCfg, acmeHTTP, err := tlsconf.Build(cfg.TLS)
+	if err != nil {
+		slog.Error("tls", "err", err)
 		os.Exit(1)
 	}
 	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: cfg.LogLevel()})))
@@ -91,9 +98,31 @@ func main() {
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
+	srv.TLSConfig = tlsCfg
+	// ACME: a plain listener answers challenges and redirects everything else to HTTPS.
+	var acmeSrv *http.Server
+	if acmeHTTP != nil && cfg.TLS.HTTPAddr != "" {
+		acmeSrv = &http.Server{Addr: cfg.TLS.HTTPAddr, Handler: acmeHTTP, ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 30 * time.Second}
+		go func() {
+			if err := acmeSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+				slog.Error("acme http listener", "addr", cfg.TLS.HTTPAddr, "err", err)
+				stop()
+			}
+		}()
+	}
 	go func() {
-		slog.Info("wardend listening", "addr", cfg.Listen, "version", version, "data", cfg.DataDir)
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		scheme := "http"
+		if tlsCfg != nil {
+			scheme = "https"
+		}
+		slog.Info("wardend listening", "addr", cfg.Listen, "scheme", scheme, "tls", cfg.TLS.Mode, "version", version, "data", cfg.DataDir)
+		var err error
+		if tlsCfg != nil {
+			err = srv.ListenAndServeTLS("", "") // certificates come from TLSConfig
+		} else {
+			err = srv.ListenAndServe()
+		}
+		if err != nil && err != http.ErrServerClosed {
 			slog.Error("http", "err", err)
 			stop()
 		}
@@ -107,4 +136,7 @@ func main() {
 	defer cancel()
 	mgr.StopAll(shutdownCtx) // staged stop (stop → SIGTERM → SIGKILL) for every instance
 	_ = srv.Shutdown(shutdownCtx)
+	if acmeSrv != nil {
+		_ = acmeSrv.Shutdown(shutdownCtx)
+	}
 }
