@@ -38,7 +38,7 @@ EXPECTED="$(awk -v f="$BIN" '$2 == f { print $1 }' "${TMP}/SHA256SUMS")"
 ACTUAL="$(sha256sum "${TMP}/wardend" | awk '{ print $1 }')"
 [ "$EXPECTED" = "$ACTUAL" ] || die "checksum mismatch for ${BIN} (expected ${EXPECTED}, got ${ACTUAL})."
 chmod +x "${TMP}/wardend"
-say "wardend $("${TMP}/wardend" version 2>/dev/null || echo '(version unknown)') verified."
+say "$("${TMP}/wardend" version 2>/dev/null || echo 'wardend (version unknown)') verified."
 
 # `wardend install` asks questions; when this script is piped into bash, stdin is the pipe, so give
 # the installer the terminal instead. It copies itself to /usr/local/bin/wardend.
