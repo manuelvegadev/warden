@@ -29,7 +29,7 @@ daemon/                 Go — the `wardend` daemon
     store/              SQLite (migrations, repos)
     backup/             save-off/save-all/tar.zst
     tasks/              long-running tasks with progress
-  deploy/               wardend.service, install script, optional Dockerfile
+  deploy/               single-host compose file and the wardend.env reference (the installer is `wardend install`)
 panel/                  Next.js — the UI
   app/                  App Router: (auth)/login, (dashboard)/instances/[id]/{console,config,plugins,players,backups}
   components/           shadcn/ui + own components (Console, MetricsChart, PluginBrowser…)
