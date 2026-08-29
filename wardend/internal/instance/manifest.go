@@ -31,13 +31,16 @@ type Manifest struct {
 }
 
 type InstalledPlugin struct {
-	FileName  string `json:"fileName"`
-	Source    string `json:"source"` // hangar|modrinth|manual
-	ProjectID string `json:"projectId,omitempty"`
-	VersionID string `json:"versionId,omitempty"`
-	Version   string `json:"version,omitempty"`
-	HashAlgo  string `json:"hashAlgo,omitempty"`
-	Hash      string `json:"hash,omitempty"`
+	FileName    string    `json:"fileName"`
+	Source      string    `json:"source"` // hangar|modrinth|manual
+	ProjectID   string    `json:"projectId,omitempty"`
+	Name        string    `json:"name,omitempty"` // project title from the catalog
+	VersionID   string    `json:"versionId,omitempty"`
+	Version     string    `json:"version,omitempty"`
+	HashAlgo    string    `json:"hashAlgo,omitempty"`
+	Hash        string    `json:"hash,omitempty"`
+	Icon        string    `json:"icon,omitempty"` // file under <instance>/icons, fetched at install time
+	InstalledAt time.Time `json:"installedAt"`
 }
 
 const manifestFile = "instance.json"

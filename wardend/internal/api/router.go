@@ -59,9 +59,9 @@ func NewRouter(d Deps) http.Handler {
 	mux.HandleFunc("GET /api/v1/catalog/servers", s.catalogServers)
 	mux.HandleFunc("GET /api/v1/catalog/servers/{provider}/versions", s.catalogVersions)
 	mux.HandleFunc("GET /api/v1/catalog/servers/{provider}/versions/{mc}/builds", s.catalogBuilds)
-	mux.HandleFunc("GET /api/v1/catalog/plugins/search", notImplemented)
-	mux.HandleFunc("GET /api/v1/catalog/plugins/{source}/{id}", notImplemented)
-	mux.HandleFunc("GET /api/v1/catalog/plugins/{source}/{id}/versions", notImplemented)
+	mux.HandleFunc("GET /api/v1/catalog/plugins/search", s.searchPlugins)
+	mux.HandleFunc("GET /api/v1/catalog/plugins/{source}/{id}", s.getPlugin)
+	mux.HandleFunc("GET /api/v1/catalog/plugins/{source}/{id}/versions", s.pluginVersions)
 
 	// Instances
 	mux.HandleFunc("GET /api/v1/instances", s.listInstances)
@@ -99,8 +99,13 @@ func NewRouter(d Deps) http.Handler {
 	mux.HandleFunc("POST /api/v1/instances/{id}/bans", s.addBan)
 	mux.HandleFunc("DELETE /api/v1/instances/{id}/bans/{target}", s.removeBan)
 
-	// Files, plugins, backups (see docs/api.md) — later phases
-	for _, p := range []string{"files", "plugins", "backups", "schedule"} {
+	// Plugins
+	mux.HandleFunc("GET /api/v1/instances/{id}/plugins", s.listInstancePlugins)
+	mux.HandleFunc("GET /api/v1/instances/{id}/plugins/{file}/icon", s.pluginIcon)
+	mux.HandleFunc("POST /api/v1/instances/{id}/plugins", auth.RequireAdmin(s.installPlugin))
+
+	// Files, backups (see docs/api.md) — later phases
+	for _, p := range []string{"files", "backups", "schedule"} {
 		mux.HandleFunc("/api/v1/instances/{id}/"+p, notImplemented)
 		mux.HandleFunc("/api/v1/instances/{id}/"+p+"/", notImplemented)
 	}
