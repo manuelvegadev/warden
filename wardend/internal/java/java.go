@@ -281,7 +281,7 @@ func (m *Manager) Install(ctx context.Context, major int, report tasks.Reporter)
 
 	archive := filepath.Join(tmpDir, pkg.Name)
 	report(3, "Downloading "+pkg.Name)
-	err = m.reg.Download(ctx, pkg.Link, pkg.Checksum, archive, func(done, total int64) {
+	err = m.reg.Download(ctx, pkg.Link, catalog.Checksum{Algo: "sha256", Value: pkg.Checksum}, archive, func(done, total int64) {
 		if total > 0 {
 			report(3+int(done*77/total), fmt.Sprintf("Downloading %s (%d/%d MB)", pkg.Name, done>>20, total>>20))
 		}

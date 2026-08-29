@@ -2,7 +2,6 @@ package catalog
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -70,13 +69,8 @@ func (p *paper) Versions(ctx context.Context, includePre bool) (VersionList, err
 	if v, ok := p.cache.get(key); ok {
 		proj = v.(fillProject)
 	} else {
-		resp, err := p.reg.get(ctx, p.base)
-		if err != nil {
-			return VersionList{}, err
-		}
-		defer resp.Body.Close()
-		if err := json.NewDecoder(resp.Body).Decode(&proj); err != nil {
-			return VersionList{}, fmt.Errorf("decode fill project: %w", err)
+		if err := p.reg.getJSON(ctx, p.base, &proj); err != nil {
+			return VersionList{}, fmt.Errorf("fill project: %w", err)
 		}
 		p.cache.set(key, proj)
 	}
@@ -111,14 +105,9 @@ func (p *paper) Builds(ctx context.Context, mc string) ([]Build, error) {
 	if v, ok := p.cache.get(key); ok {
 		return v.([]Build), nil
 	}
-	resp, err := p.reg.get(ctx, p.base+"/versions/"+mc+"/builds")
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
 	var raw []fillBuild
-	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
-		return nil, fmt.Errorf("decode fill builds: %w", err)
+	if err := p.reg.getJSON(ctx, p.base+"/versions/"+mc+"/builds", &raw); err != nil {
+		return nil, fmt.Errorf("fill builds: %w", err)
 	}
 	out := make([]Build, 0, len(raw))
 	for _, b := range raw {

@@ -50,7 +50,7 @@ func (i *Instance) Install(ctx context.Context, reg *catalog.Registry, opts Inst
 
 	report(5, "Downloading "+build.Name)
 	dest := filepath.Join(i.ServerDir(), build.Name)
-	err = reg.Download(ctx, build.URL, build.SHA256, dest, func(done, total int64) {
+	err = reg.Download(ctx, build.URL, catalog.Checksum{Algo: "sha256", Value: build.SHA256}, dest, func(done, total int64) {
 		if total > 0 {
 			report(5+int(done*85/total), fmt.Sprintf("Downloading %s (%d/%d MB)", build.Name, done>>20, total>>20))
 		}

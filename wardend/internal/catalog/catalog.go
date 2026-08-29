@@ -4,15 +4,20 @@ package catalog
 
 import (
 	"context"
+	"crypto/sha1"
 	"crypto/sha256"
+	"crypto/sha512"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"hash"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 )
@@ -48,6 +53,7 @@ type Registry struct {
 	client    *http.Client
 	userAgent string
 	providers map[string]ServerProvider
+	plugins   map[string]PluginSource
 }
 
 func NewRegistry(userAgent string) *Registry {
@@ -57,6 +63,7 @@ func NewRegistry(userAgent string) *Registry {
 		providers: map[string]ServerProvider{},
 	}
 	r.providers["paper"] = newPaper(r)
+	r.plugins = map[string]PluginSource{"hangar": newHangar(r), "modrinth": newModrinth(r)}
 	return r
 }
 
@@ -79,13 +86,14 @@ func (r *Registry) Provider(id string) (ServerProvider, error) {
 	return p, nil
 }
 
-func (r *Registry) get(ctx context.Context, url string) (*http.Response, error) {
+// get performs a GET with the registry's User-Agent and the given Accept header; callers close the body.
+func (r *Registry) get(ctx context.Context, url, accept string) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("User-Agent", r.userAgent)
-	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Accept", accept)
 	resp, err := r.client.Do(req)
 	if err != nil {
 		return nil, err
@@ -97,11 +105,74 @@ func (r *Registry) get(ctx context.Context, url string) (*http.Response, error) 
 	return resp, nil
 }
 
+// getJSON decodes a JSON document from a provider URL.
+func (r *Registry) getJSON(ctx context.Context, url string, v any) error {
+	resp, err := r.get(ctx, url, "application/json")
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	return json.NewDecoder(resp.Body).Decode(v)
+}
+
+// getText fetches a plain-text document (e.g. a Markdown README) capped at max bytes.
+func (r *Registry) getText(ctx context.Context, url string, max int64) (string, error) {
+	resp, err := r.get(ctx, url, "text/plain")
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	b, err := io.ReadAll(io.LimitReader(resp.Body, max))
+	return string(b), err
+}
+
+var imageExt = map[string]string{"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp", "image/gif": ".gif", "image/svg+xml": ".svg"}
+
+// FetchImage downloads an image of at most max bytes and returns its bytes plus the file extension for its type.
+func (r *Registry) FetchImage(ctx context.Context, url string, max int64) ([]byte, string, error) {
+	resp, err := r.get(ctx, url, "image/*")
+	if err != nil {
+		return nil, "", err
+	}
+	defer resp.Body.Close()
+	ct, _, _ := strings.Cut(resp.Header.Get("Content-Type"), ";")
+	ext, ok := imageExt[strings.TrimSpace(ct)]
+	if !ok {
+		return nil, "", fmt.Errorf("unsupported image type %q", ct)
+	}
+	data, err := io.ReadAll(io.LimitReader(resp.Body, max+1))
+	if err != nil {
+		return nil, "", err
+	}
+	if len(data) == 0 || int64(len(data)) > max {
+		return nil, "", fmt.Errorf("image size out of range")
+	}
+	return data, ext, nil
+}
+
 // Progress reports bytes downloaded so far and the total (-1 if unknown).
 type Progress func(done, total int64)
 
-// Download fetches url into dest atomically and verifies its SHA-256 when sha256Hex is non-empty.
-func (r *Registry) Download(ctx context.Context, url, sha256Hex, dest string, progress Progress) error {
+// Checksum names a digest to verify a download against. Algo is "sha256", "sha512" or "sha1"; empty = skip.
+type Checksum struct {
+	Algo  string `json:"algo"`
+	Value string `json:"value"`
+}
+
+func (c Checksum) hasher() hash.Hash {
+	switch strings.ToLower(c.Algo) {
+	case "sha512":
+		return sha512.New()
+	case "sha1":
+		return sha1.New()
+	case "sha256":
+		return sha256.New()
+	}
+	return nil
+}
+
+// Download fetches url into dest atomically and verifies it against sum when one is given.
+func (r *Registry) Download(ctx context.Context, url string, sum Checksum, dest string, progress Progress) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return err
@@ -124,7 +195,7 @@ func (r *Registry) Download(ctx context.Context, url, sha256Hex, dest string, pr
 	}
 	defer os.Remove(tmp.Name())
 
-	h := sha256.New()
+	h := sum.hasher()
 	var done int64
 	buf := make([]byte, 256*1024)
 	for {
@@ -134,7 +205,9 @@ func (r *Registry) Download(ctx context.Context, url, sha256Hex, dest string, pr
 				tmp.Close()
 				return werr
 			}
-			h.Write(buf[:n])
+			if h != nil {
+				h.Write(buf[:n])
+			}
 			done += int64(n)
 			if progress != nil {
 				progress(done, resp.ContentLength)
@@ -151,9 +224,9 @@ func (r *Registry) Download(ctx context.Context, url, sha256Hex, dest string, pr
 	if err := tmp.Close(); err != nil {
 		return err
 	}
-	if sha256Hex != "" {
-		if got := hex.EncodeToString(h.Sum(nil)); got != sha256Hex {
-			return fmt.Errorf("sha256 mismatch for %s: got %s want %s", filepath.Base(dest), got, sha256Hex)
+	if h != nil && sum.Value != "" {
+		if got := hex.EncodeToString(h.Sum(nil)); !strings.EqualFold(got, sum.Value) {
+			return fmt.Errorf("%s mismatch for %s: got %s want %s", sum.Algo, filepath.Base(dest), got, sum.Value)
 		}
 	}
 	return os.Rename(tmp.Name(), dest)
