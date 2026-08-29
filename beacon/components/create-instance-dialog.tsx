@@ -3,16 +3,10 @@
 import { useRouter } from "next/navigation";
 import { type FormEvent, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { useInstances } from "@/components/instances-store";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -25,9 +19,9 @@ const slug = (s: string) =>
     .replace(/^-+|-+$/g, "")
     .slice(0, 32);
 
-export function CreateInstanceDialog({ onCreated }: { onCreated: () => void }) {
+export function CreateInstanceDialog() {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const { createOpen: open, setCreateOpen: setOpen, refresh } = useInstances();
   const [versions, setVersions] = useState<string[]>([]);
   const [version, setVersion] = useState("");
   const [builds, setBuilds] = useState<Build[]>([]);
@@ -122,8 +116,8 @@ export function CreateInstanceDialog({ onCreated }: { onCreated: () => void }) {
       });
       toast.success(`Installing ${res.instance.name}…`);
       setOpen(false);
-      onCreated();
-      router.push(`/instances/${res.instance.id}`);
+      void refresh();
+      router.push(`/instances/${res.instance.id}/console`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to create instance");
     } finally {
@@ -133,7 +127,6 @@ export function CreateInstanceDialog({ onCreated }: { onCreated: () => void }) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogTrigger render={<Button />}>New instance</DialogTrigger>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>New Paper server</DialogTitle>

@@ -310,3 +310,6 @@ export const formatBytes = (n: number) => {
   const i = Math.min(u.length - 1, Math.floor(Math.log(n) / Math.log(1024)));
   return `${(n / 1024 ** i).toFixed(i >= 2 ? 1 : 0)} ${u[i]}`;
 };
+
+/** "paper 26.2" — used wherever an instance's software/version pair is shown. */
+export const softwareLabel = (x: { software: string; mcVersion: string }) => `${x.software} ${x.mcVersion}`;

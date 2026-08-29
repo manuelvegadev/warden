@@ -1,58 +1,46 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
-import { CreateInstanceDialog } from "@/components/create-instance-dialog";
+import { useCallback } from "react";
+import { useInstances } from "@/components/instances-store";
 import { StateBadge } from "@/components/state-badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useWardendSocket, type WsMessage } from "@/hooks/use-wardend-socket";
-import { type InstanceStatus, type InstanceSummary, instances } from "@/lib/api";
+import { type InstanceStatus, softwareLabel } from "@/lib/api";
+import { instanceHref } from "@/lib/instance-routes";
 
 export function InstanceList() {
-  const [items, setItems] = useState<InstanceSummary[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { instances, setStatus, openCreate } = useInstances();
 
-  const refresh = useCallback(() => {
-    instances
-      .list()
-      .then((list) => {
-        setItems(list);
-        setError(null);
-      })
-      .catch((e) => setError(String(e.message ?? e)));
-  }, []);
-
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
-
-  const onMessage = useCallback((msg: WsMessage) => {
-    if (msg.type === "state" && msg.instance) {
-      const status = msg.data as InstanceStatus;
-      setItems((prev) => prev?.map((i) => (i.id === msg.instance ? { ...i, status } : i)) ?? prev);
-    }
-  }, []);
-  useWardendSocket(items?.map((i) => i.id) ?? [], onMessage);
+  // Keep the badges live while the list is on screen.
+  const onMessage = useCallback(
+    (msg: WsMessage) => {
+      if (msg.type === "state" && msg.instance) setStatus(msg.instance, msg.data as InstanceStatus);
+    },
+    [setStatus],
+  );
+  useWardendSocket(
+    instances.map((i) => i.id),
+    onMessage,
+  );
 
   return (
     <>
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Instances</h1>
-        <CreateInstanceDialog onCreated={refresh} />
+        <Button onClick={openCreate}>New instance</Button>
       </div>
-      {error && <p className="text-sm text-destructive">Cannot reach wardend: {error}</p>}
-      {!items && !error && <Skeleton className="h-24 w-full" />}
-      {items?.length === 0 && <p className="text-muted-foreground">No instances yet. Create one to get started.</p>}
+      {instances.length === 0 && <p className="text-muted-foreground">No instances yet. Create one to get started.</p>}
       <div className="grid gap-3 sm:grid-cols-2">
-        {items?.map((i) => (
-          <Link key={i.id} href={`/instances/${i.id}`}>
+        {instances.map((i) => (
+          <Link key={i.id} href={instanceHref(i.id)}>
             <Card className="transition-colors hover:bg-accent/40">
               <CardContent className="flex items-center justify-between py-4">
                 <div>
                   <div className="font-medium">{i.name}</div>
                   <div className="text-xs text-muted-foreground">
-                    {i.software} {i.mcVersion}
+                    {softwareLabel(i)}
                     {i.build ? ` #${i.build}` : ""} · port {i.port} · {i.memoryMb} MB
                   </div>
                 </div>
