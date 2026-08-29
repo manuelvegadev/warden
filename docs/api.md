@@ -101,10 +101,12 @@ Creation body:
 | GET | `/instances/{id}/bans` | `{players:[...], ips:[...]}` |
 | POST | `/instances/{id}/bans` | `{"target":"Steve or 10.0.0.7","reason":"..."}` — the daemon decides between a player and an IP ban |
 | DELETE | `/instances/{id}/bans/{target}` | `pardon` / `pardon-ip` |
-| GET | `/instances/{id}/files?path=config` | Listing `[{name,size,mtime,dir}]` (confined to the instance dir) |
-| GET/PUT | `/instances/{id}/files/content?path=config/paper-global.yml` | Text (2 MB limit); PUT creates a `.bak` backup |
-| POST | `/instances/{id}/files/upload` | multipart |
-| DELETE | `/instances/{id}/files?path=` | |
+| GET | `/instances/{id}/command` | `{java,javaError?,args[],cwd,shell}` — `shell` is the line quoted for a POSIX shell; the exact command `Start` would run from the current manifest (heap, JVM preset/flags, jar); `javaError` when no runtime can be resolved yet. |
+| GET | `/instances/{id}/upgrade` | `{current:{mcVersion,build},latestBuild?:{mcVersion,build,channel,time,changes},latestVersion?:{…}}` — newer build of the same version and newest version with a build, from the software catalog. |
+| POST | `/instances/{id}/upgrade` | `{"mcVersion":"1.21.8","build":0}` (both optional: current version / newest build) → `202` task `upgrade`. `409` unless stopped/crashed. The task archives the jar, `server.properties`, `bukkit.yml`/`spigot.yml`/`commands.yml`, `config/` and every world (dirs with `level.dat`) to `<instance>/backups/pre-upgrade-<UTC time>.tar.gz`, downloads the build with sha256 verification, swaps the jar, updates the manifest (appending to `upgrades[]`: from/to version+build, backup file name, time) and resolves the Java runtime for the new version. Admin only. |
+| GET | `/instances/{id}/files` | Editable files that exist: `[{path,group,size,modifiedAt}]`. Not a file browser — an allowlist: `bukkit.yml`, `spigot.yml`, `commands.yml`, `help.yml`, `permissions.yml` (Server); `config/paper-global.yml`, `config/paper-world-defaults.yml` (Paper); `<world>/paper-world.yml` (Worlds); text files under `plugins/<name>/` (Plugins: yml/yaml/json/properties/txt/toml/conf). `server.properties` has its own endpoint. |
+| GET | `/instances/{id}/files/content?path=config/paper-global.yml` | `text/plain` (2 MB limit). `403` outside the allowlist or when a symlink escapes the server directory; `404` missing. |
+| PUT | `/instances/{id}/files/content?path=` | Body `text/plain`. YAML/JSON syntax is validated (`400 invalid syntax`), then written atomically → `{"restartRequired":bool}` (Paper reads these at startup only). Admin only. |
 
 ## Plugins
 | Method | Path | Description |

@@ -28,10 +28,10 @@
 
 ## Phase 2 — Configuration and plugins
 - [x] `server.properties` schema-driven editor (validation, restart hints); whitelist/ops/bans via live commands or JSON files, UUIDs from usercache/Mojang/offline
-- [ ] Confined file editor (Paper YAML configs)
+- [x] Confined file editor: allowlisted Bukkit/Paper/world/plugin config files with YAML/JSON validation
 - [x] `catalog/hangar` + `catalog/modrinth` search/versions; install with hash verification
 - [x] Plugin management: update/toggle/upload/delete; `plugin.yml`/`paper-plugin.yml` metadata; update check against the catalog
-- [ ] Paper build/version upgrade with prior backup
+- [x] Paper build/version upgrade with prior backup (jar + configs + worlds to `<instance>/backups/`)
 - [x] Panel: config screens; plugins table (icon, version, source, install date) + Prism-style install dialog (search, queue, per-plugin version, batch install)
 
 ## Phase 3 — Players
