@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+
+	"github.com/manuelvega/warden/wardend/internal/store"
 )
 
 func (s *server) listPlayers(w http.ResponseWriter, r *http.Request) {
@@ -24,6 +26,17 @@ func (s *server) listPlayers(w http.ResponseWriter, r *http.Request) {
 	}
 	for i := range players {
 		players[i].Online = online[players[i].Name]
+	}
+	// Players the world knows but this daemon never saw join (e.g. a migrated server).
+	seen := map[string]bool{}
+	for _, p := range players {
+		seen[strings.ToLower(p.Name)] = true
+	}
+	for _, k := range inst.KnownPlayers() {
+		if seen[strings.ToLower(k.Name)] {
+			continue
+		}
+		players = append(players, store.Player{Name: k.Name, FirstSeen: k.LastSeen, LastSeen: k.LastSeen, PlayTimeS: k.PlayTimeSeconds, Online: online[k.Name]})
 	}
 	writeJSON(w, 200, players)
 }

@@ -2,10 +2,8 @@ package instance
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -14,6 +12,7 @@ import (
 	"time"
 
 	"github.com/manuelvega/warden/wardend/internal/mc"
+	"github.com/manuelvega/warden/wardend/internal/mojang"
 )
 
 var nameRe = regexp.MustCompile(`^[A-Za-z0-9_]{1,16}$`)
@@ -21,13 +20,12 @@ var nameRe = regexp.MustCompile(`^[A-Za-z0-9_]{1,16}$`)
 var ErrBadName = errors.New("invalid player name")
 var ErrBadIP = errors.New("invalid ip address")
 
-// Outbound Mojang lookups share one client; the User-Agent is set by main.
-var (
-	userAgent    = "warden"
-	mojangClient = &http.Client{Timeout: 10 * time.Second}
-)
+// Outbound Mojang lookups go through one shared client, set by main.
+var mojangClient = mojang.New("warden")
 
-func SetUserAgent(ua string) { userAgent = ua }
+func SetMojang(c *mojang.Client) { mojangClient = c }
+
+const uuidCacheTTL = time.Hour
 
 func (i *Instance) propertiesPath() string { return filepath.Join(i.ServerDir(), "server.properties") }
 
@@ -39,7 +37,8 @@ func (i *Instance) onlineMode() bool {
 // running reports whether the server process accepts commands right now.
 func (i *Instance) running() bool { return i.State() == StateRunning }
 
-// ResolveUUID finds a player's UUID: offline UUID when online-mode=false, else usercache.json, else Mojang.
+// ResolveUUID finds a player's UUID: offline UUID when online-mode=false, else usercache.json,
+// else Mojang (cached for an hour so a player card does not hit Mojang twice).
 func (i *Instance) ResolveUUID(ctx context.Context, name string) (string, error) {
 	if !nameRe.MatchString(name) {
 		return "", ErrBadName
@@ -54,29 +53,33 @@ func (i *Instance) ResolveUUID(ctx context.Context, name string) (string, error)
 			}
 		}
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://api.mojang.com/users/profiles/minecraft/"+name, nil)
-	if err != nil {
-		return "", err
+	key := strings.ToLower(name)
+	i.mu.RLock()
+	c, ok := i.uuidCache[key]
+	i.mu.RUnlock()
+	if ok && time.Since(c.at) < uuidCacheTTL {
+		return c.uuid, nil
 	}
-	req.Header.Set("User-Agent", userAgent)
-	resp, err := mojangClient.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("mojang lookup: %w", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusNoContent {
+	id, err := mojangClient.ProfileID(ctx, name)
+	if errors.Is(err, mojang.ErrNotFound) {
 		return "", fmt.Errorf("player %q not found on Mojang", name)
 	}
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("mojang lookup: %s", resp.Status)
-	}
-	var body struct {
-		ID string `json:"id"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+	if err != nil {
 		return "", err
 	}
-	return mc.DashUUID(body.ID), nil
+	uuid := mc.DashUUID(id)
+	i.mu.Lock()
+	if i.uuidCache == nil {
+		i.uuidCache = map[string]uuidEntry{}
+	}
+	i.uuidCache[key] = uuidEntry{uuid: uuid, at: time.Now()}
+	i.mu.Unlock()
+	return uuid, nil
+}
+
+type uuidEntry struct {
+	uuid string
+	at   time.Time
 }
 
 // ---- server.properties
