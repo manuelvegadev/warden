@@ -5,6 +5,7 @@ import { CreateInstanceDialog } from "@/components/create-instance-dialog";
 import { InstancesProvider } from "@/components/instances-store";
 import { SiteHeader } from "@/components/site-header";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+import { WardendConfigProvider } from "@/components/wardend-config";
 import type { InstanceSummary } from "@/lib/api";
 import { getSession } from "@/lib/session";
 import { wardendFetch } from "@/lib/wardend";
@@ -20,16 +21,25 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const sidebarOpen = cookieStore.get("sidebar_state")?.value !== "false";
 
   return (
-    <InstancesProvider initial={instances}>
-      {/* The viewport never scrolls: the inset (the bordered "island") is the scroll container. */}
-      <SidebarProvider defaultOpen={sidebarOpen} className="h-svh overflow-hidden">
-        <AppSidebar user={{ name: user.name, email: user.email, role: user.role ?? "operator" }} />
-        <SidebarInset className="min-h-0 overflow-hidden">
-          <SiteHeader />
-          <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
-        </SidebarInset>
-      </SidebarProvider>
-      <CreateInstanceDialog />
-    </InstancesProvider>
+    <WardendConfigProvider
+      // Read per request (this layout is dynamic): one image serves every deployment.
+      wsUrl={(
+        process.env.WARDEND_PUBLIC_WS_URL ??
+        process.env.NEXT_PUBLIC_WARDEND_WS_URL ??
+        "ws://localhost:8080"
+      ).replace(/\/$/, "")}
+    >
+      <InstancesProvider initial={instances}>
+        {/* The viewport never scrolls: the inset (the bordered "island") is the scroll container. */}
+        <SidebarProvider defaultOpen={sidebarOpen} className="h-svh overflow-hidden">
+          <AppSidebar user={{ name: user.name, email: user.email, role: user.role ?? "operator" }} />
+          <SidebarInset className="min-h-0 overflow-hidden">
+            <SiteHeader />
+            <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
+          </SidebarInset>
+        </SidebarProvider>
+        <CreateInstanceDialog />
+      </InstancesProvider>
+    </WardendConfigProvider>
   );
 }

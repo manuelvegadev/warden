@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { wardendWsUrl } from "@/lib/api";
+import { useWardendWsUrl } from "@/components/wardend-config";
 import { authClient } from "@/lib/auth-client";
 
 export type WsMessage = { type: string; instance?: string; data?: unknown };
@@ -12,6 +12,7 @@ type Handler = (msg: WsMessage) => void;
  * first message (docs/security.md). Reconnects with backoff. Subscriptions are re-sent after reconnect.
  */
 export function useWardendSocket(instanceIds: string[], onMessage: Handler) {
+  const url = useWardendWsUrl();
   const [connected, setConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const handlerRef = useRef(onMessage);
@@ -29,7 +30,7 @@ export function useWardendSocket(instanceIds: string[], onMessage: Handler) {
       if (closed) return;
       const { data } = await authClient.token();
       if (!data?.token || closed) return;
-      const ws = new WebSocket(wardendWsUrl());
+      const ws = new WebSocket(url);
       wsRef.current = ws;
       ws.onopen = () => ws.send(JSON.stringify({ type: "auth", token: data.token }));
       ws.onmessage = (ev) => {
@@ -59,7 +60,7 @@ export function useWardendSocket(instanceIds: string[], onMessage: Handler) {
       if (timer) clearTimeout(timer);
       wsRef.current?.close();
     };
-  }, [idsKey]);
+  }, [idsKey, url]);
 
   const send = useCallback((msg: WsMessage & { data?: unknown }) => {
     wsRef.current?.send(JSON.stringify(msg));

@@ -547,12 +547,6 @@ export const tasks = {
   get: (id: string) => api<Task>(`/tasks/${id}`),
 };
 
-/** wardend WebSocket URL. The JWT is sent as the first message (see useWardendSocket), never in the URL. */
-export function wardendWsUrl(): string {
-  const base = process.env.NEXT_PUBLIC_WARDEND_WS_URL ?? "ws://localhost:8080";
-  return `${base.replace(/\/$/, "")}/api/v1/ws`;
-}
-
 /** 1234 → "1K", 2_800_000 → "2.8M". */
 export const compactNum = (n: number) =>
   n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${Math.round(n / 1e3)}K` : String(n);
