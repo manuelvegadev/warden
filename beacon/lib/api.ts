@@ -7,6 +7,7 @@ export interface InstanceStatus {
   pid?: number;
   startedAt?: string;
   players: string[];
+  tps?: [number, number, number];
 }
 
 export interface InstanceSummary {
@@ -48,6 +49,42 @@ export interface MetricSample {
   memMax: number;
   diskUsed: number;
   players: number;
+  netRx: number; // bytes/s, host interfaces
+  netTx: number;
+  tps?: [number, number, number];
+}
+
+export interface Player {
+  name: string;
+  firstSeen: string;
+  lastSeen: string;
+  playTimeSeconds: number;
+  online: boolean;
+}
+
+export interface PlayerSession {
+  name: string;
+  joinedAt: string;
+  leftAt?: string;
+}
+
+export interface ServerEvent {
+  ts: string;
+  kind: string;
+  player?: string;
+  text: string;
+}
+
+export interface UpdateInstanceInput {
+  name?: string;
+  memoryMb?: number;
+  jvmFlagsPreset?: "aikar" | "basic" | "custom";
+  jvmFlags?: string[];
+  javaRuntime?: string;
+  javaPath?: string;
+  autostart?: boolean;
+  restartPolicy?: "never" | "on-crash" | "always";
+  stopTimeoutSeconds?: number;
 }
 
 export interface InstanceDetail {
@@ -162,6 +199,13 @@ export const instances = {
   console: (id: string, lines = 500) => api<ConsoleLine[]>(`/instances/${id}/console?lines=${lines}`),
   metrics: (id: string, range = "1h") => api<MetricSample[]>(`/instances/${id}/metrics?range=${range}`),
   acceptEula: (id: string) => post<void>(`/instances/${id}/eula`, { accept: true }),
+  update: (id: string, input: UpdateInstanceInput) =>
+    api<InstanceSummary>(`/instances/${id}`, { method: "PATCH", body: JSON.stringify(input) }),
+  players: (id: string) => api<Player[]>(`/instances/${id}/players`),
+  sessions: (id: string, name: string) =>
+    api<PlayerSession[]>(`/instances/${id}/players/${encodeURIComponent(name)}/sessions`),
+  events: (id: string, kinds: string[], limit = 100) =>
+    api<ServerEvent[]>(`/instances/${id}/events?kind=${kinds.join(",")}&limit=${limit}`),
   logs: (id: string) => api<LogFile[]>(`/instances/${id}/logs`),
   logTail: (id: string, file: string, tail: number) =>
     api<{ file: string; lines: string[] }>(`/instances/${id}/logs/${encodeURIComponent(file)}?tail=${tail}`),
