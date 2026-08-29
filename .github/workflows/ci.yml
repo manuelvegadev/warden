@@ -58,11 +58,7 @@ jobs:
         run: pnpm lint
       - name: Build (includes the TypeScript check)
         env:
-          # Build-time placeholders: lib/auth.ts is evaluated during the build. Real values come
-          # from the deployment (docs/deploy.md).
-          BETTER_AUTH_SECRET: ci-placeholder-secret-not-for-production
-          BETTER_AUTH_URL: http://localhost:3000
-          DATABASE_PATH: /tmp/beacon-ci.db
+          # The only build-time input; auth and the database are created at runtime (lib/auth.ts).
           NEXT_PUBLIC_WARDEND_WS_URL: ws://localhost:8080
         run: pnpm build
 
