@@ -8,16 +8,23 @@
 - [x] Security and auth model (`docs/security.md`, ADR-008); name proposals (`docs/naming.md`)
 - [x] Name: Warden / `wardend`; Better Auth (ADR-009)
 
-## Phase 1 — Daemon MVP
-- [ ] `internal/store`: SQLite + migrations (metrics, players, events; no longer users)
+## Phase 1 — Daemon MVP ✅ (verified end-to-end with a real Paper 1.21.8 server on 2026-08-28)
+- [x] `internal/store`: SQLite (metrics, events tables; 7-day retention)
 - [x] `internal/auth`: JWT verification via Beacon's JWKS + `X-Panel-Key` + roles (ADR-009)
 - [x] Beacon: Better Auth (email+password, admin, jwt EdDSA), login, protected layout, BFF proxy `/api/wardend`
-- [ ] `internal/catalog/paper`: Fill v3 (versions, builds, download with sha256)
-- [ ] `internal/tasks`: `install` task (jar + eula + server.properties + local rcon)
-- [ ] `internal/instance`: `java` process via `os/exec`, console ring buffer, staged stop, restart policy
-- [ ] `internal/ws`: hub, console/state/events streams
-- [ ] `internal/metrics`: gopsutil every 2 s, persistence and `/metrics` endpoint
-- [ ] Panel: login, instance list, creation wizard, console (xterm.js), resource cards
+- [x] `internal/catalog/paper`: Fill v3 (versions, builds, download with sha256, 10-min cache)
+- [x] `internal/tasks`: `install` task (jar + eula + server.properties; RCON left disabled, console via stdin)
+- [x] `internal/instance`: `java` process via `os/exec`, console ring buffer, staged stop, restart policy with backoff, Aikar flags
+- [x] `internal/ws`: hub (coder/websocket), first-message JWT auth, Origin check, console/state/events/metrics/task streams
+- [x] `internal/metrics`: gopsutil every 2 s, in-memory 1 h ring + SQLite, `/metrics` endpoint
+- [x] Beacon: instance list (live), creation dialog (Paper versions/builds), console (xterm.js) with command history, resource cards, controls
+
+## Phase 1.5 — Hardening (before phase 2)
+- [ ] Tests for instance supervisor (fake `java` script) and ws hub
+- [x] Managed Java runtimes: Temurin via Adoptium into `<data>/java`, auto-selection by MC version, Settings → Java (ADR-010)
+- [ ] Network I/O per instance (interface counters) and TPS via `tps` command parsing
+- [ ] Metrics chart (1 h) in Beacon; players tab with join/leave history
+- [ ] Edit instance settings (memory, flags, autostart, restart policy) from Beacon
 
 ## Phase 2 — Configuration and plugins
 - [ ] `server.properties` schema; whitelist/ops/bans; confined file editor

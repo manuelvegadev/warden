@@ -19,8 +19,19 @@ The UI is served from `/` (embedded SPA); the WebSocket from `/api/v1/ws`.
 | GET | `/auth/me` | Current user |
 | GET | `/system` | `{hostname, os, cpuCores, memTotal, memUsed, disk:{path,total,used}, java:[{path,version}], daemonVersion, uptime}` |
 | GET | `/system/metrics` | Global CPU/RAM/network snapshot |
+| GET | `/tasks` | Most recent tasks first |
 | GET | `/tasks/{id}` | Long-running task status `{id,type,status,progress,message,error}` |
 | GET | `/settings` / PUT | Panel config (port, dataDir, User-Agent contact, Java paths, backups) |
+
+## Java runtimes (ADR-010)
+| Method | Path | Description |
+|---|---|---|
+| GET | `/java` | `{installed:[{id,vendor,major,version,path,managed,size,installedAt}], available:[{major,lts}]}` (Adoptium releases; `availableError` when unreachable) |
+| GET | `/java/required?mc=26.2` | `{mcVersion, requiredMajor, runtime?}` — minimum Java major for that Minecraft version and the best installed runtime |
+| POST | `/java` | `{"major":25}` → `202 {task}` (type `java.install`); downloads Temurin JRE into `<data>/java/temurin-<major>/` |
+| DELETE | `/java/{id}` | Removes a managed runtime (`system` cannot be removed) |
+
+Instance create/patch accept `javaRuntime` (`"auto"` or a runtime id) and `javaPath` (explicit binary, overrides).
 
 ## Catalog (external providers, cached)
 | Method | Path | Description |
@@ -45,9 +56,11 @@ The UI is served from `/` (embedded SPA); the WebSocket from `/api/v1/ws`.
 | POST | `/instances/{id}/restart` | |
 | POST | `/instances/{id}/kill` | SIGKILL (confirmation in UI) |
 | POST | `/instances/{id}/command` | `{"command":"say hola"}` → `204`. With `?rcon=true` → `{"response":"..."}` synchronous |
-| GET | `/instances/{id}/console?lines=500` | Last lines of the ring buffer `[{ts,level,text}]` |
-| GET | `/instances/{id}/logs` / `/logs/{file}` | Files in `logs/` (gz decompressed on the fly) |
+| GET | `/instances/{id}/console?lines=500` | Last lines of the ring buffer `[{ts,level,text}]`; falls back to the tail of `logs/latest.log` when the buffer is empty (daemon restart) |
+| GET | `/instances/{id}/logs` | `[{name,size,modTime}]` — `latest.log` first, then rotated `*.log.gz` |
+| GET | `/instances/{id}/logs/{file}?tail=500` | `{file, lines[]}` (max 5000; gz decompressed on the fly). `?download=1` streams the raw file with `Content-Disposition`. Without params: plain text. |
 | GET | `/instances/{id}/metrics?range=1h&step=10s` | Time series `[{ts,cpu,memRss,diskUsed,netRx,netTx,tps,players}]` from SQLite |
+| POST | `/instances/{id}/install` | Retry/redo the install task (`{"AcceptEULA":true,"Properties":{}}`) → `202 {task}`. Instance must be stopped. |
 | POST | `/instances/{id}/eula` | `{"accept":true}` → writes `eula.txt` |
 | POST | `/instances/{id}/upgrade` | `{"mcVersion":"1.21.8","build":60}` → `202` task. Takes a backup first. |
 

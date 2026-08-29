@@ -29,11 +29,15 @@ The browser connects to the daemon (REST + WebSocket with JWT); the panel only s
 - [`docs/api.md`](docs/api.md) — **REST + WebSocket API specification** of the daemon.
 - [`docs/external-apis.md`](docs/external-apis.md) — Fill v3 (Paper), Hangar, Modrinth, Mojang (verified).
 - [`docs/minecraft-admin.md`](docs/minecraft-admin.md) — Paper server administration reference (files, commands, flags, logs, security).
-- [`docs/adr/`](docs/adr/) — decisions: [001 Go](docs/adr/001-backend-language.md) · [002 Web](docs/adr/002-web-interface.md) · [003 Monolith](docs/adr/003-single-binary-daemon.md) · [004 MC integration](docs/adr/004-minecraft-integration.md) · [005 Jar/plugin sources](docs/adr/005-jar-and-plugin-sources.md) · [006 Multi-instance](docs/adr/006-multi-instance.md) · [007 Separate Next.js panel](docs/adr/007-separate-nextjs-panel.md)
+- [`docs/adr/`](docs/adr/) — decisions: [001 Go](docs/adr/001-backend-language.md) · [002 Web](docs/adr/002-web-interface.md) · [003 Monolith](docs/adr/003-single-binary-daemon.md) · [004 MC integration](docs/adr/004-minecraft-integration.md) · [005 Jar/plugin sources](docs/adr/005-jar-and-plugin-sources.md) · [006 Multi-instance](docs/adr/006-multi-instance.md) · [007 Separate Next.js panel](docs/adr/007-separate-nextjs-panel.md) · [008 BFF auth](docs/adr/008-bff-authentication.md) · [009 Better Auth](docs/adr/009-better-auth.md) · [010 Managed Java runtimes](docs/adr/010-managed-java-runtimes.md)
 - [`docs/security.md`](docs/security.md) — authentication and panel ↔ daemon hardening.
 - [`docs/naming.md`](docs/naming.md) — monorepo and name proposals.
+- [`docs/design.md`](docs/design.md) — typography (Google Sans Code for consoles, line-height 1.1) and theme conventions.
 - [`docs/tooling.md`](docs/tooling.md) — MCP servers and skills installed for assisted development.
 - [`docs/roadmap.md`](docs/roadmap.md)
+
+## Contributing
+See [`CONTRIBUTING.md`](CONTRIBUTING.md): English everywhere, Conventional Commits, small scoped commits.
 
 ## Development
 ```bash

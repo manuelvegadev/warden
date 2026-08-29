@@ -9,6 +9,7 @@ A collection of official and community documentation relevant to the panel.
 - Community: [PaperMC Discord/Forums](https://forums.papermc.io/), [itzg/docker-minecraft-server](https://docker-minecraft-server.readthedocs.io/) (excellent automation reference: variables, Paper/Modrinth downloads, RCON), [YouHaveTrouble/minecraft-optimization](https://github.com/YouHaveTrouble/minecraft-optimization) (config optimization guide), [Spigot/Paper timings → spark](https://spark.lucko.me/).
 
 ## Requirements
+- Java per Minecraft version: **26.1+ → Java 25**, 1.20.5–1.21.x → 21, 1.17–1.20.4 → 17, ≤1.16 → 8. wardend downloads the right Temurin JRE automatically (ADR-010); no system-wide install needed.
 - Paper 1.20.5+ requires **Java 21**; 1.17–1.20.4 Java 17; ≤1.16 Java 8/11. Recommended: Temurin/Adoptium (`apt install temurin-21-jre` from the Adoptium repo) or Ubuntu's `openjdk-21-jre-headless`.
 - RAM: `Xmx` = available physical RAM − 1–1.5 GB (the JVM uses memory outside the heap). `Xms` = `Xmx` with Aikar.
 - Dedicated user without a shell (`warden`), never root.
