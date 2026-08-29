@@ -10,7 +10,7 @@ import {
   type PluginRef,
 } from "@/components/instance/plugin-details-dialog";
 import { PluginIcon } from "@/components/instance/plugin-icon";
-import { PLUGIN_SOURCES, PluginSourceBadge } from "@/components/instance/plugin-source-badge";
+import { CATALOG_SOURCES, PluginSourceBadge } from "@/components/instance/plugin-source-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -29,7 +29,7 @@ import { mono } from "@/lib/utils";
 
 const SOURCE_FILTERS: Record<string, string> = {
   all: "All sources",
-  ...Object.fromEntries(Object.entries(PLUGIN_SOURCES).map(([k, v]) => [k, v.label])),
+  ...Object.fromEntries(Object.entries(CATALOG_SOURCES).map(([k, v]) => [k, v.label])),
 };
 const keyOf = (h: PluginHit) => `${h.source}:${h.id}`;
 

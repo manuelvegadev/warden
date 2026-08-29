@@ -7,10 +7,14 @@ async function proxy(req: NextRequest, ctx: { params: Promise<{ path: string[] }
   const target = `/${path.join("/")}${req.nextUrl.search}`;
   let upstream: Response;
   try {
+    // Stream the body through untouched so multipart uploads (plugin jars) survive the hop.
+    const hasBody = req.method !== "GET" && req.method !== "HEAD";
     upstream = await wardendFetch(target, {
       method: req.method,
-      body: req.method === "GET" || req.method === "HEAD" ? undefined : await req.text(),
+      body: hasBody ? req.body : undefined,
       headers: { "Content-Type": req.headers.get("content-type") ?? "application/json" },
+      // @ts-expect-error -- required by undici for streaming request bodies; not in the DOM lib types
+      duplex: "half",
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "upstream error";

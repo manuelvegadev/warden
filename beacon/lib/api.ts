@@ -152,13 +152,30 @@ export interface InstalledPluginRecord {
   installedAt: string;
 }
 
+export interface PluginMeta {
+  name: string;
+  version: string;
+  description?: string;
+  authors?: string[];
+  apiVersion?: string;
+}
+
 export interface PluginFile {
   fileName: string;
   enabled: boolean;
   size: number;
+  /** Parsed from plugin.yml / paper-plugin.yml inside the jar. */
+  meta?: PluginMeta;
   /** wardend API path of the icon fetched at install time (served through the BFF). */
   iconUrl?: string;
   source?: InstalledPluginRecord;
+}
+
+/** A newer compatible catalog release for an installed jar. */
+export interface PluginUpdate {
+  fileName: string;
+  version: string;
+  versionId: string;
 }
 
 export interface UpdateInstanceInput {
@@ -191,9 +208,18 @@ export interface LogFile {
   modTime: string;
 }
 
+export type TaskType = "install" | "plugin.install" | "java.install";
+
+export const TASK_LABELS: Record<TaskType, string> = {
+  install: "Server install",
+  "plugin.install": "Plugin install",
+  "java.install": "Java install",
+};
+export const taskLabel = (type: string) => TASK_LABELS[type as TaskType] ?? type;
+
 export interface Task {
   id: string;
-  type: string;
+  type: TaskType;
   instanceId?: string;
   status: "pending" | "running" | "done" | "failed";
   progress: number;
@@ -257,10 +283,12 @@ type ApiInit = RequestInit & { text?: boolean };
 
 /** Calls the BFF. JSON in/out by default; `text: true` returns the body as a string. Errors map to ApiError. */
 export async function api<T>(path: string, { text, ...init }: ApiInit = {}): Promise<T> {
-  const res = await fetch(`/api/wardend${path}`, {
-    ...init,
-    headers: { "Content-Type": text ? "text/plain" : "application/json", ...(init.headers as Record<string, string>) },
-  });
+  // FormData bodies set their own multipart Content-Type (with boundary); never override it.
+  const headers = new Headers(init.headers);
+  if (!(init.body instanceof FormData) && !headers.has("Content-Type")) {
+    headers.set("Content-Type", text ? "text/plain" : "application/json");
+  }
+  const res = await fetch(`/api/wardend${path}`, { ...init, headers });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     const e = body?.error ?? {};
@@ -334,6 +362,20 @@ export const plugins = {
   versions: (source: string, id: string, mc: string) =>
     api<PluginVersion[]>(`/catalog/plugins/${source}/${encodeURIComponent(id)}/versions?mc=${encodeURIComponent(mc)}`),
   installed: (instanceId: string) => api<PluginFile[]>(`/instances/${instanceId}/plugins`),
+  /** Newer releases for catalog-installed plugins; slower (asks the catalog), so fetched separately. */
+  updates: (instanceId: string) => api<PluginUpdate[]>(`/instances/${instanceId}/plugins/updates`),
+  toggle: (instanceId: string, fileName: string) =>
+    post<{ enabled: boolean }>(`/instances/${instanceId}/plugins/${encodeURIComponent(fileName)}/toggle`),
+  update: (instanceId: string, fileName: string) =>
+    post<{ task: Task }>(`/instances/${instanceId}/plugins/${encodeURIComponent(fileName)}/update`),
+  remove: (instanceId: string, fileName: string) =>
+    api<void>(`/instances/${instanceId}/plugins/${encodeURIComponent(fileName)}`, { method: "DELETE" }),
+  /** Uploads a plugin jar, or a zip bundle whose plugin jars get extracted. */
+  upload: (instanceId: string, file: File) => {
+    const body = new FormData();
+    body.append("file", file, file.name);
+    return api<{ plugins: PluginFile[] }>(`/instances/${instanceId}/plugins/upload`, { method: "POST", body });
+  },
   /** Maps a wardend API path (as returned in `iconUrl`) to the BFF proxy. */
   proxied: (apiPath: string) => apiPath.replace(/^\/api\/v1/, "/api/wardend"),
   install: (instanceId: string, source: string, projectId: string, versionId: string) =>

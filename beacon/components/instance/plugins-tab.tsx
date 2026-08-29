@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { ArrowUpCircle, MoreHorizontal, Power, Trash2, Upload } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { PluginDetailsDialog, PluginNameButton, type PluginRef } from "@/components/instance/plugin-details-dialog";
 import { PluginIcon } from "@/components/instance/plugin-icon";
@@ -8,16 +9,36 @@ import { PluginSourceBadge } from "@/components/instance/plugin-source-badge";
 import { InstallPluginsDialog } from "@/components/instance/plugins-install-dialog";
 import { SectionCard } from "@/components/instance/section-card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { formatBytes, type PluginFile, plugins, type Task } from "@/lib/api";
-import { mono } from "@/lib/utils";
+import { useFileDrag } from "@/hooks/use-file-drag";
+import { formatBytes, type PluginFile, type PluginUpdate, plugins, type Task } from "@/lib/api";
+import { badgeTone, mono } from "@/lib/utils";
+
+const isPluginUpload = (f: File) => /\.(jar|zip)$/i.test(f.name);
 
 const installedOn = (iso?: string) =>
   iso && !iso.startsWith("0001")
     ? new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })
     : "—";
 
-/** Installed plugins table plus the "Install plugins" dialog (search Hangar/Modrinth, queue, install). */
+/** Installed plugins table with per-row actions, upload, and the catalog installer. */
 export function PluginsTab({
   id,
   mcVersion,
@@ -30,21 +51,34 @@ export function PluginsTab({
   task: Task | null;
 }) {
   const [installed, setInstalled] = useState<PluginFile[] | null>(null);
+  const [updates, setUpdates] = useState<Map<string, PluginUpdate>>(new Map());
   const [selected, setSelected] = useState<PluginRef | null>(null);
+  const [removing, setRemoving] = useState<PluginFile | null>(null);
   const closeDetails = useCallback(() => setSelected(null), []);
+  const fileInput = useRef<HTMLInputElement>(null);
 
-  const refresh = useCallback(() => {
-    plugins
-      .installed(id)
-      .then(setInstalled)
-      .catch((e) => toast.error(e.message));
-  }, [id]);
+  /** Reloads the table; `checkUpdates` also asks the catalog (slower), so only after installs. */
+  const refresh = useCallback(
+    (checkUpdates = false) => {
+      plugins
+        .installed(id)
+        .then(setInstalled)
+        .catch((e) => toast.error(e.message));
+      if (checkUpdates) {
+        plugins
+          .updates(id)
+          .then((u) => setUpdates(new Map(u.map((x) => [x.fileName, x]))))
+          .catch(() => {}); // best effort: the table is useful without update badges
+      }
+    },
+    [id],
+  );
   useEffect(() => {
-    refresh();
+    refresh(true);
   }, [refresh]);
   // The daemon broadcasts task progress over the socket; refresh the table when an install finishes.
   useEffect(() => {
-    if (task?.type === "plugin.install" && task.status === "done") refresh();
+    if (task?.type === "plugin.install" && task.status === "done") refresh(true);
   }, [task, refresh]);
 
   const installedKeys = useMemo(
@@ -52,11 +86,59 @@ export function PluginsTab({
     [installed],
   );
 
+  /** Runs an action that resolves to its success message; errors become toasts. Returns success. */
+  async function act(fn: () => Promise<string>, refreshAfter: boolean | "updates" = true) {
+    try {
+      toast.success(await fn());
+      if (refreshAfter) refresh(refreshAfter === "updates");
+      return true;
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Action failed");
+      return false;
+    }
+  }
+
+  /** Uploads every .jar / .zip in the list (others are reported and skipped), then reloads once. */
+  async function upload(files: Iterable<File> | null | undefined) {
+    if (!files) return;
+    for (const file of files) {
+      if (!isPluginUpload(file)) {
+        toast.error(`${file.name}: only .jar plugins or .zip bundles can be uploaded`);
+        continue;
+      }
+      await act(async () => {
+        const { plugins: added } = await plugins.upload(id, file);
+        const names = added.map((p) => p.fileName).join(", ");
+        return `Uploaded ${names} — restart the server to load ${added.length === 1 ? "it" : "them"}`;
+      }, false);
+    }
+    refresh();
+    if (fileInput.current) fileInput.current.value = "";
+  }
+  const dragging = useFileDrag(isAdmin, upload);
+
   return (
     <SectionCard
       title="Plugins"
-      subtitle="Jars in server/plugins. The server loads them on the next start."
-      action={isAdmin && <InstallPluginsDialog instanceId={id} mcVersion={mcVersion} installed={installedKeys} />}
+      subtitle="Jars in server/plugins. Changes here apply on the next server start."
+      action={
+        isAdmin && (
+          <div className="flex gap-2">
+            <input
+              ref={fileInput}
+              type="file"
+              accept=".jar,.zip"
+              multiple
+              className="hidden"
+              onChange={(e) => upload(e.target.files)}
+            />
+            <Button size="sm" variant="outline" onClick={() => fileInput.current?.click()}>
+              <Upload className="size-4" /> Upload
+            </Button>
+            <InstallPluginsDialog instanceId={id} mcVersion={mcVersion} installed={installedKeys} />
+          </div>
+        )
+      }
     >
       {installed === null && <p className="px-5 py-3 text-sm text-muted-foreground">Loading…</p>}
       {installed?.length === 0 && <p className="px-5 py-3 text-sm text-muted-foreground">No plugins installed yet.</p>}
@@ -69,15 +151,18 @@ export function PluginsTab({
               <TableHead>Version</TableHead>
               <TableHead>Source</TableHead>
               <TableHead className="text-right">Size</TableHead>
-              <TableHead className="pr-5">Installed</TableHead>
+              <TableHead>Installed</TableHead>
+              {isAdmin && <TableHead className="w-12" />}
             </TableRow>
           </TableHeader>
           <TableBody>
             {installed.map((p) => {
-              const label = p.source?.name ?? p.fileName.replace(/\.jar$/, "");
+              const label = p.meta?.name ?? p.source?.name ?? p.fileName.replace(/\.jar$/, "");
+              const version = p.meta?.version ?? p.source?.version;
               const ref = p.source?.projectId ? { source: p.source.source, id: p.source.projectId } : null;
+              const update = updates.get(p.fileName);
               return (
-                <TableRow key={p.fileName}>
+                <TableRow key={p.fileName} className={p.enabled ? "" : "text-muted-foreground"}>
                   <TableCell className="w-14 pr-0 pl-5">
                     <PluginIcon src={p.iconUrl && plugins.proxied(p.iconUrl)} className="size-8" />
                   </TableCell>
@@ -88,25 +173,113 @@ export function PluginsTab({
                     </div>
                     <div className={`${mono} text-xs text-muted-foreground`}>{p.fileName}</div>
                   </TableCell>
-                  <TableCell className={mono}>{p.source?.version ?? "—"}</TableCell>
                   <TableCell>
-                    {p.source ? (
-                      <PluginSourceBadge source={p.source.source} />
-                    ) : (
-                      <span className="text-muted-foreground">manual</span>
-                    )}
+                    <div className="flex items-center gap-2">
+                      <span className={mono}>{version ?? "—"}</span>
+                      {update && (
+                        <Badge variant="outline" className={badgeTone.emerald} title={`${update.version} is available`}>
+                          <ArrowUpCircle className="size-3" /> {update.version}
+                        </Badge>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <PluginSourceBadge source={p.source?.source ?? "manual"} />
                   </TableCell>
                   <TableCell className={`${mono} text-right`}>{formatBytes(p.size)}</TableCell>
-                  <TableCell className="pr-5 text-muted-foreground" title={p.source?.installedAt}>
+                  <TableCell className="text-muted-foreground" title={p.source?.installedAt}>
                     {installedOn(p.source?.installedAt)}
                   </TableCell>
+                  {isAdmin && (
+                    <TableCell className="pr-3">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger
+                          render={<Button size="icon-sm" variant="ghost" aria-label={`Actions for ${label}`} />}
+                        >
+                          <MoreHorizontal className="size-4" />
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="min-w-44">
+                          <DropdownMenuGroup>
+                            {update && (
+                              <DropdownMenuItem
+                                onClick={() =>
+                                  act(async () => {
+                                    await plugins.update(id, p.fileName);
+                                    return `Updating ${label} to ${update.version}…`;
+                                  }, false)
+                                }
+                              >
+                                <ArrowUpCircle className="size-4" /> Update to {update.version}
+                              </DropdownMenuItem>
+                            )}
+                            <DropdownMenuItem
+                              onClick={() =>
+                                act(async () => {
+                                  const { enabled } = await plugins.toggle(id, p.fileName);
+                                  return `${enabled ? "Enabled" : "Disabled"} ${label}`;
+                                })
+                              }
+                            >
+                              <Power className="size-4" /> {p.enabled ? "Disable" : "Enable"}
+                            </DropdownMenuItem>
+                          </DropdownMenuGroup>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuGroup>
+                            <DropdownMenuItem variant="destructive" onClick={() => setRemoving(p)}>
+                              <Trash2 className="size-4" /> Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuGroup>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  )}
                 </TableRow>
               );
             })}
           </TableBody>
         </Table>
       )}
+      {dragging && (
+        <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+          <div className="flex flex-col items-center gap-3 rounded-xl border-2 border-dashed border-primary px-12 py-10 text-center">
+            <Upload className="size-8 text-primary" aria-hidden />
+            <p className="text-lg font-semibold">Drop to upload</p>
+            <p className="text-sm text-muted-foreground">.jar plugins or .zip bundles containing plugin jars</p>
+          </div>
+        </div>
+      )}
       <PluginDetailsDialog selected={selected} onClose={closeDetails} />
+      <Dialog open={removing !== null} onOpenChange={(o) => !o && setRemoving(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete {removing?.meta?.name ?? removing?.fileName}?</DialogTitle>
+            <DialogDescription>
+              Removes <span className={mono}>{removing?.fileName}</span> from server/plugins. The plugin's own data
+              folder is kept. Takes effect on the next server start.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setRemoving(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                const p = removing;
+                setRemoving(null);
+                if (p) {
+                  act(async () => {
+                    await plugins.remove(id, p.fileName);
+                    return `Deleted ${p.fileName}`;
+                  });
+                }
+              }}
+            >
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </SectionCard>
   );
 }
