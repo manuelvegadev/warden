@@ -1,4 +1,6 @@
-# mc-server-gui
+# Warden
+
+> Nombre elegido en `docs/naming.md`: proyecto **Warden**, daemon **`wardend`**, panel **warden-panel** (nombre "Beacon" aún en consideración para el panel).
 
 Panel sencillo y útil para crear y administrar **varias instancias** de servidores de Minecraft (Java Edition, empezando por **PaperMC**) en Ubuntu, al estilo de Pterodactyl / Crafty Controller pero mucho más ligero. Incluye instalación de plugins desde Hangar y Modrinth ("como Prism Launcher, pero para servidores").
 
@@ -6,7 +8,7 @@ Panel sencillo y útil para crear y administrar **varias instancias** de servido
 
 | | Dir | Tecnología | Corre en |
 |---|---|---|---|
-| **Daemon `mcd`** | [`daemon/`](daemon/) | Go, binario único, `systemd` | El Ubuntu de los servidores |
+| **Daemon `wardend`** | [`daemon/`](daemon/) | Go, binario único, `systemd` | El Ubuntu de los servidores |
 | **Panel** | [`panel/`](panel/) | Next.js 15 + React + Tailwind + shadcn/ui | Docker vía Dokploy |
 
 El navegador se conecta al daemon (REST + WebSocket con JWT); el panel solo sirve la UI. Ver [`docs/architecture.md`](docs/architecture.md).

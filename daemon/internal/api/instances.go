@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/manuelvega/mc-server-gui/daemon/internal/instance"
+	"github.com/manuelvega/warden/daemon/internal/instance"
 )
 
 type instanceSummary struct {

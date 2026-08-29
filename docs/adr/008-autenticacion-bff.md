@@ -1,6 +1,6 @@
 # ADR-008: Autenticación — panel como BFF, daemon como autoridad, WS con ticket efímero
 
-Fecha: 2026-08-28 · Estado: aceptada · **Modifica** ADR-007 (el navegador ya no guarda un JWT en `localStorage` ni llama al daemon por REST).
+Fecha: 2026-08-28 · Estado: aceptada, **modificada por ADR-009** (usuarios en el panel con Better Auth; JWT verificado por JWKS) · **Modifica** ADR-007 (el navegador ya no guarda un JWT en `localStorage` ni llama al daemon por REST).
 
 ## Decisión
 - Usuarios y contraseñas viven en el **daemon** (SQLite, argon2id). Emite JWT HS256 de 12 h.
@@ -14,6 +14,6 @@ Fecha: 2026-08-28 · Estado: aceptada · **Modifica** ADR-007 (el navegador ya n
 Sigue la guía OWASP/IETF para SPAs (nada de tokens en JS), evita cookies cross-site (rotas en navegadores modernos), replica el patrón probado de Pterodactyl para el WS y mantiene el panel sin base de datos (multi-nodo futuro: la cookie guarda un JWT por nodo).
 
 ## Consecuencias
-- Variables nuevas: daemon `MCD_PANEL_KEY`, `MCD_ALLOWED_ORIGINS`; panel `PANEL_SESSION_SECRET`, `MCD_URL` (interna, servidor a servidor), `NEXT_PUBLIC_MCD_WS_URL` (pública, para el WS).
+- Variables nuevas: daemon `WARDEND_PANEL_KEY`, `WARDEND_ALLOWED_ORIGINS`; panel `PANEL_SESSION_SECRET`, `WARDEND_URL` (interna, servidor a servidor), `NEXT_PUBLIC_WARDEND_WS_URL` (pública, para el WS).
 - `panel/lib/api.ts` pasa a llamar a `/api/*` del propio panel; se elimina el `localStorage`.
 - Detalle completo en `docs/security.md`.

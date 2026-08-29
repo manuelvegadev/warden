@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"runtime"
 
-	"github.com/manuelvega/mc-server-gui/daemon/internal/config"
-	"github.com/manuelvega/mc-server-gui/daemon/internal/instance"
+	"github.com/manuelvega/warden/daemon/internal/config"
+	"github.com/manuelvega/warden/daemon/internal/instance"
 )
 
 type server struct {
@@ -64,7 +64,7 @@ func NewRouter(cfg *config.Config, mgr *instance.Manager, version string) http.H
 	// Página de diagnóstico; la UI real es panel/ (ADR-007)
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		_, _ = w.Write([]byte("<h1>mcd " + version + "</h1><p>API en <code>/api/v1</code>. La UI es el panel Next.js.</p>"))
+		_, _ = w.Write([]byte("<h1>wardend " + version + "</h1><p>API en <code>/api/v1</code>. La UI es el panel Next.js.</p>"))
 	})
 
 	return cors(cfg.AllowedOrigins, logging(mux))

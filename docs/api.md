@@ -1,10 +1,10 @@
-# API del daemon (`mcd`)
+# API del daemon (`wardend`)
 
 Versión: v1 (borrador 2026-08-28). Base: `http://<host>:8080/api/v1`. JSON en ambos sentidos.
 La UI se sirve desde `/` (SPA embebida); el WebSocket desde `/api/v1/ws`.
 
 ## Convenciones
-- Auth: `POST /auth/login` devuelve cookie de sesión `mcd_session` (HttpOnly, SameSite=Strict). También se acepta `Authorization: Bearer <token>` para API tokens creados en Ajustes.
+- Auth: `POST /auth/login` devuelve cookie de sesión `warden_session` (HttpOnly, SameSite=Strict). También se acepta `Authorization: Bearer <token>` para API tokens creados en Ajustes.
 - Errores: `{"error":{"code":"instance_not_found","message":"..."}}` con HTTP 4xx/5xx.
 - IDs de instancia: slug `^[a-z0-9][a-z0-9-]{1,31}$`.
 - Fechas ISO-8601 UTC. Tamaños en bytes. CPU en % de un core (puede superar 100).
@@ -144,7 +144,7 @@ Servidor → cliente:
 | `players` | `{online:[{uuid,name}]}` tras cada join/leave |
 | `pong` | |
 
-## Esquema SQLite (`<data>/mcd.db`)
+## Esquema SQLite (`<data>/wardend.db`)
 ```sql
 users(id, username, password_hash, role, created_at)
 sessions(token, user_id, expires_at)

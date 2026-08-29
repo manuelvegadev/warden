@@ -22,4 +22,4 @@ Criterio: corto, tecleable como comando (`<daemon>` en systemd, binario), con gu
 
 Alternativa con más personalidad: **Warden** (`wardend`) + panel **Beacon** — daemon que vigila, panel que muestra.
 
-Los nombres actuales del esqueleto (`mcd`, `panel`) son provisionales; renombrar es un `sed` global y se hará en cuanto se elija.
+Los nombres actuales del esqueleto (`wardend`, `panel`) son provisionales; renombrar es un `sed` global y se hará en cuanto se elija.

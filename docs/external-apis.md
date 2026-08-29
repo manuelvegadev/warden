@@ -1,7 +1,7 @@
 # APIs externas usadas
 
 Verificadas con `curl` el 2026-08-28. Todas requieren `User-Agent` identificable:
-`mc-server-gui/<version> (<email o URL>)`.
+`warden/<version> (<email o URL>)`.
 
 ## PaperMC Fill v3 — descargas de Paper (y Velocity, Folia, Waterfall)
 

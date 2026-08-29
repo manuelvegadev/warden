@@ -5,7 +5,7 @@
  Navegador  ───────────────────────►  panel (Next.js)    ┐
      │                                 en Docker         │ sirve la SPA
      │                                                   ┘
-     └──────────────────────────────────────────────────────►  mcd (Go, systemd) en Ubuntu
+     └──────────────────────────────────────────────────────►  wardend (Go, systemd) en Ubuntu
                                     REST /api/v1 + WS /api/v1/ws        │
                                                                         ├─ instancia "survival"  (java -jar paper.jar)  stdin/stdout
                                                                         ├─ instancia "creative"  (java -jar paper.jar)
@@ -15,8 +15,8 @@
 
 ## Monorepo
 ```
-daemon/                 Go — el daemon `mcd`
-  cmd/mcd/              main: flags, config, arranque
+daemon/                 Go — el daemon `wardend`
+  cmd/wardend/              main: flags, config, arranque
   internal/
     config/             carga de config (YAML/env)
     api/                router HTTP, middlewares (auth, CORS), handlers REST
@@ -29,7 +29,7 @@ daemon/                 Go — el daemon `mcd`
     store/              SQLite (migraciones, repos)
     backup/             save-off/save-all/tar.zst
     tasks/              tareas largas con progreso
-  deploy/               mcd.service, script de instalación, Dockerfile opcional
+  deploy/               wardend.service, script de instalación, Dockerfile opcional
 panel/                  Next.js — la UI
   app/                  App Router: (auth)/login, (dashboard)/instances/[id]/{console,config,plugins,players,backups}
   components/           shadcn/ui + componentes propios (Console, MetricsChart, PluginBrowser…)

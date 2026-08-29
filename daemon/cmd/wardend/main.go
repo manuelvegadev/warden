@@ -1,4 +1,4 @@
-// mcd es el daemon de mc-server-gui: supervisa instancias de Minecraft y expone la API.
+// wardend es el daemon de warden: supervisa instancias de Minecraft y expone la API.
 package main
 
 import (
@@ -10,9 +10,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/manuelvega/mc-server-gui/daemon/internal/api"
-	"github.com/manuelvega/mc-server-gui/daemon/internal/config"
-	"github.com/manuelvega/mc-server-gui/daemon/internal/instance"
+	"github.com/manuelvega/warden/daemon/internal/api"
+	"github.com/manuelvega/warden/daemon/internal/config"
+	"github.com/manuelvega/warden/daemon/internal/instance"
 )
 
 var version = "dev"
@@ -47,7 +47,7 @@ func main() {
 	defer stop()
 
 	go func() {
-		slog.Info("mcd listening", "addr", cfg.Listen, "version", version, "data", cfg.DataDir)
+		slog.Info("wardend listening", "addr", cfg.Listen, "version", version, "data", cfg.DataDir)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			slog.Error("http", "err", err)
 			stop()

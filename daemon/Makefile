@@ -3,10 +3,10 @@ LDFLAGS = -s -w -X main.version=$(VERSION)
 
 .PHONY: build run test lint linux
 build:
-	go build -ldflags '$(LDFLAGS)' -o bin/mcd ./cmd/mcd
+	go build -ldflags '$(LDFLAGS)' -o bin/wardend ./cmd/wardend
 run:
-	MCD_LOG_LEVEL=debug MCD_ALLOWED_ORIGINS=http://localhost:3000 go run ./cmd/mcd
+	WARDEND_LOG_LEVEL=debug WARDEND_ALLOWED_ORIGINS=http://localhost:3000 go run ./cmd/wardend
 test:
 	go test ./...
 linux:
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags '$(LDFLAGS)' -o bin/mcd-linux-amd64 ./cmd/mcd
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags '$(LDFLAGS)' -o bin/wardend-linux-amd64 ./cmd/wardend

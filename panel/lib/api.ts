@@ -1,6 +1,6 @@
-// Cliente tipado de la API del daemon (docs/api.md). El navegador habla directamente con mcd (ADR-007).
+// Cliente tipado de la API del daemon (docs/api.md). El navegador habla directamente con wardend (ADR-007).
 
-export const MCD_URL = process.env.NEXT_PUBLIC_MCD_URL ?? "http://localhost:8080";
+export const WARDEND_URL = process.env.NEXT_PUBLIC_WARDEND_URL ?? "http://localhost:8080";
 
 export type InstanceState = "stopped" | "starting" | "running" | "stopping" | "crashed" | "installing";
 
@@ -24,7 +24,7 @@ export class ApiError extends Error {
 function token(): string | null {
   if (typeof window === "undefined") return null;
   try {
-    return localStorage.getItem("mcd_token");
+    return localStorage.getItem("warden_token");
   } catch {
     return null;
   }
@@ -34,7 +34,7 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers: Record<string, string> = { "Content-Type": "application/json", ...(init.headers as Record<string, string>) };
   const t = token();
   if (t) headers.Authorization = `Bearer ${t}`;
-  const res = await fetch(`${MCD_URL}/api/v1${path}`, { ...init, headers, cache: "no-store" });
+  const res = await fetch(`${WARDEND_URL}/api/v1${path}`, { ...init, headers, cache: "no-store" });
   if (res.status === 204) return undefined as T;
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
@@ -54,7 +54,7 @@ export const instances = {
 };
 
 export function wsUrl(): string {
-  const u = new URL(MCD_URL);
+  const u = new URL(WARDEND_URL);
   u.protocol = u.protocol === "https:" ? "wss:" : "ws:";
   u.pathname = "/api/v1/ws";
   const t = token();

@@ -9,8 +9,8 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 # NEXT_PUBLIC_* se inyecta en build; Dokploy lo pasa como build arg / env
-ARG NEXT_PUBLIC_MCD_URL
-ENV NEXT_PUBLIC_MCD_URL=$NEXT_PUBLIC_MCD_URL
+ARG NEXT_PUBLIC_WARDEND_URL
+ENV NEXT_PUBLIC_WARDEND_URL=$NEXT_PUBLIC_WARDEND_URL
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 

@@ -6,10 +6,11 @@
 - [x] Especificación de API REST + WS (`docs/api.md`)
 - [x] Esqueleto: `daemon/` (Go, compila, parser de log con tests) y `panel/` (Next.js + Dockerfile)
 - [x] Modelo de seguridad y auth (`docs/security.md`, ADR-008); propuestas de nombre (`docs/naming.md`)
+- [x] Nombre: Warden / `wardend`; Better Auth (ADR-009)
 
 ## Fase 1 — MVP daemon
 - [ ] `internal/store`: SQLite + migraciones
-- [ ] `internal/auth`: usuario inicial (`mcd user create`), login JWT, middleware
+- [ ] `internal/auth`: usuario inicial (`wardend admin`), login JWT, middleware
 - [ ] `internal/catalog/paper`: Fill v3 (versiones, builds, descarga con sha256)
 - [ ] `internal/tasks`: tarea `install` (jar + eula + server.properties + rcon local)
 - [ ] `internal/instance`: proceso `java` con `os/exec`, ring buffer de consola, stop escalonado, restart policy

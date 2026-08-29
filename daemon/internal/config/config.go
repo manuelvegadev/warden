@@ -9,21 +9,21 @@ import (
 )
 
 type Config struct {
-	Listen         string   // MCD_LISTEN, p.ej. ":8080"
-	DataDir        string   // MCD_DATA_DIR, p.ej. /var/lib/mc-server-gui
-	AllowedOrigins []string // MCD_ALLOWED_ORIGINS, coma-separado (origen del panel Next.js)
-	Contact        string   // MCD_CONTACT, email/URL para el User-Agent de Fill/Hangar/Modrinth
-	Level          string   // MCD_LOG_LEVEL: debug|info|warn|error
+	Listen         string   // WARDEND_LISTEN, p.ej. ":8080"
+	DataDir        string   // WARDEND_DATA_DIR, p.ej. /var/lib/warden
+	AllowedOrigins []string // WARDEND_ALLOWED_ORIGINS, coma-separado (origen del panel Next.js)
+	Contact        string   // WARDEND_CONTACT, email/URL para el User-Agent de Fill/Hangar/Modrinth
+	Level          string   // WARDEND_LOG_LEVEL: debug|info|warn|error
 }
 
 func Load() (*Config, error) {
 	c := &Config{
-		Listen:  env("MCD_LISTEN", ":8080"),
-		DataDir: env("MCD_DATA_DIR", "./data"),
-		Contact: env("MCD_CONTACT", "unknown"),
-		Level:   env("MCD_LOG_LEVEL", "info"),
+		Listen:  env("WARDEND_LISTEN", ":8080"),
+		DataDir: env("WARDEND_DATA_DIR", "./data"),
+		Contact: env("WARDEND_CONTACT", "unknown"),
+		Level:   env("WARDEND_LOG_LEVEL", "info"),
 	}
-	if o := os.Getenv("MCD_ALLOWED_ORIGINS"); o != "" {
+	if o := os.Getenv("WARDEND_ALLOWED_ORIGINS"); o != "" {
 		for _, s := range strings.Split(o, ",") {
 			if s = strings.TrimSpace(s); s != "" {
 				c.AllowedOrigins = append(c.AllowedOrigins, s)
@@ -39,9 +39,9 @@ func Load() (*Config, error) {
 }
 
 func (c *Config) ServersDir() string { return filepath.Join(c.DataDir, "servers") }
-func (c *Config) DBPath() string     { return filepath.Join(c.DataDir, "mcd.db") }
+func (c *Config) DBPath() string     { return filepath.Join(c.DataDir, "wardend.db") }
 func (c *Config) UserAgent(version string) string {
-	return "mc-server-gui/" + version + " (" + c.Contact + ")"
+	return "warden/" + version + " (" + c.Contact + ")"
 }
 
 func (c *Config) LogLevel() slog.Level {

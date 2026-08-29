@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Instala mcd en Ubuntu: usuario, directorios, binario y unidad systemd. Ejecutar como root.
+# Instala wardend en Ubuntu: usuario, directorios, binario y unidad systemd. Ejecutar como root.
 set -euo pipefail
-BIN=${1:-./mcd}
-id -u minecraft &>/dev/null || useradd --system --home /var/lib/mc-server-gui --shell /usr/sbin/nologin minecraft
-install -d -o minecraft -g minecraft -m 750 /var/lib/mc-server-gui
-install -m 755 "$BIN" /usr/local/bin/mcd
-install -m 644 "$(dirname "$0")/mcd.service" /etc/systemd/system/mcd.service
+BIN=${1:-./wardend}
+id -u minecraft &>/dev/null || useradd --system --home /var/lib/warden --shell /usr/sbin/nologin minecraft
+install -d -o minecraft -g minecraft -m 750 /var/lib/warden
+install -m 755 "$BIN" /usr/local/bin/wardend
+install -m 644 "$(dirname "$0")/wardend.service" /etc/systemd/system/wardend.service
 systemctl daemon-reload
-systemctl enable --now mcd
-echo "mcd instalado. Edita /etc/systemd/system/mcd.service (MCD_ALLOWED_ORIGINS, MCD_CONTACT) y 'systemctl restart mcd'."
+systemctl enable --now wardend
+echo "wardend instalado. Edita /etc/systemd/system/wardend.service (WARDEND_ALLOWED_ORIGINS, WARDEND_CONTACT) y 'systemctl restart wardend'."
