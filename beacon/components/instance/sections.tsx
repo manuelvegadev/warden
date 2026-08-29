@@ -1,14 +1,18 @@
 "use client";
 
-import { Activity, Puzzle, Settings, Shield, SlidersHorizontal, Terminal, Users } from "lucide-react";
+import { Activity, FileCode2, Puzzle, Settings, Shield, SlidersHorizontal, Terminal, Users } from "lucide-react";
 import { AccessLists } from "@/components/instance/access-lists";
 import { Console } from "@/components/instance/console";
+import { FilesEditor } from "@/components/instance/files-editor";
 import { type InstanceState, useConsoleLines } from "@/components/instance/instance-context";
+import { LaunchCommandCard } from "@/components/instance/launch-command-card";
 import { MetricsChart } from "@/components/instance/metrics-chart";
 import { PlayersTab } from "@/components/instance/players-tab";
 import { PluginsTab } from "@/components/instance/plugins-tab";
 import { PropertiesEditor } from "@/components/instance/properties-editor";
 import { SettingsForm } from "@/components/instance/settings-form";
+import { UpgradeCard } from "@/components/instance/upgrade-card";
+import { isStopped } from "@/lib/api";
 
 export interface Section {
   slug: string;
@@ -51,6 +55,12 @@ export const SECTIONS: Section[] = [
     render: (s) => <PropertiesEditor id={s.manifest.id} running={s.status.state === "running"} />,
   },
   {
+    slug: "files",
+    label: "Files",
+    icon: FileCode2,
+    render: (s) => <FilesEditor id={s.manifest.id} running={s.status.state === "running"} isAdmin={s.isAdmin} />,
+  },
+  {
     slug: "access",
     label: "Access",
     icon: Shield,
@@ -67,7 +77,11 @@ export const SECTIONS: Section[] = [
     label: "Settings",
     icon: Settings,
     render: (s) => (
-      <SettingsForm manifest={s.manifest} running={s.status.state !== "stopped" && s.status.state !== "crashed"} />
+      <div className="grid gap-8">
+        <UpgradeCard manifest={s.manifest} state={s.status.state} isAdmin={s.isAdmin} task={s.task} />
+        <LaunchCommandCard manifest={s.manifest} />
+        <SettingsForm manifest={s.manifest} running={!isStopped(s.status.state)} />
+      </div>
     ),
   },
 ];

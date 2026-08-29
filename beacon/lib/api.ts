@@ -1,6 +1,8 @@
 // Browser-side client. Everything goes through the BFF /api/wardend (ADR-008): no tokens in JS, no CORS.
 
 export type InstanceState = "stopped" | "starting" | "running" | "stopping" | "crashed" | "installing";
+/** No server process exists: file-replacing operations (install, upgrade) are allowed. */
+export const isStopped = (s: InstanceState) => s === "stopped" || s === "crashed";
 
 export interface InstanceStatus {
   state: InstanceState;
@@ -40,6 +42,17 @@ export interface Manifest {
   restartPolicy: "never" | "on-crash" | "always";
   stopTimeoutSeconds: number;
   createdAt: string;
+  /** Completed server upgrades, newest last. */
+  upgrades?: UpgradeRecord[];
+}
+
+export interface UpgradeRecord {
+  fromVersion: string;
+  fromBuild: number;
+  toVersion: string;
+  toBuild: number;
+  backup: string;
+  at: string;
 }
 
 export interface MetricSample {
@@ -178,6 +191,31 @@ export interface PluginUpdate {
   versionId: string;
 }
 
+export interface LaunchCommand {
+  java: string;
+  javaError?: string;
+  args: string[];
+  cwd: string;
+  /** java + args quoted for a POSIX shell, ready to paste. */
+  shell: string;
+}
+
+export interface UpgradeTarget {
+  mcVersion: string;
+  build: number;
+  channel?: string;
+  time?: string;
+  changes?: string[];
+}
+
+export interface UpgradeCheck {
+  current: UpgradeTarget;
+  /** Newer build of the same Minecraft version. */
+  latestBuild?: UpgradeTarget;
+  /** Newest Minecraft version that has a build. */
+  latestVersion?: UpgradeTarget;
+}
+
 export interface UpdateInstanceInput {
   name?: string;
   memoryMb?: number;
@@ -208,10 +246,11 @@ export interface LogFile {
   modTime: string;
 }
 
-export type TaskType = "install" | "plugin.install" | "java.install";
+export type TaskType = "install" | "upgrade" | "plugin.install" | "java.install";
 
 export const TASK_LABELS: Record<TaskType, string> = {
   install: "Server install",
+  upgrade: "Server upgrade",
   "plugin.install": "Plugin install",
   "java.install": "Java install",
 };
@@ -326,6 +365,10 @@ export const instances = {
   properties: (id: string) => api<ServerProperty[]>(`/instances/${id}/properties`),
   updateProperties: (id: string, updates: Record<string, string>) =>
     api<{ restartRequired: boolean }>(`/instances/${id}/properties`, { method: "PUT", body: JSON.stringify(updates) }),
+  launchCommand: (id: string) => api<LaunchCommand>(`/instances/${id}/command`),
+  upgradeCheck: (id: string) => api<UpgradeCheck>(`/instances/${id}/upgrade`),
+  upgrade: (id: string, target: { mcVersion?: string; build?: number }) =>
+    post<{ task: Task }>(`/instances/${id}/upgrade`, target),
   propertiesRaw: (id: string) => api<string>(`/instances/${id}/properties/raw`, { text: true }),
   updatePropertiesRaw: (id: string, text: string) =>
     api<{ restartRequired: boolean }>(`/instances/${id}/properties/raw`, {
@@ -351,6 +394,29 @@ export const instances = {
     api<{ file: string; lines: string[] }>(`/instances/${id}/logs/${encodeURIComponent(file)}?tail=${tail}`),
   logDownloadUrl: (id: string, file: string) =>
     `/api/wardend/instances/${id}/logs/${encodeURIComponent(file)}?download=1`,
+};
+
+export interface ConfigFile {
+  /** Slash-separated path relative to the server directory. */
+  path: string;
+  group: string;
+  size: number;
+  modifiedAt: string;
+}
+
+/** Allowlisted configuration files (Paper/Bukkit YAML, per-world configs, plugin data folders). */
+const fileContent = (instanceId: string, path: string) =>
+  `/instances/${instanceId}/files/content?path=${encodeURIComponent(path)}`;
+
+export const files = {
+  list: (instanceId: string) => api<ConfigFile[]>(`/instances/${instanceId}/files`),
+  read: (instanceId: string, path: string) => api<string>(fileContent(instanceId, path), { text: true }),
+  write: (instanceId: string, path: string, content: string) =>
+    api<{ restartRequired: boolean }>(fileContent(instanceId, path), {
+      method: "PUT",
+      body: content,
+      headers: { "Content-Type": "text/plain" },
+    }),
 };
 
 export const plugins = {
