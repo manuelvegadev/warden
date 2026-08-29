@@ -35,19 +35,20 @@ type Instance struct {
 	java JavaResolver
 	sink EventSink
 
-	mu        sync.RWMutex
-	state     State
-	cmd       *exec.Cmd
-	stdin     io.WriteCloser
-	pid       int
-	startedAt time.Time
-	exited    chan struct{} // closed when the current process has exited
-	stopping  bool          // true when Stop() initiated the shutdown (no restart)
-	crashes   int
-	players   map[string]struct{}
-	tps       [3]float64
-	tpsAt     time.Time
-	tpsQuiet  bool // a quiet `tps` is in flight: swallow its reply instead of showing it in the console
+	mu          sync.RWMutex
+	pluginMetas map[string]pluginMetaEntry // jar descriptors keyed by path, invalidated by size/mtime
+	state       State
+	cmd         *exec.Cmd
+	stdin       io.WriteCloser
+	pid         int
+	startedAt   time.Time
+	exited      chan struct{} // closed when the current process has exited
+	stopping    bool          // true when Stop() initiated the shutdown (no restart)
+	crashes     int
+	players     map[string]struct{}
+	tps         [3]float64
+	tpsAt       time.Time
+	tpsQuiet    bool // a quiet `tps` is in flight: swallow its reply instead of showing it in the console
 	// pendingProperties is a snapshot of server.properties taken after a write made while running.
 	// The server rewrites the file from memory on shutdown, so the snapshot is restored on exit.
 	pendingProperties []byte

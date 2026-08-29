@@ -10,10 +10,19 @@ import (
 )
 
 // instanceJSON looks up the instance and writes fn's result as JSON.
-func (s *server) instanceJSON(w http.ResponseWriter, r *http.Request, fn func(*instance.Instance) (any, error)) {
+// instanceOr404 resolves {id}; on failure it has already written the 404.
+func (s *server) instanceOr404(w http.ResponseWriter, r *http.Request) (*instance.Instance, bool) {
 	inst, err := s.Manager.Get(r.PathValue("id"))
 	if err != nil {
 		writeError(w, 404, "instance_not_found", err.Error())
+		return nil, false
+	}
+	return inst, true
+}
+
+func (s *server) instanceJSON(w http.ResponseWriter, r *http.Request, fn func(*instance.Instance) (any, error)) {
+	inst, ok := s.instanceOr404(w, r)
+	if !ok {
 		return
 	}
 	v, err := fn(inst)

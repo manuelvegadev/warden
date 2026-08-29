@@ -101,7 +101,12 @@ func NewRouter(d Deps) http.Handler {
 
 	// Plugins
 	mux.HandleFunc("GET /api/v1/instances/{id}/plugins", s.listInstancePlugins)
+	mux.HandleFunc("GET /api/v1/instances/{id}/plugins/updates", s.pluginUpdates)
 	mux.HandleFunc("GET /api/v1/instances/{id}/plugins/{file}/icon", s.pluginIcon)
+	mux.HandleFunc("POST /api/v1/instances/{id}/plugins/upload", auth.RequireAdmin(s.uploadPlugin))
+	mux.HandleFunc("POST /api/v1/instances/{id}/plugins/{file}/toggle", auth.RequireAdmin(s.togglePlugin))
+	mux.HandleFunc("POST /api/v1/instances/{id}/plugins/{file}/update", auth.RequireAdmin(s.updatePlugin))
+	mux.HandleFunc("DELETE /api/v1/instances/{id}/plugins/{file}", auth.RequireAdmin(s.removePlugin))
 	mux.HandleFunc("POST /api/v1/instances/{id}/plugins", auth.RequireAdmin(s.installPlugin))
 
 	// Files, backups (see docs/api.md) — later phases
