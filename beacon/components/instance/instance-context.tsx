@@ -13,6 +13,7 @@ import {
   type Manifest,
   type MetricSample,
   type Task,
+  taskLabel,
 } from "@/lib/api";
 
 export interface InstanceState {
@@ -110,7 +111,7 @@ export function InstanceProvider({
         case "task.progress": {
           const t = msg.data as Task;
           setTask(t);
-          if (t.status === "failed") toast.error(`${t.type} failed: ${t.error}`);
+          if (t.status === "failed") toast.error(`${taskLabel(t.type)} failed: ${t.error}`);
           if (t.status === "done") toast.success(t.message);
           break;
         }

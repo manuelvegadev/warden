@@ -6,10 +6,10 @@ import { Controls } from "@/components/instance/controls";
 import { useInstance } from "@/components/instance/instance-context";
 import { ResourceCards } from "@/components/instance/resource-cards";
 import { InstanceSidebar } from "@/components/instance/sidebar";
+import { TaskBanner } from "@/components/instance/task-banner";
 import { StateBadge } from "@/components/state-badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
 
 /**
  * Instance page chrome: a header (name, controls, stat tiles) and below it the section content next
@@ -30,22 +30,7 @@ export function InstanceShell({ children }: { children: React.ReactNode }) {
           </h1>
           <Controls id={manifest.id} state={status.state} onDeleted={onDeleted} />
         </div>
-        {task && task.status !== "done" && (
-          <Alert>
-            <AlertTitle className="capitalize">
-              {task.type} · {task.status}
-            </AlertTitle>
-            <AlertDescription className="grid gap-2">
-              <span>{task.error ?? task.message}</span>
-              {task.status === "running" && <Progress value={task.progress} />}
-              {task.status === "failed" && (
-                <Button size="sm" variant="outline" className="w-fit" onClick={retryInstall}>
-                  Retry install
-                </Button>
-              )}
-            </AlertDescription>
-          </Alert>
-        )}
+        <TaskBanner task={task} onRetryInstall={retryInstall} />
         {status.state === "installing" && !task && (
           <Alert>
             <AlertTitle>Not installed</AlertTitle>
