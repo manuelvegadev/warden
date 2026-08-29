@@ -31,3 +31,6 @@ docs(adr): managed java runtimes (ADR-010)
 
 ## Continuous integration
 `.github/workflows/ci.yml` runs on every push to `main` and on pull requests: `make lint test linux` for wardend (gofmt, vet, race tests; the linux/amd64 binary is uploaded as an artifact); Biome and `next build` (which type-checks) for Beacon; and, in parallel, both container images are built (not pushed). Run the same locally before opening a PR: `make lint test` in `wardend/`, `pnpm lint && pnpm build` in `beacon/`.
+
+## Releases
+Tag `main` with `vX.Y.Z` and push the tag: `.github/workflows/release.yml` runs the tests, builds `wardend-linux-{amd64,arm64}`, attaches them (with `SHA256SUMS` and generated notes) to a GitHub Release, and pushes `ghcr.io/manuelvegadev/warden-{wardend,beacon}:X.Y.Z` (plus `X.Y` and `latest`) for amd64 and arm64.

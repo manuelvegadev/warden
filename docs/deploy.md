@@ -19,11 +19,12 @@ browser ──HTTPS──▶ Beacon (Dokploy/Traefik) ──HTTPS (JWT + X-Panel
 The binary installs itself:
 
 ```bash
-# on your machine (or download the artifact from GitHub Actions / a release)
-cd wardend && make linux && scp bin/wardend-linux-amd64 ubuntu-box:wardend
-# on the box
+# on the box (amd64; use wardend-linux-arm64 on ARM)
+curl -fsSL https://github.com/manuelvegadev/warden/releases/latest/download/wardend-linux-amd64 -o wardend
 chmod +x wardend && sudo ./wardend install
 ```
+
+Releases are cut from tags (`git tag v0.1.0 && git push --tags`): the workflow attaches `wardend-linux-{amd64,arm64}` with `SHA256SUMS` and pushes the container images tagged with the version. For an unreleased build: `cd wardend && make linux && scp bin/wardend-linux-amd64 box:wardend`.
 
 `wardend install` is interactive: if Docker is present it first offers to run the **Beacon panel as a container on the same box** (pulling `ghcr.io/manuelvegadev/warden-beacon`, or the image given with `--beacon-image`), then asks for the data directory, port, contact, Beacon URL, panel key (a random one is proposed) and the TLS mode, and creates the `warden` system user (no shell), `/var/lib/warden`, `/etc/warden/wardend.env` (root-only), the hardened systemd unit, copies itself to `/usr/local/bin/wardend`, enables and starts the service and waits for `/api/v1/health`. Command output goes to `/var/log/warden/install.log`; the terminal only shows each step and a final summary with the values Beacon needs. Re-run it with a newer binary to upgrade (`--yes` reuses the existing configuration without prompting). wardend needs no system Java: runtimes are downloaded per Minecraft version into `/var/lib/warden/java` (ADR-010).
 

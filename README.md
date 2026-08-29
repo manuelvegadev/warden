@@ -25,6 +25,13 @@ The browser connects to the daemon (REST + WebSocket with JWT); the panel only s
 - Players: online, history, advancements, statistics, messages, kick/ban.
 - Backups and scheduled tasks.
 
+## Install (Ubuntu with systemd)
+```bash
+curl -fsSL https://github.com/manuelvegadev/warden/releases/latest/download/wardend-linux-amd64 -o wardend
+chmod +x wardend && sudo ./wardend install     # interactive; offers to run the Beacon panel with Docker
+```
+Re-run with a newer binary to upgrade (`sudo ./wardend install --yes` keeps the configuration). Details, TLS modes and Dokploy in [`docs/deploy.md`](docs/deploy.md).
+
 ## Documentation
 - [`docs/research.md`](docs/research.md) — research on alternatives and languages.
 - [`docs/architecture.md`](docs/architecture.md) — architecture, monorepo layout, flows.
