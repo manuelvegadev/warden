@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { instances, type InstanceState } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -11,6 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { type InstanceState, instances } from "@/lib/api";
 
 export function Controls({ id, state, onDeleted }: { id: string; state: InstanceState; onDeleted: () => void }) {
   const [busy, setBusy] = useState(false);
@@ -45,7 +45,9 @@ export function Controls({ id, state, onDeleted }: { id: string; state: Instance
         </>
       )}
       <DropdownMenu>
-        <DropdownMenuTrigger render={<Button variant="ghost" size="icon" aria-label="More actions" />}>⋯</DropdownMenuTrigger>
+        <DropdownMenuTrigger render={<Button variant="ghost" size="icon" aria-label="More actions" />}>
+          ⋯
+        </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuItem
             disabled={state === "stopped" || state === "installing"}

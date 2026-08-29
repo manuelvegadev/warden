@@ -1,19 +1,26 @@
 "use client";
 
-import { useCallback, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useCallback, useState } from "react";
 import { toast } from "sonner";
-import { instances, type ConsoleLine, type InstanceDetail, type InstanceStatus, type MetricSample, type Task } from "@/lib/api";
-import { useWardendSocket, type WsMessage } from "@/hooks/use-wardend-socket";
-import { StateBadge } from "@/components/state-badge";
 import { Console } from "@/components/instance/console";
 import { Controls } from "@/components/instance/controls";
 import { ResourceCards } from "@/components/instance/resource-cards";
+import { StateBadge } from "@/components/state-badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useWardendSocket, type WsMessage } from "@/hooks/use-wardend-socket";
+import {
+  type ConsoleLine,
+  type InstanceDetail,
+  type InstanceStatus,
+  instances,
+  type MetricSample,
+  type Task,
+} from "@/lib/api";
 
 export function InstanceView({ initial }: { initial: InstanceDetail }) {
   const router = useRouter();
@@ -128,7 +135,12 @@ export function InstanceView({ initial }: { initial: InstanceDetail }) {
           <TabsTrigger value="settings">Settings</TabsTrigger>
         </TabsList>
         <TabsContent value="console">
-          <Console instanceId={manifest.id} lines={lines} onCommand={sendCommand} disabled={status.state !== "running" && status.state !== "starting"} />
+          <Console
+            instanceId={manifest.id}
+            lines={lines}
+            onCommand={sendCommand}
+            disabled={status.state !== "running" && status.state !== "starting"}
+          />
         </TabsContent>
         <TabsContent value="players">
           {status.players.length === 0 ? (
@@ -142,7 +154,9 @@ export function InstanceView({ initial }: { initial: InstanceDetail }) {
           )}
         </TabsContent>
         <TabsContent value="settings">
-          <p className="py-6 text-sm text-muted-foreground">server.properties, whitelist and plugins arrive in phase 2.</p>
+          <p className="py-6 text-sm text-muted-foreground">
+            server.properties, whitelist and plugins arrive in phase 2.
+          </p>
         </TabsContent>
       </Tabs>
     </div>

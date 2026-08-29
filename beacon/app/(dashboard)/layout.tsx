@@ -1,8 +1,8 @@
 import { headers } from "next/headers";
-import { redirect } from "next/navigation";
 import Link from "next/link";
-import { auth } from "@/lib/auth";
+import { redirect } from "next/navigation";
 import { UserMenu } from "@/components/user-menu";
+import { auth } from "@/lib/auth";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await auth.api.getSession({ headers: await headers() });

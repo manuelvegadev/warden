@@ -1,13 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { instances, type InstanceStatus, type InstanceSummary } from "@/lib/api";
-import { useWardendSocket, type WsMessage } from "@/hooks/use-wardend-socket";
-import { StateBadge } from "@/components/state-badge";
+import { useCallback, useEffect, useState } from "react";
 import { CreateInstanceDialog } from "@/components/create-instance-dialog";
+import { StateBadge } from "@/components/state-badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useWardendSocket, type WsMessage } from "@/hooks/use-wardend-socket";
+import { type InstanceStatus, type InstanceSummary, instances } from "@/lib/api";
 
 export function InstanceList() {
   const [items, setItems] = useState<InstanceSummary[] | null>(null);

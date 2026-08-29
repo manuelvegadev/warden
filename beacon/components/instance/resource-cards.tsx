@@ -1,5 +1,5 @@
-import { formatBytes, type InstanceState, type MetricSample } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
+import { formatBytes, type InstanceState, type MetricSample } from "@/lib/api";
 
 function uptime(startedAt?: string) {
   if (!startedAt) return "—";

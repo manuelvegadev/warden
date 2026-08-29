@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
-import { authClient } from "@/lib/auth-client";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { wardendWsUrl } from "@/lib/api";
+import { authClient } from "@/lib/auth-client";
 
 export type WsMessage = { type: string; instance?: string; data?: unknown };
 type Handler = (msg: WsMessage) => void;

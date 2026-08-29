@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
-import { wardendFetch } from "@/lib/wardend";
-import type { InstanceDetail } from "@/lib/api";
 import { InstanceView } from "@/components/instance/instance-view";
+import type { InstanceDetail } from "@/lib/api";
+import { wardendFetch } from "@/lib/wardend";
 
 export default async function InstancePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

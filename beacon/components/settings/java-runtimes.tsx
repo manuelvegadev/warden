@@ -2,12 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { formatBytes, java, type JavaRelease, type JavaRuntime, type Task } from "@/lib/api";
-import { useWardendSocket, type WsMessage } from "@/hooks/use-wardend-socket";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useWardendSocket, type WsMessage } from "@/hooks/use-wardend-socket";
+import { formatBytes, type JavaRelease, type JavaRuntime, java, type Task } from "@/lib/api";
 
 export function JavaRuntimes() {
   const [installed, setInstalled] = useState<JavaRuntime[] | null>(null);
@@ -97,7 +97,8 @@ export function JavaRuntimes() {
             {installed?.map((r) => (
               <TableRow key={r.id}>
                 <TableCell className="font-medium">
-                  {r.id} {r.managed ? <Badge variant="secondary">managed</Badge> : <Badge variant="outline">system</Badge>}
+                  {r.id}{" "}
+                  {r.managed ? <Badge variant="secondary">managed</Badge> : <Badge variant="outline">system</Badge>}
                 </TableCell>
                 <TableCell>{r.version}</TableCell>
                 <TableCell className="max-w-[360px] truncate font-mono text-xs text-muted-foreground" title={r.path}>
@@ -120,7 +121,8 @@ export function JavaRuntimes() {
       <section>
         <h2 className="mb-1 text-lg font-medium">Available from Adoptium</h2>
         <p className="mb-3 text-sm text-muted-foreground">
-          Minecraft 26.1+ needs Java 25, 1.20.5–1.21.x needs Java 21, 1.17–1.20.4 needs Java 17. LTS releases are recommended.
+          Minecraft 26.1+ needs Java 25, 1.20.5–1.21.x needs Java 21, 1.17–1.20.4 needs Java 17. LTS releases are
+          recommended.
         </p>
         <div className="flex flex-wrap gap-2">
           {available.map((rel) => (

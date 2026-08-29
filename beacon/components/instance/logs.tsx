@@ -2,10 +2,10 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { formatBytes, instances, type LogFile } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { formatBytes, instances, type LogFile } from "@/lib/api";
 
 const TAILS = [100, 500, 2000, 5000];
 
@@ -23,6 +23,8 @@ export function Logs({ id }: { id: string }) {
       .catch((e) => toast.error(e.message));
   }, [id]);
 
+  // `reload` is a manual refresh trigger, not read inside the effect.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: reload forces a re-fetch
   useEffect(() => {
     let stale = false;
     instances
@@ -74,7 +76,12 @@ export function Logs({ id }: { id: string }) {
         <Button variant="outline" size="sm" onClick={load}>
           Refresh
         </Button>
-        <Button variant="outline" size="sm" nativeButton={false} render={<a href={instances.logDownloadUrl(id, file)} download />}>
+        <Button
+          variant="outline"
+          size="sm"
+          nativeButton={false}
+          render={<a href={instances.logDownloadUrl(id, file)} download />}
+        >
           Download full file
         </Button>
       </div>
@@ -99,7 +106,12 @@ export function Logs({ id }: { id: string }) {
               <TableCell>{formatBytes(f.size)}</TableCell>
               <TableCell className="text-muted-foreground">{new Date(f.modTime).toLocaleString()}</TableCell>
               <TableCell className="text-right">
-                <Button variant="ghost" size="sm" nativeButton={false} render={<a href={instances.logDownloadUrl(id, f.name)} download />}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  nativeButton={false}
+                  render={<a href={instances.logDownloadUrl(id, f.name)} download />}
+                >
                   Download
                 </Button>
               </TableCell>

@@ -1,15 +1,22 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { type FormEvent, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { catalog, instances, java, type Build, type JavaRuntime } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { type Build, catalog, instances, type JavaRuntime, java } from "@/lib/api";
 
 const slug = (s: string) =>
   s
@@ -244,18 +251,20 @@ export function CreateInstanceDialog({ onCreated }: { onCreated: () => void }) {
               </SelectContent>
             </Select>
             {requiredMajor !== null && (
-              <p className="text-xs text-muted-foreground">Minecraft {version} requires Java {requiredMajor} or newer.</p>
+              <p className="text-xs text-muted-foreground">
+                Minecraft {version} requires Java {requiredMajor} or newer.
+              </p>
             )}
           </div>
-          <label className="flex items-start gap-2 text-sm">
-            <Checkbox checked={eula} onCheckedChange={(v) => setEula(v === true)} className="mt-0.5" />
-            <span>
+          <div className="flex items-start gap-2 text-sm">
+            <Checkbox id="eula" checked={eula} onCheckedChange={(v) => setEula(v === true)} className="mt-0.5" />
+            <Label htmlFor="eula" className="font-normal">
               I accept the{" "}
               <a href="https://aka.ms/MinecraftEULA" target="_blank" rel="noreferrer" className="underline">
                 Minecraft EULA
               </a>
-            </span>
-          </label>
+            </Label>
+          </div>
           <Button type="submit" disabled={pending || !eula || !version || !id}>
             {pending ? "Creating…" : "Create and install"}
           </Button>

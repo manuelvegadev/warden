@@ -151,7 +151,8 @@ export const instances = {
   list: () => api<InstanceSummary[]>("/instances"),
   get: (id: string) => api<InstanceDetail>(`/instances/${id}`),
   create: (input: CreateInstanceInput) => post<{ instance: InstanceSummary; task: Task }>("/instances", input),
-  install: (id: string, acceptEula: boolean) => post<{ task: Task }>(`/instances/${id}/install`, { AcceptEULA: acceptEula }),
+  install: (id: string, acceptEula: boolean) =>
+    post<{ task: Task }>(`/instances/${id}/install`, { AcceptEULA: acceptEula }),
   remove: (id: string) => api<void>(`/instances/${id}`, { method: "DELETE" }),
   start: (id: string) => post<void>(`/instances/${id}/start`),
   stop: (id: string) => post<void>(`/instances/${id}/stop`),
@@ -164,17 +165,23 @@ export const instances = {
   logs: (id: string) => api<LogFile[]>(`/instances/${id}/logs`),
   logTail: (id: string, file: string, tail: number) =>
     api<{ file: string; lines: string[] }>(`/instances/${id}/logs/${encodeURIComponent(file)}?tail=${tail}`),
-  logDownloadUrl: (id: string, file: string) => `/api/wardend/instances/${id}/logs/${encodeURIComponent(file)}?download=1`,
+  logDownloadUrl: (id: string, file: string) =>
+    `/api/wardend/instances/${id}/logs/${encodeURIComponent(file)}?download=1`,
 };
 
 export const catalog = {
-  versions: (provider = "paper") => api<{ versions: string[]; latest: string }>(`/catalog/servers/${provider}/versions`),
-  builds: (provider: string, mc: string) => api<Build[]>(`/catalog/servers/${provider}/versions/${mc}/builds?channel=STABLE`),
+  versions: (provider = "paper") =>
+    api<{ versions: string[]; latest: string }>(`/catalog/servers/${provider}/versions`),
+  builds: (provider: string, mc: string) =>
+    api<Build[]>(`/catalog/servers/${provider}/versions/${mc}/builds?channel=STABLE`),
 };
 
 export const java = {
   list: () => api<{ installed: JavaRuntime[]; available?: JavaRelease[]; availableError?: string }>("/java"),
-  required: (mc: string) => api<{ mcVersion: string; requiredMajor: number; runtime?: JavaRuntime }>(`/java/required?mc=${encodeURIComponent(mc)}`),
+  required: (mc: string) =>
+    api<{ mcVersion: string; requiredMajor: number; runtime?: JavaRuntime }>(
+      `/java/required?mc=${encodeURIComponent(mc)}`,
+    ),
   install: (major: number) => post<{ task: Task }>("/java", { major }),
   remove: (id: string) => api<void>(`/java/${id}`, { method: "DELETE" }),
 };

@@ -1,10 +1,10 @@
-import { betterAuth } from "better-auth";
-import { admin } from "better-auth/plugins/admin";
-import { jwt } from "better-auth/plugins/jwt";
-import { nextCookies } from "better-auth/next-js";
-import Database from "better-sqlite3";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
+import { betterAuth } from "better-auth";
+import { nextCookies } from "better-auth/next-js";
+import { admin } from "better-auth/plugins/admin";
+import { jwt } from "better-auth/plugins/jwt";
+import Database from "better-sqlite3";
 
 // Beacon is the identity authority (ADR-009). wardend verifies the JWTs with /api/auth/jwks.
 const DB_PATH = process.env.DATABASE_PATH ?? "./data/beacon.db";
@@ -13,7 +13,8 @@ const db = new Database(DB_PATH);
 db.pragma("journal_mode = WAL");
 
 const baseURL = process.env.BETTER_AUTH_URL ?? "http://localhost:3000";
-const discordEnabled = !!(process.env.DISCORD_CLIENT_ID && process.env.DISCORD_CLIENT_SECRET);
+const discordClientId = process.env.DISCORD_CLIENT_ID;
+const discordClientSecret = process.env.DISCORD_CLIENT_SECRET;
 
 export const auth = betterAuth({
   appName: "Beacon",
@@ -24,9 +25,10 @@ export const auth = betterAuth({
     // No mail server in v1: verification is not required. Enable once `sendVerificationEmail` exists.
     requireEmailVerification: false,
   },
-  socialProviders: discordEnabled
-    ? { discord: { clientId: process.env.DISCORD_CLIENT_ID!, clientSecret: process.env.DISCORD_CLIENT_SECRET! } }
-    : {},
+  socialProviders:
+    discordClientId && discordClientSecret
+      ? { discord: { clientId: discordClientId, clientSecret: discordClientSecret } }
+      : {},
   session: {
     expiresIn: 60 * 60 * 24 * 7,
     updateAge: 60 * 60 * 24,
@@ -40,7 +42,10 @@ export const auth = betterAuth({
       "/sign-up/email": { window: 60, max: 3 },
     },
   },
-  trustedOrigins: (process.env.BETTER_AUTH_TRUSTED_ORIGINS ?? "").split(",").map((s) => s.trim()).filter(Boolean),
+  trustedOrigins: (process.env.BETTER_AUTH_TRUSTED_ORIGINS ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean),
   advanced: {
     useSecureCookies: baseURL.startsWith("https://"),
     ipAddress: { ipAddressHeaders: ["x-forwarded-for", "x-real-ip"] }, // behind Traefik (Dokploy)
@@ -66,7 +71,12 @@ export const auth = betterAuth({
         issuer: baseURL,
         audience: "wardend",
         expirationTime: "15m",
-        definePayload: ({ user }) => ({ sub: user.id, email: user.email, name: user.name, role: user.role ?? "operator" }),
+        definePayload: ({ user }) => ({
+          sub: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role ?? "operator",
+        }),
       },
     }),
     // apiKey: separate package (@better-auth/api-key), pending in roadmap Phase 4

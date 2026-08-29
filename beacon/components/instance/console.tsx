@@ -1,11 +1,18 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
-import type { ConsoleLine } from "@/lib/api";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { type FormEvent, type KeyboardEvent, useEffect, useRef, useState } from "react";
 import { Logs } from "@/components/instance/logs";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import type { ConsoleLine } from "@/lib/api";
 import "@xterm/xterm/css/xterm.css";
 
 const colors: Record<ConsoleLine["level"], string> = {
@@ -153,13 +160,18 @@ export function Console({
           <DialogContent className="sm:max-w-5xl">
             <DialogHeader>
               <DialogTitle>Log files</DialogTitle>
-              <DialogDescription>Server logs on disk: tail the latest file or download rotated archives.</DialogDescription>
+              <DialogDescription>
+                Server logs on disk: tail the latest file or download rotated archives.
+              </DialogDescription>
             </DialogHeader>
             <Logs id={instanceId} />
           </DialogContent>
         </Dialog>
       </div>
-      <div ref={frameRef} className="flex h-[420px] flex-col justify-center overflow-hidden rounded-md border bg-[#0a0a0a] p-2">
+      <div
+        ref={frameRef}
+        className="flex h-[420px] flex-col justify-center overflow-hidden rounded-md border bg-[#0a0a0a] p-2"
+      >
         <div ref={hostRef} className="h-full" />
       </div>
       <form onSubmit={submit} className="flex gap-2">
