@@ -37,6 +37,45 @@ Releases are cut from tags (`git tag v0.1.0 && git push --tags`): the workflow a
 
 `wardend install` is interactive: if Docker is present it first offers to run the **Beacon panel as a container on the same box** (pulling `ghcr.io/manuelvegadev/warden-beacon`, or the image given with `--beacon-image`), then asks for the data directory, port, contact, Beacon URL, panel key (a random one is proposed) and the TLS mode, and creates the `warden` system user (no shell), `/var/lib/warden`, `/etc/warden/wardend.env` (root-only), the hardened systemd unit, copies itself to `/usr/local/bin/wardend`, enables and starts the service and waits for `/api/v1/health`. Command output goes to `/var/log/warden/install.log`; the terminal only shows each step and a final summary with the values Beacon needs. Re-run it with a newer binary to upgrade (`--yes` reuses the existing configuration without prompting). wardend needs no system Java: runtimes are downloaded per Minecraft version into `/var/lib/warden/java` (ADR-010).
 
+### wardend on the Dokploy host (Traefik owns :80/:443)
+
+When the daemon runs on the same box as Dokploy, Let's Encrypt inside wardend cannot bind :80/:443
+(Traefik has them). Pick **Off (reverse proxy on this box terminates TLS)** in the installer, or set:
+
+```env
+WARDEND_LISTEN=172.17.0.1:8080   # docker0 gateway: reachable from Traefik's containers, not from the internet
+WARDEND_TLS=off
+```
+
+and publish it through Dokploy's Traefik with a dynamic file it keeps across deploys
+(`/etc/dokploy/traefik/dynamic/wardend.yml`, also editable under Settings → Traefik → File System):
+
+```yaml
+http:
+  routers:
+    wardend-web:
+      rule: Host(`wardend.example.com`)
+      entryPoints: [web]
+      middlewares: [redirect-to-https]
+      service: wardend
+    wardend-websecure:
+      rule: Host(`wardend.example.com`)
+      entryPoints: [websecure]
+      tls:
+        certResolver: letsencrypt
+      service: wardend
+  services:
+    wardend:
+      loadBalancer:
+        servers:
+          - url: http://172.17.0.1:8080
+        passHostHeader: true
+```
+
+Traefik issues the certificate and proxies the WebSocket; Beacon then uses
+`WARDEND_URL=https://wardend.example.com` and `WARDEND_PUBLIC_WS_URL=wss://wardend.example.com` (no port).
+Keep the daemon's DNS record un-proxied (Cloudflare: DNS only) so the HTTP-01 challenge reaches Traefik.
+
 ### Environment (`/etc/warden/wardend.env`)
 
 Written by the installer; [`deploy/wardend.env.example`](../deploy/wardend.env.example) documents every variable for manual edits (`systemctl restart wardend` afterwards). The ones that must match the Beacon deployment: `WARDEND_PANEL_ISSUER` (Beacon's public URL; the JWKS is derived from it), `WARDEND_PANEL_KEY` (same value on both sides) and `WARDEND_ALLOWED_ORIGINS` (Beacon's origin, for the WebSocket).
@@ -91,6 +130,7 @@ What the compose file does for you: pins the image line with `BEACON_TAG` (defau
 2. Environment: the variables from `deploy/beacon.env.example` with the daemon's public URL: `WARDEND_URL=https://mc.example.com:8443`, `WARDEND_PUBLIC_WS_URL=wss://mc.example.com:8443`, `BETTER_AUTH_URL=https://beacon.example.com`.
 3. Mount a volume at `/data`, add the domain with HTTPS (Let's Encrypt via Traefik), deploy.
 4. First visit: the first account created becomes admin; with `BEACON_OPEN_SIGNUP=false` further users are created from **Settings → Account** by an admin.
+5. Continuous deployment: turn on **Autodeploy** in the app, copy its **Webhook URL** (Deployments tab) and store it as the repository secret `DOKPLOY_BEACON_WEBHOOK`. `.github/workflows/deploy-beacon.yml` publishes `warden-beacon:latest` and calls the webhook only when a push to `main` touches `beacon/`, `packages/ui/` or the workspace files; `release.yml` does the same after publishing a version tag. Docs-only or daemon-only pushes never redeploy the panel.
 
 Then in wardend's env set `WARDEND_PANEL_ISSUER=https://beacon.example.com` and the same panel key, and restart wardend. `journalctl -u wardend` shows `auth: jwks loaded` on the first panel request.
 
