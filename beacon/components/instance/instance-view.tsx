@@ -6,12 +6,17 @@ import { useCallback, useState } from "react";
 import { toast } from "sonner";
 import { Console } from "@/components/instance/console";
 import { Controls } from "@/components/instance/controls";
+import { MetricsChart } from "@/components/instance/metrics-chart";
+import { PlayersTab } from "@/components/instance/players-tab";
 import { ResourceCards } from "@/components/instance/resource-cards";
+import { SettingsForm } from "@/components/instance/settings-form";
+import { InstanceSidebar } from "@/components/instance/sidebar";
 import { StateBadge } from "@/components/state-badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useMetricsHistory } from "@/hooks/use-metrics-history";
 import { useWardendSocket, type WsMessage } from "@/hooks/use-wardend-socket";
 import {
   type ConsoleLine,
@@ -61,6 +66,7 @@ export function InstanceView({ initial }: { initial: InstanceDetail }) {
   }, []);
 
   const { connected, send } = useWardendSocket([manifest.id], onMessage);
+  const history = useMetricsHistory(manifest.id, metrics);
 
   const sendCommand = useCallback(
     (command: string) => send({ type: "command", instance: manifest.id, data: { command } }),
@@ -90,10 +96,6 @@ export function InstanceView({ initial }: { initial: InstanceDetail }) {
             {manifest.name} <StateBadge state={status.state} />
             {!connected && <span className="text-xs font-normal text-muted-foreground">(reconnecting…)</span>}
           </h1>
-          <div className="text-sm text-muted-foreground">
-            {manifest.software} {manifest.mcVersion} #{manifest.build} · port {manifest.port} · {manifest.memoryMb} MB ·{" "}
-            {manifest.jvmFlagsPreset} flags · Java: {manifest.javaPath ?? manifest.javaRuntime ?? "auto"}
-          </div>
         </div>
         <Controls id={manifest.id} state={status.state} onDeleted={() => router.push("/")} />
       </div>
@@ -126,39 +128,44 @@ export function InstanceView({ initial }: { initial: InstanceDetail }) {
         </Alert>
       )}
 
-      <ResourceCards metrics={metrics} players={status.players} state={status.state} startedAt={status.startedAt} />
-
-      <Tabs defaultValue="console">
-        <TabsList>
-          <TabsTrigger value="console">Console</TabsTrigger>
-          <TabsTrigger value="players">Players</TabsTrigger>
-          <TabsTrigger value="settings">Settings</TabsTrigger>
-        </TabsList>
-        <TabsContent value="console">
-          <Console
-            instanceId={manifest.id}
-            lines={lines}
-            onCommand={sendCommand}
-            disabled={status.state !== "running" && status.state !== "starting"}
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_260px]">
+        <div className="grid min-w-0 gap-6">
+          <ResourceCards
+            metrics={metrics}
+            history={history}
+            state={status.state}
+            tps={status.tps}
+            memoryMb={manifest.memoryMb}
           />
-        </TabsContent>
-        <TabsContent value="players">
-          {status.players.length === 0 ? (
-            <p className="py-6 text-sm text-muted-foreground">No players online.</p>
-          ) : (
-            <ul className="grid gap-1 py-2 text-sm">
-              {status.players.map((p) => (
-                <li key={p}>{p}</li>
-              ))}
-            </ul>
-          )}
-        </TabsContent>
-        <TabsContent value="settings">
-          <p className="py-6 text-sm text-muted-foreground">
-            server.properties, whitelist and plugins arrive in phase 2.
-          </p>
-        </TabsContent>
-      </Tabs>
+
+          <Tabs defaultValue="console">
+            <TabsList>
+              <TabsTrigger value="console">Console</TabsTrigger>
+              <TabsTrigger value="metrics">Metrics</TabsTrigger>
+              <TabsTrigger value="players">Players</TabsTrigger>
+              <TabsTrigger value="settings">Settings</TabsTrigger>
+            </TabsList>
+            <TabsContent value="console">
+              <Console
+                instanceId={manifest.id}
+                lines={lines}
+                onCommand={sendCommand}
+                disabled={status.state !== "running" && status.state !== "starting"}
+              />
+            </TabsContent>
+            <TabsContent value="metrics">
+              <MetricsChart data={history} memoryMb={manifest.memoryMb} />
+            </TabsContent>
+            <TabsContent value="players">
+              <PlayersTab id={manifest.id} online={status.players} />
+            </TabsContent>
+            <TabsContent value="settings">
+              <SettingsForm manifest={manifest} running={status.state !== "stopped" && status.state !== "crashed"} />
+            </TabsContent>
+          </Tabs>
+        </div>
+        <InstanceSidebar manifest={manifest} status={status} metrics={metrics} />
+      </div>
     </div>
   );
 }
