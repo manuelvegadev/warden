@@ -11,9 +11,17 @@ export default async function DashboardLayout({ children }: { children: React.Re
     <div className="min-h-screen">
       <header className="border-b">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3">
-          <Link href="/" className="font-semibold tracking-tight">
-            Beacon
-          </Link>
+          <nav className="flex items-center gap-5 text-sm">
+            <Link href="/" className="font-semibold tracking-tight">
+              Beacon
+            </Link>
+            <Link href="/" className="text-muted-foreground hover:text-foreground">
+              Instances
+            </Link>
+            <Link href="/settings/java" className="text-muted-foreground hover:text-foreground">
+              Java
+            </Link>
+          </nav>
           <UserMenu name={session.user.name} email={session.user.email} role={session.user.role ?? "operator"} />
         </div>
       </header>
