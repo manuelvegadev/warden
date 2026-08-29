@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -14,6 +15,7 @@ import (
 	"github.com/manuelvega/warden/wardend/internal/auth"
 	"github.com/manuelvega/warden/wardend/internal/catalog"
 	"github.com/manuelvega/warden/wardend/internal/config"
+	"github.com/manuelvega/warden/wardend/internal/installer"
 	"github.com/manuelvega/warden/wardend/internal/instance"
 	"github.com/manuelvega/warden/wardend/internal/java"
 	"github.com/manuelvega/warden/wardend/internal/metrics"
@@ -28,6 +30,21 @@ import (
 var version = "dev"
 
 func main() {
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "install":
+			if err := installer.Run(version, os.Args[2:]); err != nil {
+				os.Exit(1)
+			}
+			return
+		case "version", "--version", "-v":
+			fmt.Println("wardend", version)
+			return
+		case "help", "--help", "-h":
+			fmt.Println("usage: wardend            run the daemon (configuration from WARDEND_* env)\n       wardend install    interactive setup as a systemd service (root); --yes, --beacon-image\n       wardend version")
+			return
+		}
+	}
 	cfg, err := config.Load()
 	if err != nil {
 		slog.Error("config", "err", err)
