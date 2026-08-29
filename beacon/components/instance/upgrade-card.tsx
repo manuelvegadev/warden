@@ -9,11 +9,13 @@ import { SectionCard } from "@/components/instance/section-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
+  hasBuilds,
   type InstanceState,
   instances,
   isStopped,
   type Manifest,
   softwareLabel,
+  softwareName,
   type Task,
   type UpgradeCheck,
   type UpgradeTarget,
@@ -21,7 +23,7 @@ import {
 import { badgeTone, formatDate, formatDateTime, mono } from "@/lib/utils";
 
 /**
- * Server software card: current Paper build, newer build / newer Minecraft version from the
+ * Server software card: current build, newer build / newer Minecraft version from the
  * catalog, and the upgrade action (stopped server only; the daemon backs up jar, configs and worlds first).
  */
 export function UpgradeCard({
@@ -76,7 +78,7 @@ export function UpgradeCard({
   return (
     <SectionCard
       title="Server software"
-      subtitle="Paper builds from the official catalog. Upgrading backs up the jar, configs and worlds first."
+      subtitle={`${softwareName(manifest.software)} builds from the official catalog. Upgrading backs up the jar, configs and worlds first.`}
       action={
         <Button size="sm" variant="ghost" onClick={runCheck} disabled={checking} aria-label="Check for updates">
           <RefreshCw className={`size-4 ${checking ? "animate-spin" : ""}`} /> Check
@@ -86,7 +88,8 @@ export function UpgradeCard({
       <div className="flex flex-wrap items-center gap-3 px-5 py-3 text-sm">
         <span className="text-muted-foreground">Installed</span>
         <span className={mono}>
-          {softwareLabel(manifest)} #{manifest.build}
+          {softwareLabel(manifest)}
+          {hasBuilds(manifest.software) && ` #${manifest.build}`}
         </span>
         {upToDate && (
           <Badge variant="outline" className={badgeTone.emerald}>
@@ -146,7 +149,7 @@ export function UpgradeCard({
         title={`Upgrade to ${confirm?.mcVersion} build #${confirm?.build}?`}
         description={`wardend first archives the current configs, plugins and every world to the instance's backups folder, then swaps the jar. Plugins may need updates for a new Minecraft version${
           confirm && confirm.mcVersion !== manifest.mcVersion
-            ? " — and Paper migrates world data on first start; that cannot be undone except from the backup."
+            ? " — and the server migrates world data on first start; that cannot be undone except from the backup."
             : "."
         }`}
         confirmLabel="Upgrade"

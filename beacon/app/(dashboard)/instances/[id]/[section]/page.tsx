@@ -8,6 +8,6 @@ export default function SectionPage() {
   const { section } = useParams<{ section: string }>();
   const state = useInstance();
   const def = sectionBySlug(section);
-  if (!def) notFound();
+  if (!def || def.hidden?.(state.manifest.software)) notFound();
   return <>{def.render(state)}</>;
 }

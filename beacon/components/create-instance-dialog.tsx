@@ -1,16 +1,39 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { SectionCard, SettingRow } from "@/components/instance/section-card";
 import { useInstances } from "@/components/instances-store";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { type Build, catalog, instances, type JavaRuntime, java } from "@/lib/api";
+import {
+  type Build,
+  catalog,
+  DEFAULT_SOFTWARE,
+  instances,
+  type JavaRuntime,
+  java,
+  SOFTWARE,
+  SOFTWARE_LABELS,
+  softwareName,
+  type VersionList,
+} from "@/lib/api";
+
+const EMPTY: string[] = [];
+
+import { mono } from "@/lib/utils";
 
 const slug = (s: string) =>
   s
@@ -19,10 +42,14 @@ const slug = (s: string) =>
     .replace(/^-+|-+$/g, "")
     .slice(0, 32);
 
+const JVM_PRESETS = { aikar: "Aikar (recommended)", basic: "Basic" };
+
 export function CreateInstanceDialog() {
   const router = useRouter();
   const { createOpen: open, setCreateOpen: setOpen, refresh } = useInstances();
-  const [versions, setVersions] = useState<string[]>([]);
+  const [software, setSoftware] = useState(DEFAULT_SOFTWARE);
+  // Version lists per software, kept across opens (the daemon caches upstream for 10 min anyway).
+  const [lists, setLists] = useState<Record<string, VersionList>>({});
   const [version, setVersion] = useState("");
   const [builds, setBuilds] = useState<Build[]>([]);
   const [build, setBuild] = useState<string>("latest");
@@ -42,21 +69,33 @@ export function CreateInstanceDialog() {
       setId("");
       setIdTouched(false);
       setEula(false);
-      setBuild("latest");
       setJavaChoice("auto");
     }
   }
 
+  const known = lists[software];
+  const versions = known?.versions ?? EMPTY;
+
   useEffect(() => {
-    if (!open || versions.length) return;
+    if (!open) return;
+    setBuild("latest");
+    if (known) {
+      setVersion(known.latest);
+      return;
+    }
+    let stale = false;
     catalog
-      .versions("paper")
+      .versions(software)
       .then((v) => {
-        setVersions(v.versions);
+        if (stale) return;
+        setLists((l) => ({ ...l, [software]: v }));
         setVersion(v.latest);
       })
-      .catch((e) => toast.error(`Cannot load Paper versions: ${e.message}`));
-  }, [open, versions.length]);
+      .catch((e) => toast.error(`Cannot load ${softwareName(software)} versions: ${e.message}`));
+    return () => {
+      stale = true;
+    };
+  }, [open, software, known]);
 
   useEffect(() => {
     if (!open) return;
@@ -67,7 +106,8 @@ export function CreateInstanceDialog() {
   }, [open]);
 
   useEffect(() => {
-    if (!version) return;
+    // Skips the stale (new software, old version) render right after a software switch.
+    if (!version || !versions.includes(version)) return;
     let stale = false;
     java
       .required(version)
@@ -76,7 +116,7 @@ export function CreateInstanceDialog() {
       })
       .catch(() => {});
     catalog
-      .builds("paper", version)
+      .builds(software, version)
       .then((b) => {
         if (!stale) setBuilds(b);
       })
@@ -86,7 +126,7 @@ export function CreateInstanceDialog() {
     return () => {
       stale = true;
     };
-  }, [version]);
+  }, [version, software, versions]);
 
   function selectVersion(v: string | null) {
     if (!v) return;
@@ -102,7 +142,7 @@ export function CreateInstanceDialog() {
       const res = await instances.create({
         id,
         name,
-        software: "paper",
+        software,
         mcVersion: version,
         build: build === "latest" ? undefined : Number(build),
         memoryMb: Number(fd.get("memoryMb")),
@@ -125,132 +165,187 @@ export function CreateInstanceDialog() {
     }
   }
 
+  const sw = SOFTWARE[software];
+  // value → label maps feed both the trigger (`items`) and the option list, so labels live once.
+  const buildItems = useMemo(
+    () => ({
+      latest: "Latest stable",
+      ...Object.fromEntries(builds.slice(0, 15).map((b) => [String(b.id), sw.buildOf(b)])),
+    }),
+    [builds, sw],
+  );
+  // Runtimes older than what the Minecraft version needs stay listed but disabled.
+  const tooOld = runtimes.filter((r) => r.major < (requiredMajor ?? 0));
+  const runtimeItems = {
+    auto: `Automatic${requiredMajor ? ` — Temurin ${requiredMajor}` : ""}`,
+    ...Object.fromEntries(
+      runtimes.map((r) => [r.id, `${r.id} · Java ${r.version}${tooOld.includes(r) ? " (too old)" : ""}`]),
+    ),
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>New Paper server</DialogTitle>
-          <DialogDescription>The jar is downloaded from PaperMC and verified with SHA-256.</DialogDescription>
+      <DialogContent className="flex max-h-[90vh] flex-col gap-0 p-0 sm:max-w-2xl">
+        <DialogHeader className="border-b px-6 pt-6 pb-4">
+          <DialogTitle>New server</DialogTitle>
+          <DialogDescription>
+            Pick the software and version; wardend downloads the jar and prepares the folder.
+          </DialogDescription>
         </DialogHeader>
-        <form onSubmit={onSubmit} className="grid gap-4">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="grid gap-1.5">
-              <Label htmlFor="name">Name</Label>
+        <form id="create-instance" onSubmit={onSubmit} className="grid min-h-0 flex-1 gap-6 overflow-y-auto px-6 py-6">
+          <SectionCard title="Identity" subtitle="How this server appears in Beacon and on disk.">
+            <SettingRow id="new-name" label="Name" description="Shown in the sidebar and breadcrumbs.">
               <Input
-                id="name"
+                id="new-name"
                 value={name}
                 required
+                autoFocus
                 onChange={(e) => {
                   setName(e.target.value);
                   if (!idTouched) setId(slug(e.target.value));
                 }}
               />
-            </div>
-            <div className="grid gap-1.5">
-              <Label htmlFor="id">ID</Label>
+            </SettingRow>
+            <SettingRow
+              id="new-id"
+              label="ID"
+              description="Folder name under the data directory. Lowercase, digits and dashes."
+            >
               <Input
-                id="id"
+                id="new-id"
                 value={id}
                 required
                 pattern="[a-z0-9][a-z0-9-]{1,31}"
+                className={mono}
                 onChange={(e) => {
                   setIdTouched(true);
                   setId(e.target.value);
                 }}
               />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="grid gap-1.5">
-              <Label>Minecraft version</Label>
-              <Select value={version} onValueChange={selectVersion}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Loading…" />
+            </SettingRow>
+          </SectionCard>
+
+          <SectionCard title="Software" subtitle={sw.description}>
+            <SettingRow id="new-software" label="Software">
+              <Select items={SOFTWARE_LABELS} value={software} onValueChange={(v) => v && setSoftware(v)}>
+                <SelectTrigger id="new-software" className="w-full">
+                  <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
+                  {Object.entries(SOFTWARE_LABELS).map(([id, label]) => (
+                    <SelectItem key={id} value={id}>
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </SettingRow>
+            <SettingRow
+              id="new-version"
+              label="Minecraft version"
+              description={requiredMajor ? `Requires Java ${requiredMajor} or newer.` : undefined}
+            >
+              <Select value={version} onValueChange={selectVersion}>
+                <SelectTrigger id="new-version" className={`w-full ${mono}`}>
+                  <SelectValue placeholder="Loading…" />
+                </SelectTrigger>
+                <SelectContent fit="content">
                   {versions.map((v) => (
-                    <SelectItem key={v} value={v}>
+                    <SelectItem key={v} value={v} className={mono}>
                       {v}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-            <div className="grid gap-1.5">
-              <Label>Build</Label>
-              <Select value={build} onValueChange={(v) => setBuild(v ?? "latest")}>
-                <SelectTrigger>
+            </SettingRow>
+            {sw.builds && (
+              <SettingRow id="new-build" label={sw.buildLabel} description="Latest stable is what most servers want.">
+                <Select items={buildItems} value={build} onValueChange={(v) => setBuild(v ?? "latest")}>
+                  <SelectTrigger id="new-build" className={`w-full ${mono}`}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent fit="content">
+                    {Object.entries(buildItems).map(([v, label]) => (
+                      <SelectItem key={v} value={v} className={mono}>
+                        {label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </SettingRow>
+            )}
+            <SettingRow
+              id="new-java"
+              label="Java runtime"
+              description="Automatic downloads the Temurin release Minecraft requires if it is missing."
+            >
+              <Select items={runtimeItems} value={javaChoice} onValueChange={(v) => setJavaChoice(v ?? "auto")}>
+                <SelectTrigger id="new-java" className="w-full">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="latest">Latest stable</SelectItem>
-                  {builds.slice(0, 15).map((b) => (
-                    <SelectItem key={b.id} value={String(b.id)}>
-                      #{b.id} · {b.channel.toLowerCase()} · {new Date(b.time).toLocaleDateString()}
+                <SelectContent fit="content">
+                  {Object.entries(runtimeItems).map(([id, label]) => (
+                    <SelectItem key={id} value={id} disabled={tooOld.some((r) => r.id === id)}>
+                      {label}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-          </div>
-          <div className="grid grid-cols-3 gap-3">
-            <div className="grid gap-1.5">
-              <Label htmlFor="memoryMb">Memory (MB)</Label>
-              <Input id="memoryMb" name="memoryMb" type="number" min={512} step={256} defaultValue={2048} />
-            </div>
-            <div className="grid gap-1.5">
-              <Label htmlFor="port">Port</Label>
-              <Input id="port" name="port" type="number" min={1024} max={65535} defaultValue={25565} />
-            </div>
-            <div className="grid gap-1.5">
-              <Label>JVM flags</Label>
-              <Select name="jvm" defaultValue="aikar">
-                <SelectTrigger>
+            </SettingRow>
+          </SectionCard>
+
+          <SectionCard title="Resources" subtitle="Memory, network and the first server.properties values.">
+            <SettingRow
+              id="new-memoryMb"
+              label="Memory (MB)"
+              description="Heap size: -Xms and -Xmx are both set to this value."
+            >
+              <Input
+                id="new-memoryMb"
+                name="memoryMb"
+                type="number"
+                min={512}
+                step={256}
+                defaultValue={2048}
+                className={mono}
+              />
+            </SettingRow>
+            <SettingRow id="new-port" label="Port" description="RCON is reserved on port + 10.">
+              <Input
+                id="new-port"
+                name="port"
+                type="number"
+                min={1024}
+                max={65535}
+                defaultValue={25565}
+                className={mono}
+              />
+            </SettingRow>
+            <SettingRow id="new-jvm" label="JVM flags" description="Aikar's flags are the community-tuned G1GC set.">
+              <Select name="jvm" items={JVM_PRESETS} defaultValue="aikar">
+                <SelectTrigger id="new-jvm" className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="aikar">Aikar (recommended)</SelectItem>
-                  <SelectItem value="basic">Basic</SelectItem>
+                  {Object.entries(JVM_PRESETS).map(([v, label]) => (
+                    <SelectItem key={v} value={v}>
+                      {label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
-            </div>
-          </div>
-          <div className="grid grid-cols-3 gap-3">
-            <div className="col-span-2 grid gap-1.5">
-              <Label htmlFor="motd">MOTD</Label>
-              <Input id="motd" name="motd" placeholder={name || "A Minecraft Server"} />
-            </div>
-            <div className="grid gap-1.5">
-              <Label htmlFor="maxPlayers">Max players</Label>
-              <Input id="maxPlayers" name="maxPlayers" type="number" min={1} defaultValue={20} />
-            </div>
-          </div>
-          <div className="grid gap-1.5">
-            <Label>Java runtime</Label>
-            <Select value={javaChoice} onValueChange={(v) => setJavaChoice(v ?? "auto")}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="auto">
-                  Automatic{requiredMajor ? ` — Temurin ${requiredMajor} (downloaded if missing)` : ""}
-                </SelectItem>
-                {runtimes.map((r) => (
-                  <SelectItem key={r.id} value={r.id} disabled={requiredMajor !== null && r.major < requiredMajor}>
-                    {r.id} · Java {r.version}
-                    {requiredMajor !== null && r.major < requiredMajor ? " (too old)" : ""}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {requiredMajor !== null && (
-              <p className="text-xs text-muted-foreground">
-                Minecraft {version} requires Java {requiredMajor} or newer.
-              </p>
-            )}
-          </div>
-          <div className="flex items-start gap-2 text-sm">
-            <Checkbox id="eula" checked={eula} onCheckedChange={(v) => setEula(v === true)} className="mt-0.5" />
+            </SettingRow>
+            <SettingRow id="new-motd" label="MOTD" description="Shown in the multiplayer server list.">
+              <Input id="new-motd" name="motd" placeholder={name || "A Minecraft Server"} />
+            </SettingRow>
+            <SettingRow id="new-maxPlayers" label="Max players">
+              <Input id="new-maxPlayers" name="maxPlayers" type="number" min={1} defaultValue={20} className={mono} />
+            </SettingRow>
+          </SectionCard>
+        </form>
+        <DialogFooter className="mx-0 mb-0 items-center bg-muted px-6 py-4 sm:justify-between">
+          <div className="flex items-center gap-2 text-sm">
+            <Checkbox id="eula" checked={eula} onCheckedChange={(v) => setEula(v === true)} />
             <Label htmlFor="eula" className="font-normal">
               I accept the{" "}
               <a href="https://aka.ms/MinecraftEULA" target="_blank" rel="noreferrer" className="underline">
@@ -258,10 +353,15 @@ export function CreateInstanceDialog() {
               </a>
             </Label>
           </div>
-          <Button type="submit" disabled={pending || !eula || !version || !id}>
-            {pending ? "Creating…" : "Create and install"}
-          </Button>
-        </form>
+          <div className="flex gap-2">
+            <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" form="create-instance" disabled={pending || !eula || !version || !id}>
+              {pending ? "Creating…" : "Create and install"}
+            </Button>
+          </div>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

@@ -1,3 +1,5 @@
+import { type badgeTone, formatDate } from "@/lib/utils";
+
 // Browser-side client. Everything goes through the BFF /api/wardend (ADR-008): no tokens in JS, no CORS.
 
 export type InstanceState = "stopped" | "starting" | "running" | "stopping" | "crashed" | "installing";
@@ -321,13 +323,18 @@ export interface Task {
   error?: string;
 }
 
+export interface VersionList {
+  versions: string[];
+  latest: string;
+}
+
 export interface Build {
   id: number;
   channel: string;
   time: string;
   name: string;
   size: number;
-  sha256: string;
+  hash: { algo: string; value: string };
   changes: string[];
 }
 
@@ -527,10 +534,30 @@ export const skins = {
 };
 
 export const catalog = {
-  versions: (provider = "paper") =>
-    api<{ versions: string[]; latest: string }>(`/catalog/servers/${provider}/versions`),
+  versions: (provider = DEFAULT_SOFTWARE) => api<VersionList>(`/catalog/servers/${provider}/versions`),
   builds: (provider: string, mc: string) =>
     api<Build[]>(`/catalog/servers/${provider}/versions/${mc}/builds?channel=STABLE`),
+};
+
+export interface SystemInfo {
+  hostname: string;
+  os: string; // "linux/amd64"
+  platform?: string; // "ubuntu 26.04"
+  kernel?: string;
+  cpuCores: number;
+  cpuPercent?: number;
+  load?: [number, number, number];
+  memTotal?: number;
+  memUsed?: number;
+  hostUptime?: number; // seconds
+  disk?: { path: string; total: number; used: number };
+  daemonVersion: string;
+  goVersion: string;
+  startedAt: string;
+}
+
+export const system = {
+  get: () => api<SystemInfo>("/system"),
 };
 
 export const java = {
@@ -558,5 +585,68 @@ export const formatBytes = (n: number) => {
   return `${(n / 1024 ** i).toFixed(i >= 2 ? 1 : 0)} ${u[i]}`;
 };
 
-/** "paper 26.2" — used wherever an instance's software/version pair is shown. */
-export const softwareLabel = (x: { software: string; mcVersion: string }) => `${x.software} ${x.mcVersion}`;
+/**
+ * Presentation facts per server software (ids match wardend's providers). `plugins` = loads
+ * Bukkit/Paper plugins (Plugins tab); `builds` = false when a version has a single build;
+ * `buildOf` names a build in pickers.
+ */
+export interface Software {
+  label: string;
+  description: string;
+  /** Badge tone that identifies the software across the panel. */
+  tone: keyof typeof badgeTone;
+  plugins: boolean;
+  builds: boolean;
+  buildLabel: string;
+  buildOf: (b: Build) => string;
+}
+const numberedBuild = (b: Build) => `#${b.id} · ${b.channel.toLowerCase()} · ${formatDate(b.time)}`;
+export const SOFTWARE: Record<string, Software> = {
+  paper: {
+    label: "Paper",
+    tone: "blue",
+    description: "High-performance Spigot fork with plugin support. Downloaded from PaperMC, verified with SHA-256.",
+    plugins: true,
+    builds: true,
+    buildLabel: "Build",
+    buildOf: numberedBuild,
+  },
+  purpur: {
+    label: "Purpur",
+    tone: "violet",
+    description:
+      "Paper fork with extra gameplay options; runs Paper plugins. Downloaded from PurpurMC, verified with MD5.",
+    plugins: true,
+    builds: true,
+    buildLabel: "Build",
+    buildOf: numberedBuild,
+  },
+  fabric: {
+    label: "Fabric",
+    tone: "amber",
+    description:
+      "Lightweight modding platform. Loads Fabric mods (drop them into mods/), not Bukkit plugins. Fabric publishes no checksums.",
+    plugins: false,
+    builds: true,
+    buildLabel: "Loader",
+    buildOf: (b) => `${b.changes[0]} · ${b.channel.toLowerCase()}`, // the loader version lives in changes[0]
+  },
+  vanilla: {
+    label: "Vanilla",
+    tone: "lime",
+    description: "Mojang's unmodified server. No plugins or mods. Downloaded from Mojang, verified with SHA-1.",
+    plugins: false,
+    builds: false,
+    buildLabel: "Build",
+    buildOf: numberedBuild,
+  },
+};
+export const DEFAULT_SOFTWARE = "paper";
+export const SOFTWARE_LABELS = Object.fromEntries(Object.entries(SOFTWARE).map(([id, s]) => [id, s.label]));
+export const softwareName = (software: string) => SOFTWARE[software]?.label ?? software;
+export const hasPlugins = (software: string) => SOFTWARE[software]?.plugins ?? true;
+export const hasBuilds = (software: string) => SOFTWARE[software]?.builds ?? true;
+
+/** "Paper 26.2" — used wherever an instance's software/version pair is shown. */
+export const softwareLabel = (x: { software: string; mcVersion: string }) =>
+  `${softwareName(x.software)} ${x.mcVersion}`;

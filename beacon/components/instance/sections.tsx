@@ -23,13 +23,15 @@ import { PluginsTab } from "@/components/instance/plugins-tab";
 import { PropertiesEditor } from "@/components/instance/properties-editor";
 import { SettingsForm } from "@/components/instance/settings-form";
 import { UpgradeCard } from "@/components/instance/upgrade-card";
-import { isStopped } from "@/lib/api";
+import { hasPlugins, isStopped } from "@/lib/api";
 
 export interface Section {
   slug: string;
   label: string;
   icon: React.ComponentType<{ className?: string }>;
   render: (s: InstanceState) => React.ReactNode;
+  /** Sections that only make sense for some server software (e.g. Plugins). */
+  hidden?: (software: string) => boolean;
 }
 
 function ConsoleSection({ s }: { s: InstanceState }) {
@@ -81,6 +83,7 @@ export const SECTIONS: Section[] = [
     slug: "plugins",
     label: "Plugins",
     icon: Puzzle,
+    hidden: (software) => !hasPlugins(software),
     render: (s) => <PluginsTab id={s.manifest.id} mcVersion={s.manifest.mcVersion} isAdmin={s.isAdmin} task={s.task} />,
   },
   {
@@ -103,4 +106,5 @@ export const SECTIONS: Section[] = [
   },
 ];
 
+export const sectionsFor = (software: string) => SECTIONS.filter((s) => !s.hidden?.(software));
 export const sectionBySlug = (slug: string) => SECTIONS.find((s) => s.slug === slug);
