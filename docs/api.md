@@ -103,7 +103,7 @@ Creation body:
 | DELETE | `/instances/{id}/bans/{target}` | `pardon` / `pardon-ip` |
 | GET | `/instances/{id}/command` | `{java,javaError?,args[],cwd,shell}` — `shell` is the line quoted for a POSIX shell; the exact command `Start` would run from the current manifest (heap, JVM preset/flags, jar); `javaError` when no runtime can be resolved yet. |
 | GET | `/instances/{id}/upgrade` | `{current:{mcVersion,build},latestBuild?:{mcVersion,build,channel,time,changes},latestVersion?:{…}}` — newer build of the same version and newest version with a build, from the software catalog. |
-| POST | `/instances/{id}/upgrade` | `{"mcVersion":"1.21.8","build":0}` (both optional: current version / newest build) → `202` task `upgrade`. `409` unless stopped/crashed. The task archives the jar, `server.properties`, `bukkit.yml`/`spigot.yml`/`commands.yml`, `config/` and every world (dirs with `level.dat`) to `<instance>/backups/pre-upgrade-<UTC time>.tar.gz`, downloads the build with sha256 verification, swaps the jar, updates the manifest (appending to `upgrades[]`: from/to version+build, backup file name, time) and resolves the Java runtime for the new version. Admin only. |
+| POST | `/instances/{id}/upgrade` | `{"mcVersion":"1.21.8","build":0}` (both optional: current version / newest build) → `202` task `upgrade`. `409` unless stopped/crashed. The task takes a full-scope `pre-upgrade` backup (see Backups), downloads the build with sha256 verification, swaps the jar, updates the manifest (appending to `upgrades[]`: from/to version+build, backup file name, time) and resolves the Java runtime for the new version. Admin only. |
 | GET | `/instances/{id}/files` | Editable files that exist: `[{path,group,size,modifiedAt}]`. Not a file browser — an allowlist: `bukkit.yml`, `spigot.yml`, `commands.yml`, `help.yml`, `permissions.yml` (Server); `config/paper-global.yml`, `config/paper-world-defaults.yml` (Paper); `<world>/paper-world.yml` (Worlds); text files under `plugins/<name>/` (Plugins: yml/yaml/json/properties/txt/toml/conf). `server.properties` has its own endpoint. |
 | GET | `/instances/{id}/files/content?path=config/paper-global.yml` | `text/plain` (2 MB limit). `403` outside the allowlist or when a symlink escapes the server directory; `404` missing. |
 | PUT | `/instances/{id}/files/content?path=` | Body `text/plain`. YAML/JSON syntax is validated (`400 invalid syntax`), then written atomically → `{"restartRequired":bool}` (Paper reads these at startup only). Admin only. |
@@ -123,25 +123,27 @@ Creation body:
 ## Players
 | Method | Path | Description |
 |---|---|---|
-| GET | `/instances/{id}/players` | `[{name,firstSeen,lastSeen,playTimeSeconds,online}]` from the store; `online` reflects the live process |
+| GET | `/players/{name}/skin?face=64` | Player skin PNG from Mojang (name → profile → textures), cached 24 h in `<data>/skins/` (negative results too); `face=<px>` returns the head crop with the hat layer, nearest-neighbour scaled. `404 no_skin` when no Mojang account/skin has that name. |
+| GET | `/instances/{id}/players/{name}/stats` | Parsed `<world>/stats/<uuid>.json`: `{dataVersion,playTimeSeconds,deaths,playerKills,mobKills,damageDealt,damageTaken,jumps,distanceMeters,blocksMined,itemsCrafted,top:{mined,killed,killed_by,crafted,used,broken,picked_up:[{id,count}]}}`. `dataVersion` 0 = no file yet. |
+| GET | `/instances/{id}/players/{name}/advancements` | `[{id,done,at?}]` from `<world>/advancements/<uuid>.json`, done first, newest first; recipe unlocks omitted. |
+| POST | `/instances/{id}/players/{name}/action` | `{"action":"message|kick","text":"…"}` → console command (`tell`, `kick`); `409` unless running. Op/ban use the ops/bans endpoints (they also work while stopped). Admin only. |
+| GET | `/instances/{id}/players` | `[{name,firstSeen,lastSeen,playTimeSeconds,online}]` from the store, plus players known only from `<world>/stats` + `usercache.json` (e.g. migrated servers); `online` reflects the live process |
 | GET | `/instances/{id}/players/{name}/sessions?limit=50` | `[{name,joinedAt,leftAt?}]` |
-| GET | `/instances/{id}/players?online=true` (planned) | `[{uuid,name,online,firstSeen,lastSeen,playTimeSeconds,ip?,isOp,isWhitelisted}]` |
-| GET | `/instances/{id}/players/{uuid}` | Profile: sessions, key statistics (`play_time`, `deaths`, `mob_kills`, `player_kills`, `walk_one_cm`…), advancements `{done:N,total:N}` |
-| GET | `/instances/{id}/players/{uuid}/advancements` | `[{id:"minecraft:story/mine_stone",done:true,completedAt,criteria:{...}}]` |
-| GET | `/instances/{id}/players/{uuid}/stats` | Normalized JSON from `stats/<uuid>.json` |
-| POST | `/instances/{id}/players/{uuid}/message` | `{"text":"hola"}` → `tell` |
-| POST | `/instances/{id}/players/{uuid}/kick` | `{"reason":""}` |
 | POST | `/instances/{id}/broadcast` | `{"text":"...","style":"say|title|actionbar"}` |
 
 ## Backups
-| Method | Path | Description |
+
+Archives are `tar.zst` files in `<instance>/backups/` with a JSON sidecar (`<name>.json`: trigger, scope, size, sha256, paths, Paper version/build, time). Scope `full` = worlds + plugins (jars and data) + `config/` + server/Bukkit/Spigot YAML + `server.properties` + whitelist/ops/bans/usercache; `worlds` = directories with `level.dat`. The server jar is never included (re-downloadable from the recorded build). Triggers: `manual`, `schedule`, `pre-upgrade`, `pre-restore`; only the first two rotate.
+
+| Method | Path | Notes |
 |---|---|---|
-| GET | `/instances/{id}/backups` | `[{id,createdAt,size,worlds:[],note}]` |
-| POST | `/instances/{id}/backups` | `{"note":""}` → `202` task (`save-off`/`save-all flush`/tar.zst/`save-on`) |
-| POST | `/instances/{id}/backups/{bid}/restore` | Requires stopped instance → `202` |
-| GET | `/instances/{id}/backups/{bid}/download` | |
-| DELETE | `/instances/{id}/backups/{bid}` | |
-| GET/PUT | `/instances/{id}/schedule` | `[{id,cron,action:"backup|restart|command",command?,enabled}]` |
+| GET | `/instances/{id}/backups` | `[{name,trigger,scope,size,sha256,paths,mcVersion,build,createdAt}]`, newest first |
+| POST | `/instances/{id}/backups` | `{"scope":"full|worlds"}` (optional; default: the schedule's scope) → `202` task `backup`. Running server: `save-off` → `save-all flush` → wait for "Saved the game" (90 s) → archive → `save-on`. Then retention. Admin only. |
+| GET | `/instances/{id}/backups/{name}/download` | The archive (`application/zstd`, attachment) |
+| POST | `/instances/{id}/backups/{name}/restore` | `409` unless stopped → `202` task `restore`: takes a `pre-restore` backup, then every top-level path in the archive replaces what is on disk. Admin only. |
+| DELETE | `/instances/{id}/backups/{name}` | Removes archive + sidecar → `204`. Admin only. |
+
+Schedule and retention live in the manifest and are edited through `PATCH /instances/{id}` with `backups: {enabled, everyHours, keep, maxTotalMb, scope}`. The scheduler (in wardend, one-minute tick) runs a backup when the newest `schedule` archive is older than `everyHours` (a failed attempt is retried after 10 min); after each scheduled/manual backup the oldest rotating archives are removed beyond `keep` or while the folder exceeds `maxTotalMb`.
 
 ## WebSocket `/api/v1/ws`
 One socket per client, multiplexing instances. JSON messages `{ "type": "...", "instance": "id", "data": {...} }`.

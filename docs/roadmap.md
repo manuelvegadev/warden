@@ -35,12 +35,12 @@
 - [x] Panel: config screens; plugins table (icon, version, source, install date) + Prism-style install dialog (search, queue, per-plugin version, batch install)
 
 ## Phase 3 — Players
-- [ ] Sessions (join/leave) in SQLite, RCON `list`, ping
-- [ ] Advancements and statistics from `world/advancements` and `world/stats`
-- [ ] Messages, kick, ban, op from the player card
+- [x] Sessions (join/leave) in SQLite; players known from world stats merged in
+- [x] Advancements and statistics from `world/advancements` and `world/stats`
+- [x] Messages, kick, ban, op/deop from the player card
 
 ## Phase 4 — Operations
-- [ ] Backups (save-off/save-all/tar.zst) and cron scheduler
+- [x] Backups (save-off/save-all flush/tar.zst with sidecar), restore with pre-restore safety copy, download/delete, in-daemon scheduler with keep/max-size retention
 - [ ] TLS built into the daemon; optional daemon Dockerfile
 - [ ] Multi-node in the panel (several daemons)
 - [ ] Other providers: Purpur, Fabric, Vanilla
