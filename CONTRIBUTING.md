@@ -25,5 +25,6 @@ docs(adr): managed java runtimes (ADR-010)
 
 ## Before committing
 - `wardend/`: `gofmt -l .`, `go vet ./...`, `go test ./...`
-- `beacon/`: `pnpm typecheck`, `pnpm lint`
+- `beacon/`: `pnpm typecheck`, `pnpm lint` (Biome; `pnpm lint:fix` applies safe fixes and formatting)
+- Editors: the root `.editorconfig` mirrors Biome (2 spaces, LF, 120 cols) and gofmt (tabs); install the Biome editor extension for format-on-save
 - Record non-trivial decisions as an ADR in `docs/adr/`.

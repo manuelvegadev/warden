@@ -25,5 +25,5 @@ Next.js: in addition to the React skill, `create-next-app` generated `beacon/AGE
 Update skills: `npx skills update -p`.
 
 ## Quality conventions
-- **Beacon**: `pnpm lint` (eslint-config-next), `pnpm typecheck`, shadcn components in `components/ui`, Better Auth plugin imports by subpath (`better-auth/plugins/jwt`); typography and theme tokens per `docs/design.md`.
+- **Beacon**: `pnpm lint` (**Biome** — linter + formatter, config in `beacon/biome.json`; `pnpm lint:fix` / `pnpm format` to apply), `pnpm typecheck`, shadcn components in `components/ui`, Better Auth plugin imports by subpath (`better-auth/plugins/jwt`); typography and theme tokens per `docs/design.md`.
 - **wardend**: `gofmt`, `go vet`, `go test ./...`; stdlib `net/http` with method patterns (Go 1.22+); typed errors; context on all I/O.
