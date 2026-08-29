@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { type FormEvent, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -9,10 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { signIn, signUp } from "@/lib/auth-client";
 
-export function LoginForm() {
+export function LoginForm({ next = "/" }: { next?: string }) {
   const router = useRouter();
-  const params = useSearchParams();
-  const next = params.get("next") ?? "/";
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [pending, setPending] = useState(false);
 
