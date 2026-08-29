@@ -28,6 +28,8 @@ El navegador se conecta al daemon (REST + WebSocket con JWT); el panel solo sirv
 - [`docs/external-apis.md`](docs/external-apis.md) — Fill v3 (Paper), Hangar, Modrinth, Mojang (verificadas).
 - [`docs/minecraft-admin.md`](docs/minecraft-admin.md) — referencia de administración de servidores Paper (archivos, comandos, flags, logs, seguridad).
 - [`docs/adr/`](docs/adr/) — decisiones: [001 Go](docs/adr/001-lenguaje-backend.md) · [002 Web](docs/adr/002-interfaz-web.md) · [003 Monolito](docs/adr/003-arquitectura-monolito.md) · [004 Integración MC](docs/adr/004-integracion-minecraft.md) · [005 Fuentes jars/plugins](docs/adr/005-fuentes-de-jars-y-plugins.md) · [006 Multi-instancia](docs/adr/006-multi-instancia.md) · [007 Panel Next.js separado](docs/adr/007-panel-nextjs-docker-separado.md)
+- [`docs/security.md`](docs/security.md) — autenticación y hardening panel ↔ daemon.
+- [`docs/naming.md`](docs/naming.md) — monorepo y propuestas de nombre.
 - [`docs/roadmap.md`](docs/roadmap.md)
 
 ## Desarrollo

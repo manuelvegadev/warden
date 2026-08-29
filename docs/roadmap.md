@@ -5,6 +5,7 @@
 - [x] ADRs 001–007
 - [x] Especificación de API REST + WS (`docs/api.md`)
 - [x] Esqueleto: `daemon/` (Go, compila, parser de log con tests) y `panel/` (Next.js + Dockerfile)
+- [x] Modelo de seguridad y auth (`docs/security.md`, ADR-008); propuestas de nombre (`docs/naming.md`)
 
 ## Fase 1 — MVP daemon
 - [ ] `internal/store`: SQLite + migraciones

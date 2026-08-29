@@ -1,6 +1,6 @@
 # ADR-007: Panel web separado (Next.js en Docker vía Dokploy) + daemon Go
 
-Fecha: 2026-08-28 · Estado: aceptada · **Reemplaza** la parte "UI embebida en el binario" de ADR-002 y ADR-003.
+Fecha: 2026-08-28 · Estado: aceptada, **modificada por ADR-008** (auth vía BFF, sin JWT en el navegador) · **Reemplaza** la parte "UI embebida en el binario" de ADR-002 y ADR-003.
 
 ## Contexto
 El autor quiere desplegar el panel web con **Dokploy** (Docker) y que este se conecte al daemon Go que corre en el host de Minecraft. Esto separa la UI del daemon, como Pterodactyl (Panel ↔ Wings), y abre la puerta a administrar varios hosts desde un solo panel.
