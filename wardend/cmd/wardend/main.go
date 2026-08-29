@@ -63,6 +63,7 @@ func main() {
 	}
 
 	reg := catalog.NewRegistry(cfg.UserAgent(version))
+	instance.SetUserAgent(cfg.UserAgent(version))
 	jm := java.NewManager(cfg.DataDir, reg, cfg.UserAgent(version))
 	mgr.SetJavaResolver(jm)
 	tm := tasks.NewManager(hub)

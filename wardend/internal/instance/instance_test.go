@@ -16,7 +16,7 @@ echo "[12:00:00 INFO]: Starting minecraft server version 1.21.8"
 echo "[12:00:01 INFO]: Done (1.000s)! For help, type \"help\""
 while IFS= read -r line; do
   case "$line" in
-    stop) echo "[12:00:05 INFO]: Stopping the server"; exit 0 ;;
+    stop) echo "[12:00:05 INFO]: Stopping the server"; printf 'motd=from-memory\n' > server.properties; exit 0 ;;
     crash) exit 3 ;;
     join) echo "[12:00:02 INFO]: Steve joined the game" ;;
     leave) echo "[12:00:04 INFO]: Steve left the game" ;;
@@ -177,4 +177,29 @@ func TestQuietTPSPoll(t *testing.T) {
 		t.Errorf("visible tps: %d lines, want %d", got, before+2)
 	}
 	_ = inst.Stop(context.Background())
+}
+
+func TestPropertiesSurviveServerRewriteOnStop(t *testing.T) {
+	inst, _ := newTestInstance(t, "never")
+	if err := os.WriteFile(filepath.Join(inst.ServerDir(), "server.properties"), []byte("motd=from-memory\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := inst.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	waitState(t, inst, StateRunning, 3*time.Second)
+	restart, err := inst.UpdateProperties(map[string]string{"motd": "edited-live"})
+	if err != nil || !restart {
+		t.Fatalf("update: %v restart=%v", err, restart)
+	}
+	if err := inst.Stop(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	waitState(t, inst, StateStopped, 3*time.Second)
+	props, _ := inst.Properties()
+	for _, p := range props {
+		if p.Key == "motd" && p.Value != "edited-live" {
+			t.Fatalf("motd = %q after the server rewrote the file on stop", p.Value)
+		}
+	}
 }

@@ -48,6 +48,9 @@ type Instance struct {
 	tps       [3]float64
 	tpsAt     time.Time
 	tpsQuiet  bool // a quiet `tps` is in flight: swallow its reply instead of showing it in the console
+	// pendingProperties is a snapshot of server.properties taken after a write made while running.
+	// The server rewrites the file from memory on shutdown, so the snapshot is restored on exit.
+	pendingProperties []byte
 }
 
 // EventSink receives parsed server events (persisted by the store).
@@ -282,7 +285,16 @@ func (i *Instance) wait(cmd *exec.Cmd, exited chan struct{}) {
 	i.mu.Lock()
 	wasStopping := i.stopping
 	i.cmd, i.stdin = nil, nil
+	pending := i.pendingProperties
+	i.pendingProperties = nil
 	i.mu.Unlock()
+	if pending != nil {
+		if err := mc.WriteAtomic(i.propertiesPath(), pending); err != nil {
+			slog.Warn("restore server.properties", "id", i.Manifest.ID, "err", err)
+		} else {
+			i.system("Restored server.properties edits saved while the server was running")
+		}
+	}
 
 	if wasStopping || code == 0 {
 		i.system(fmt.Sprintf("Server stopped (exit code %d)", code))
