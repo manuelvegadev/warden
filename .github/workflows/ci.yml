@@ -1,0 +1,84 @@
+# CI: daemon (Go) and panel (Next.js) checks, plus both container images build (never pushed).
+# The checks are the Makefile / package.json scripts, so `make lint test` and `pnpm lint && pnpm build`
+# reproduce them locally.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  wardend:
+    name: wardend (Go)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: wardend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: wardend/go.mod
+          cache-dependency-path: wardend/go.sum
+      - run: make lint
+      - run: make test
+      - run: make linux
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wardend-linux-amd64
+          path: wardend/bin/wardend-linux-amd64
+          retention-days: 14
+
+  beacon:
+    name: Beacon (Next.js)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: beacon
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: beacon/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: beacon/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - name: Biome (lint + format)
+        run: pnpm lint
+      - name: Build (includes the TypeScript check)
+        env:
+          # Build-time placeholders: lib/auth.ts is evaluated during the build. Real values come
+          # from the deployment (docs/deploy.md).
+          BETTER_AUTH_SECRET: ci-placeholder-secret-not-for-production
+          BETTER_AUTH_URL: http://localhost:3000
+          DATABASE_PATH: /tmp/beacon-ci.db
+          NEXT_PUBLIC_WARDEND_WS_URL: ws://localhost:8080
+        run: pnpm build
+
+  images:
+    name: Image (${{ matrix.app }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        app: [wardend, beacon]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.app }}
+          push: false
+          build-args: ${{ matrix.app == 'beacon' && 'NEXT_PUBLIC_WARDEND_WS_URL=ws://localhost:8080' || '' }}
+          cache-from: type=gha,scope=${{ matrix.app }}
+          cache-to: type=gha,scope=${{ matrix.app }}
