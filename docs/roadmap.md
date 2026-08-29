@@ -29,9 +29,10 @@
 ## Phase 2 — Configuration and plugins
 - [x] `server.properties` schema-driven editor (validation, restart hints); whitelist/ops/bans via live commands or JSON files, UUIDs from usercache/Mojang/offline
 - [ ] Confined file editor (Paper YAML configs)
-- [ ] `catalog/hangar` + `catalog/modrinth`; install/update/toggle plugins; read `plugin.yml` from jars
+- [x] `catalog/hangar` + `catalog/modrinth` search/versions; install with hash verification
+- [ ] Plugin management: update/toggle/upload/delete; read `plugin.yml` from jars
 - [ ] Paper build/version upgrade with prior backup
-- [ ] Panel: config screens and plugin browser
+- [x] Panel: config screens; plugins table (icon, version, source, install date) + Prism-style install dialog (search, queue, per-plugin version, batch install)
 
 ## Phase 3 — Players
 - [ ] Sessions (join/leave) in SQLite, RCON `list`, ping

@@ -39,7 +39,7 @@ Instance create/patch accept `javaRuntime` (`"auto"` or a runtime id) and `javaP
 | GET | `/catalog/servers` | `[{"id":"paper","name":"Paper"}]` (available providers) |
 | GET | `/catalog/servers/paper/versions?includePre=false` | `{"versions":["1.21.8","1.21.7",...],"latest":"1.21.8"}` |
 | GET | `/catalog/servers/paper/versions/{mc}/builds?channel=STABLE` | `[{"id":60,"channel":"STABLE","time":"...","size":N,"sha256":"...","name":"paper-1.21.8-60.jar","changes":["..."]}]` |
-| GET | `/catalog/plugins/search?q=&source=hangar|modrinth|all&mc=1.21.8&limit=&offset=` | `[{"source":"hangar","id":"ViaVersion","name":"ViaVersion","author":"kennytv","description":"...","iconUrl":"...","downloads":N,"categories":[],"url":"..."}]` |
+| GET | `/catalog/plugins/search?q=&source=hangar|modrinth|all&mc=1.21.8&limit=&offset=` | `{"hits":[{"source":"hangar","id":"ViaVersion","name":"ViaVersion","author":"kennytv","description":"...","iconUrl":"...","downloads":N,"categories":[],"url":"..."}],"total":N}`. `all` queries both sources concurrently and sorts by downloads. |
 | GET | `/catalog/plugins/{source}/{id}` | Details |
 | GET | `/catalog/plugins/{source}/{id}/versions?mc=1.21.8` | `[{"id":"...","name":"5.12.0","channel":"release","mcVersions":[],"fileName":"...","size":N,"hash":{"algo":"sha256","value":"..."},"dependencies":[{"name","required"}],"publishedAt":"..."}]` |
 
@@ -109,8 +109,9 @@ Creation body:
 ## Plugins
 | Method | Path | Description |
 |---|---|---|
-| GET | `/instances/{id}/plugins` | `[{fileName,name,version,enabled,source:{provider,projectId,versionId}|null,updateAvailable:{version,versionId}|null}]`. Reads `plugin.yml`/`paper-plugin.yml` from the jar + `instance.json`. |
-| POST | `/instances/{id}/plugins` | `{"source":"hangar","projectId":"ViaVersion","versionId":"5.12.0"}` → `202` task (downloads to `plugins/`, verifies hash, registers) |
+| GET | `/instances/{id}/plugins` | `[{fileName,enabled,size,iconUrl?,source:{fileName,source,projectId,name,versionId,version,hashAlgo,hash,installedAt}|omitted}]`. `iconUrl` is the API path of the icon endpoint below, present only when an icon was fetched. Lists `plugins/*.jar` and `*.jar.disabled`; `source` comes from `instance.json` for jars installed through the catalog. (Phase 2c will add `name`/`version` from `plugin.yml` and `updateAvailable`.) |
+| POST | `/instances/{id}/plugins` | `{"source":"hangar","projectId":"ViaVersion","versionId":"5.12.0"}` (`versionId:"latest"` = newest release for the instance's MC version) → `202` task `plugin.install` (downloads to `plugins/`, verifies the published hash, replaces an older jar of the same project, registers name, icon and install date in `instance.json`). Admin only. Install several by issuing one request per plugin. |
+| GET | `/instances/{id}/plugins/{fileName}/icon` | Project icon fetched from the catalog at install time (stored in `<instance>/icons/`, ≤2 MB); `404` when none. |
 | POST | `/instances/{id}/plugins/upload` | multipart .jar |
 | POST | `/instances/{id}/plugins/{fileName}/update` | To the latest compatible version |
 | POST | `/instances/{id}/plugins/{fileName}/toggle` | Renames `.jar` ↔ `.jar.disabled` |
