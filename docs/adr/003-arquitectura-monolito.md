@@ -1,6 +1,6 @@
 # ADR-003: Monolito de un solo binario, sin Docker obligatorio
 
-Fecha: 2026-08-28 · Estado: aceptada
+Fecha: 2026-08-28 · Estado: aceptada, **modificada por ADR-007** (el binario ya no incluye la UI; sigue siendo un único daemon con API + supervisor)
 
 ## Contexto
 Pterodactyl separa panel y daemon y mete cada servidor en Docker (multi-nodo, multi-tenant). Crafty/MCSManager lanzan el proceso Java directamente. Nuestro caso: un Ubuntu, un administrador, una o pocas instancias.

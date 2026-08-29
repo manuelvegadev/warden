@@ -1,6 +1,6 @@
 # ADR-002: Interfaz web (React + TypeScript) embebida en el binario
 
-Fecha: 2026-08-28 · Estado: aceptada
+Fecha: 2026-08-28 · Estado: aceptada, **modificada por ADR-007** (la UI ya no se embebe en el binario: es una app Next.js separada)
 
 ## Contexto
 El servidor es un Ubuntu headless; se administra desde PC o móvil. Opciones: web, app nativa de escritorio (Tauri/Electron), TUI.
@@ -18,3 +18,6 @@ El servidor es un Ubuntu headless; se administra desde PC o móvil. Opciones: we
 ## Alternativas descartadas
 - Tauri/Electron: obliga a mantener un cliente extra y de todos modos necesitaría la misma API.
 - HTMX/templates Go: viable y más simple, pero la consola en vivo y gráficas en tiempo real son más naturales con una SPA.
+
+## Actualización 2026-08-28
+Preferencia del autor: React + **shadcn/ui** o **Mantine**. Se elige **shadcn/ui** (Tailwind, componentes copiados al repo, fácil de personalizar y de generar con herramientas). Mantine queda como alternativa válida si shadcn resulta pesado de mantener; ambas cubren tablas, formularios, diálogos y notificaciones que necesita el panel.

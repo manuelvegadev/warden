@@ -1,0 +1,24 @@
+[Unit]
+Description=mc-server-gui daemon (mcd)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=minecraft
+Group=minecraft
+ExecStart=/usr/local/bin/mcd
+Environment=MCD_LISTEN=127.0.0.1:8080
+Environment=MCD_DATA_DIR=/var/lib/mc-server-gui
+Environment=MCD_ALLOWED_ORIGINS=https://panel.midominio.com
+Environment=MCD_CONTACT=admin@midominio.com
+Restart=on-failure
+RestartSec=5
+# stop limpio de todas las instancias puede tardar
+TimeoutStopSec=120
+KillMode=mixed
+NoNewPrivileges=true
+ProtectSystem=full
+ReadWritePaths=/var/lib/mc-server-gui
+
+[Install]
+WantedBy=multi-user.target

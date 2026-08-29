@@ -1,31 +1,34 @@
 # Roadmap
 
-## Fase 0 — Diseño (actual)
-- [x] Investigación de alternativas y APIs
-- [x] ADRs de lenguaje, interfaz, arquitectura e integración
-- [ ] Definir esquema de la API (REST + mensajes WebSocket)
-- [ ] Esqueleto del repo: `cmd/mcd`, `internal/{instance,console,metrics,mc,api,store}`, `web/`
+## Fase 0 — Diseño ✅
+- [x] Investigación de alternativas y APIs (Fill v3, Hangar, Modrinth verificadas)
+- [x] ADRs 001–007
+- [x] Especificación de API REST + WS (`docs/api.md`)
+- [x] Esqueleto: `daemon/` (Go, compila, parser de log con tests) y `panel/` (Next.js + Dockerfile)
 
 ## Fase 1 — MVP daemon
-- [ ] Crear/arrancar/detener/reiniciar una instancia (proceso Java hijo)
-- [ ] Consola en vivo por WebSocket + enviar comandos
-- [ ] Métricas CPU/RAM/disco/red cada 2 s
-- [ ] Auth básica (usuario/contraseña + sesión) y HTTPS opcional
-- [ ] Unidad `systemd` e instalador
+- [ ] `internal/store`: SQLite + migraciones
+- [ ] `internal/auth`: usuario inicial (`mcd user create`), login JWT, middleware
+- [ ] `internal/catalog/paper`: Fill v3 (versiones, builds, descarga con sha256)
+- [ ] `internal/tasks`: tarea `install` (jar + eula + server.properties + rcon local)
+- [ ] `internal/instance`: proceso `java` con `os/exec`, ring buffer de consola, stop escalonado, restart policy
+- [ ] `internal/ws`: hub, streams console/state/events
+- [ ] `internal/metrics`: gopsutil cada 2 s, persistencia y endpoint `/metrics`
+- [ ] Panel: login, lista de instancias, wizard de creación, consola (xterm.js), tarjetas de recursos
 
-## Fase 2 — Configuración
-- [ ] Editor de `server.properties` con esquema
-- [ ] Whitelist / ops / bans
-- [ ] Descargar jar (Vanilla, Paper, Fabric) y aceptar EULA desde la UI
-- [ ] Backups del mundo (tar.zst) programados
+## Fase 2 — Configuración y plugins
+- [ ] Esquema de `server.properties`; whitelist/ops/bans; editor de archivos confinado
+- [ ] `catalog/hangar` + `catalog/modrinth`; instalar/actualizar/toggle plugins; leer `plugin.yml` de los jars
+- [ ] Upgrade de build/versión de Paper con backup previo
+- [ ] Panel: pantallas de config y navegador de plugins
 
 ## Fase 3 — Jugadores
-- [ ] Lista de online (parser de log + ping), historial de sesiones en SQLite
-- [ ] Logros y estadísticas por jugador
-- [ ] Enviar mensajes (`say`, `tell`, `tellraw`), kick/ban/op desde la ficha del jugador
+- [ ] Sesiones (join/leave) en SQLite, RCON `list`, ping
+- [ ] Logros y estadísticas desde `world/advancements` y `world/stats`
+- [ ] Mensajes, kick, ban, op desde la ficha del jugador
 
-## Fase 4 — Extras
-- [ ] Programador de tareas (reinicios, `save-all`, anuncios)
-- [ ] Gestor de archivos y editor de plugins/mods
-- [ ] cgroups por instancia para límites de recursos
-- [ ] PWA + notificaciones (caída del server, jugador conectado)
+## Fase 4 — Operación
+- [ ] Backups (save-off/save-all/tar.zst) y programador cron
+- [ ] TLS integrado en el daemon; Dockerfile opcional del daemon
+- [ ] Multi-nodo en el panel (varios daemons)
+- [ ] Otros proveedores: Purpur, Fabric, Vanilla
