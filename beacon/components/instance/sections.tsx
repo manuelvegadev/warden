@@ -1,11 +1,12 @@
 "use client";
 
-import { Activity, Settings, Shield, SlidersHorizontal, Terminal, Users } from "lucide-react";
+import { Activity, Puzzle, Settings, Shield, SlidersHorizontal, Terminal, Users } from "lucide-react";
 import { AccessLists } from "@/components/instance/access-lists";
 import { Console } from "@/components/instance/console";
 import { type InstanceState, useConsoleLines } from "@/components/instance/instance-context";
 import { MetricsChart } from "@/components/instance/metrics-chart";
 import { PlayersTab } from "@/components/instance/players-tab";
+import { PluginsTab } from "@/components/instance/plugins-tab";
 import { PropertiesEditor } from "@/components/instance/properties-editor";
 import { SettingsForm } from "@/components/instance/settings-form";
 
@@ -54,6 +55,12 @@ export const SECTIONS: Section[] = [
     label: "Access",
     icon: Shield,
     render: (s) => <AccessLists id={s.manifest.id} isAdmin={s.isAdmin} />,
+  },
+  {
+    slug: "plugins",
+    label: "Plugins",
+    icon: Puzzle,
+    render: (s) => <PluginsTab id={s.manifest.id} mcVersion={s.manifest.mcVersion} isAdmin={s.isAdmin} task={s.task} />,
   },
   {
     slug: "settings",

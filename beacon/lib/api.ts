@@ -113,6 +113,54 @@ export interface BanEntry {
   reason: string;
 }
 
+export interface PluginHit {
+  source: "hangar" | "modrinth";
+  /** Repository link, when the project publishes one. */
+  sourceUrl?: string;
+  /** Project README in Markdown; only present on the details endpoint. */
+  body?: string;
+  id: string;
+  name: string;
+  author: string;
+  description: string;
+  iconUrl?: string;
+  downloads: number;
+  categories: string[];
+  url: string;
+}
+
+export interface PluginVersion {
+  id: string;
+  name: string;
+  channel: string;
+  mcVersions: string[];
+  fileName: string;
+  size: number;
+  hash: { algo: string; value: string };
+  url: string;
+  dependencies: { name: string; required: boolean }[] | null;
+  publishedAt: string;
+}
+
+export interface InstalledPluginRecord {
+  fileName: string;
+  source: string;
+  projectId?: string;
+  name?: string;
+  versionId?: string;
+  version?: string;
+  installedAt: string;
+}
+
+export interface PluginFile {
+  fileName: string;
+  enabled: boolean;
+  size: number;
+  /** wardend API path of the icon fetched at install time (served through the BFF). */
+  iconUrl?: string;
+  source?: InstalledPluginRecord;
+}
+
 export interface UpdateInstanceInput {
   name?: string;
   memoryMb?: number;
@@ -277,6 +325,21 @@ export const instances = {
     `/api/wardend/instances/${id}/logs/${encodeURIComponent(file)}?download=1`,
 };
 
+export const plugins = {
+  search: (q: string, mc: string, source: string) =>
+    api<{ hits: PluginHit[]; total: number }>(
+      `/catalog/plugins/search?q=${encodeURIComponent(q)}&mc=${encodeURIComponent(mc)}&source=${source}`,
+    ),
+  get: (source: string, id: string) => api<PluginHit>(`/catalog/plugins/${source}/${encodeURIComponent(id)}`),
+  versions: (source: string, id: string, mc: string) =>
+    api<PluginVersion[]>(`/catalog/plugins/${source}/${encodeURIComponent(id)}/versions?mc=${encodeURIComponent(mc)}`),
+  installed: (instanceId: string) => api<PluginFile[]>(`/instances/${instanceId}/plugins`),
+  /** Maps a wardend API path (as returned in `iconUrl`) to the BFF proxy. */
+  proxied: (apiPath: string) => apiPath.replace(/^\/api\/v1/, "/api/wardend"),
+  install: (instanceId: string, source: string, projectId: string, versionId: string) =>
+    post<{ task: Task }>(`/instances/${instanceId}/plugins`, { source, projectId, versionId }),
+};
+
 export const catalog = {
   versions: (provider = "paper") =>
     api<{ versions: string[]; latest: string }>(`/catalog/servers/${provider}/versions`),
@@ -303,6 +366,10 @@ export function wardendWsUrl(): string {
   const base = process.env.NEXT_PUBLIC_WARDEND_WS_URL ?? "ws://localhost:8080";
   return `${base.replace(/\/$/, "")}/api/v1/ws`;
 }
+
+/** 1234 → "1K", 2_800_000 → "2.8M". */
+export const compactNum = (n: number) =>
+  n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${Math.round(n / 1e3)}K` : String(n);
 
 export const formatBytes = (n: number) => {
   if (!n) return "0 B";
