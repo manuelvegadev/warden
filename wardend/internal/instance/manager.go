@@ -26,6 +26,7 @@ type Manager struct {
 	root string
 	bc   bus.Broadcaster
 	java JavaResolver
+	sink EventSink
 	mu   sync.RWMutex
 	byID map[string]*Instance
 }
@@ -35,6 +36,16 @@ func NewManager(serversDir string, bc bus.Broadcaster) *Manager {
 		bc = bus.Nop{}
 	}
 	return &Manager{root: serversDir, bc: bc, byID: map[string]*Instance{}}
+}
+
+// SetEventSink wires event persistence (store).
+func (m *Manager) SetEventSink(s EventSink) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.sink = s
+	for _, i := range m.byID {
+		i.sink = s
+	}
 }
 
 // SetJavaResolver wires the Java runtime manager.
@@ -76,7 +87,7 @@ func (m *Manager) LoadAll() error {
 			continue
 		}
 		inst := newInstance(dir, man, m.bc)
-		inst.java = m.java
+		inst.java, inst.sink = m.java, m.sink
 		if man.Jar == "" {
 			inst.state = StateInstalling // install never finished; UI can retry
 		}
@@ -135,7 +146,7 @@ func (m *Manager) Create(man *Manifest) (*Instance, error) {
 		return nil, err
 	}
 	inst := newInstance(dir, man, m.bc)
-	inst.java = m.java
+	inst.java, inst.sink = m.java, m.sink
 	inst.state = StateInstalling
 	m.byID[man.ID] = inst
 	return inst, nil

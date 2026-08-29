@@ -12,6 +12,7 @@ import (
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/shirou/gopsutil/v4/disk"
 	"github.com/shirou/gopsutil/v4/mem"
+	gnet "github.com/shirou/gopsutil/v4/net"
 	"github.com/shirou/gopsutil/v4/process"
 
 	"github.com/manuelvega/warden/wardend/internal/bus"
@@ -21,12 +22,15 @@ import (
 
 // Sample is what the UI receives every tick.
 type Sample struct {
-	TS       time.Time `json:"ts"`
-	CPU      float64   `json:"cpu"`      // percent of one core
-	MemRSS   int64     `json:"memRss"`   // bytes
-	MemMax   int64     `json:"memMax"`   // -Xmx in bytes
-	DiskUsed int64     `json:"diskUsed"` // bytes used by the instance directory
-	Players  int       `json:"players"`
+	TS       time.Time   `json:"ts"`
+	CPU      float64     `json:"cpu"`      // percent of one core
+	MemRSS   int64       `json:"memRss"`   // bytes
+	MemMax   int64       `json:"memMax"`   // -Xmx in bytes
+	DiskUsed int64       `json:"diskUsed"` // bytes used by the instance directory
+	Players  int         `json:"players"`
+	NetRx    int64       `json:"netRx"` // bytes/s on host interfaces (Linux has no per-process counters without eBPF)
+	NetTx    int64       `json:"netTx"`
+	TPS      *[3]float64 `json:"tps,omitempty"` // 1m, 5m, 15m from Paper's `tps`
 }
 
 type Sampler struct {
@@ -41,6 +45,13 @@ type Sampler struct {
 	latest  map[string]Sample
 	disk    map[string]diskCache
 	history map[string][]Sample // in-memory ring (last hour) as a fallback when the store is nil
+
+	netAt     time.Time
+	netRx     uint64
+	netTx     uint64
+	netRxRate int64
+	netTxRate int64
+	tpsTick   int
 }
 
 type diskCache struct {
@@ -73,7 +84,27 @@ func (s *Sampler) Run(ctx context.Context) {
 	}
 }
 
+// hostNet updates host-wide network rates (bytes/s) from interface counters.
+func (s *Sampler) hostNet(ctx context.Context) {
+	cs, err := gnet.IOCountersWithContext(ctx, false)
+	if err != nil || len(cs) == 0 {
+		return
+	}
+	now := time.Now()
+	if !s.netAt.IsZero() {
+		dt := now.Sub(s.netAt).Seconds()
+		if dt > 0 {
+			s.netRxRate = int64(float64(cs[0].BytesRecv-s.netRx) / dt)
+			s.netTxRate = int64(float64(cs[0].BytesSent-s.netTx) / dt)
+		}
+	}
+	s.netAt, s.netRx, s.netTx = now, cs[0].BytesRecv, cs[0].BytesSent
+}
+
 func (s *Sampler) tick(ctx context.Context) {
+	s.hostNet(ctx)
+	s.tpsTick++
+	pollTPS := s.tpsTick%8 == 0 // every ~16 s
 	for _, inst := range s.mgr.List() {
 		st := inst.Status()
 		id := inst.Manifest.ID
@@ -98,7 +129,11 @@ func (s *Sampler) tick(ctx context.Context) {
 		}
 		s.mu.Unlock()
 
-		sample := Sample{TS: time.Now().UTC(), MemMax: int64(inst.Manifest.MemoryMB) << 20, Players: len(st.Players)}
+		if pollTPS {
+			inst.PollTPS()
+		}
+		sample := Sample{TS: time.Now().UTC(), MemMax: int64(inst.Manifest.MemoryMB) << 20, Players: len(st.Players),
+			NetRx: s.netRxRate, NetTx: s.netTxRate, TPS: st.TPS}
 		if c, err := p.Percent(0); err == nil {
 			sample.CPU = c
 		}
@@ -118,7 +153,12 @@ func (s *Sampler) tick(ctx context.Context) {
 
 		s.bc.Broadcast(id, "metrics", sample)
 		if s.st != nil {
-			if err := s.st.InsertMetric(ctx, id, store.MetricRow{TS: sample.TS, CPU: sample.CPU, MemRSS: sample.MemRSS, DiskUsed: sample.DiskUsed, Players: sample.Players}); err != nil {
+			row := store.MetricRow{TS: sample.TS, CPU: sample.CPU, MemRSS: sample.MemRSS, DiskUsed: sample.DiskUsed, Players: sample.Players, NetRx: sample.NetRx, NetTx: sample.NetTx}
+			if sample.TPS != nil {
+				t := sample.TPS[0]
+				row.TPS1 = &t
+			}
+			if err := s.st.InsertMetric(ctx, id, row); err != nil {
 				slog.Debug("insert metric", "err", err)
 			}
 		}
@@ -158,7 +198,20 @@ func (s *Sampler) Latest(id string) *Sample {
 	return nil
 }
 
-func (s *Sampler) History(id string, since time.Time) []Sample {
+func (s *Sampler) History(ctx context.Context, id string, since time.Time) []Sample {
+	if s.st != nil {
+		if rows, err := s.st.Metrics(ctx, id, since); err == nil {
+			out := make([]Sample, 0, len(rows))
+			for _, r := range rows {
+				sm := Sample{TS: r.TS, CPU: r.CPU, MemRSS: r.MemRSS, DiskUsed: r.DiskUsed, Players: r.Players, NetRx: r.NetRx, NetTx: r.NetTx}
+				if r.TPS1 != nil {
+					sm.TPS = &[3]float64{*r.TPS1, 0, 0}
+				}
+				out = append(out, sm)
+			}
+			return out
+		}
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	out := []Sample{}

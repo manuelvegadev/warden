@@ -280,7 +280,7 @@ func (s *server) instanceMetrics(w http.ResponseWriter, r *http.Request) {
 	if rng <= 0 {
 		rng = time.Hour
 	}
-	writeJSON(w, 200, s.Metrics.History(inst.Manifest.ID, time.Now().Add(-rng)))
+	writeJSON(w, 200, s.Metrics.History(r.Context(), inst.Manifest.ID, time.Now().Add(-rng)))
 }
 
 func (s *server) eula(w http.ResponseWriter, r *http.Request) {

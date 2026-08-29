@@ -10,6 +10,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -31,6 +33,7 @@ type Instance struct {
 
 	bc   bus.Broadcaster
 	java JavaResolver
+	sink EventSink
 
 	mu        sync.RWMutex
 	state     State
@@ -42,6 +45,15 @@ type Instance struct {
 	stopping  bool          // true when Stop() initiated the shutdown (no restart)
 	crashes   int
 	players   map[string]struct{}
+	tps       [3]float64
+	tpsAt     time.Time
+	tpsQuiet  bool // a quiet `tps` is in flight: swallow its reply instead of showing it in the console
+}
+
+// EventSink receives parsed server events (persisted by the store).
+type EventSink interface {
+	OnEvent(instanceID string, ev *mc.Event, at time.Time)
+	OnStopped(instanceID string, at time.Time)
 }
 
 func newInstance(dir string, m *Manifest, bc bus.Broadcaster) *Instance {
@@ -58,10 +70,11 @@ func (i *Instance) State() State {
 
 // Status is the runtime snapshot sent over the API and WebSocket.
 type Status struct {
-	State     State      `json:"state"`
-	PID       int        `json:"pid,omitempty"`
-	StartedAt *time.Time `json:"startedAt,omitempty"`
-	Players   []string   `json:"players"`
+	State     State       `json:"state"`
+	PID       int         `json:"pid,omitempty"`
+	StartedAt *time.Time  `json:"startedAt,omitempty"`
+	Players   []string    `json:"players"`
+	TPS       *[3]float64 `json:"tps,omitempty"`
 }
 
 func (i *Instance) Status() Status {
@@ -75,6 +88,10 @@ func (i *Instance) Status() Status {
 	for p := range i.players {
 		s.Players = append(s.Players, p)
 	}
+	if !i.tpsAt.IsZero() && time.Since(i.tpsAt) < time.Minute {
+		tps := i.tps
+		s.TPS = &tps
+	}
 	return s
 }
 
@@ -84,8 +101,13 @@ func (i *Instance) setState(s State) {
 	if s == StateStopped || s == StateCrashed {
 		i.pid = 0
 		i.players = map[string]struct{}{}
+		i.tpsAt = time.Time{}
 	}
+	sink := i.sink
 	i.mu.Unlock()
+	if (s == StateStopped || s == StateCrashed) && sink != nil {
+		sink.OnStopped(i.Manifest.ID, time.Now().UTC())
+	}
 	i.bc.Broadcast(i.Manifest.ID, "state", i.Status())
 }
 
@@ -170,6 +192,9 @@ func (i *Instance) pump(r io.Reader) {
 		if text == "" {
 			continue
 		}
+		if i.captureTPS(text) {
+			continue
+		}
 		i.pushLine(levelOf(text), text)
 		if ev := mc.Parse(text); ev != nil {
 			i.handleEvent(ev)
@@ -196,7 +221,51 @@ func (i *Instance) handleEvent(ev *mc.Event) {
 		i.mu.Unlock()
 		i.bc.Broadcast(i.Manifest.ID, "players", i.Status().Players)
 	}
-	i.bc.Broadcast(i.Manifest.ID, "event", map[string]any{"kind": ev.Kind, "player": ev.Player, "text": ev.Text, "ts": time.Now().UTC()})
+	now := time.Now().UTC()
+	i.bc.Broadcast(i.Manifest.ID, "event", map[string]any{"kind": ev.Kind, "player": ev.Player, "text": ev.Text, "ts": now})
+	i.mu.RLock()
+	sink := i.sink
+	i.mu.RUnlock()
+	if sink != nil {
+		sink.OnEvent(i.Manifest.ID, ev, now)
+	}
+}
+
+var tpsRe = regexp.MustCompile(`TPS from last 1m, 5m, 15m: \*?([\d.]+), \*?([\d.]+), \*?([\d.]+)`)
+
+// captureTPS parses Paper's `tps` reply. Replies to quiet polls are swallowed (not shown in the console).
+func (i *Instance) captureTPS(text string) bool {
+	m := tpsRe.FindStringSubmatch(text)
+	if m == nil {
+		return false
+	}
+	var tps [3]float64
+	for k := 0; k < 3; k++ {
+		tps[k], _ = strconv.ParseFloat(m[k+1], 64)
+	}
+	i.mu.Lock()
+	i.tps, i.tpsAt = tps, time.Now().UTC()
+	quiet := i.tpsQuiet
+	i.tpsQuiet = false
+	i.mu.Unlock()
+	return quiet
+}
+
+// PollTPS sends a quiet `tps` (no STDIN echo, reply hidden). Called by the metrics sampler.
+func (i *Instance) PollTPS() {
+	i.mu.Lock()
+	if i.state != StateRunning || i.stdin == nil || i.tpsQuiet {
+		i.mu.Unlock()
+		return
+	}
+	i.tpsQuiet = true
+	stdin := i.stdin
+	i.mu.Unlock()
+	if _, err := io.WriteString(stdin, "tps\n"); err != nil {
+		i.mu.Lock()
+		i.tpsQuiet = false
+		i.mu.Unlock()
+	}
 }
 
 // wait blocks until the process exits, then applies the restart policy.
@@ -214,7 +283,6 @@ func (i *Instance) wait(cmd *exec.Cmd, exited chan struct{}) {
 	wasStopping := i.stopping
 	i.cmd, i.stdin = nil, nil
 	i.mu.Unlock()
-	close(exited)
 
 	if wasStopping || code == 0 {
 		i.system(fmt.Sprintf("Server stopped (exit code %d)", code))
@@ -222,11 +290,13 @@ func (i *Instance) wait(cmd *exec.Cmd, exited chan struct{}) {
 		i.mu.Lock()
 		i.crashes = 0
 		i.mu.Unlock()
+		close(exited) // after the state change so Stop/Kill callers observe "stopped"
 		return
 	}
 	i.system(fmt.Sprintf("Server crashed (exit code %d)", code))
 	slog.Warn("instance crashed", "id", i.Manifest.ID, "code", code)
 	i.setState(StateCrashed)
+	close(exited)
 
 	policy := i.Manifest.RestartPolicy
 	if policy != "on-crash" && policy != "always" {

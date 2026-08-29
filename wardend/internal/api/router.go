@@ -13,6 +13,7 @@ import (
 	"github.com/manuelvega/warden/wardend/internal/instance"
 	"github.com/manuelvega/warden/wardend/internal/java"
 	"github.com/manuelvega/warden/wardend/internal/metrics"
+	"github.com/manuelvega/warden/wardend/internal/store"
 	"github.com/manuelvega/warden/wardend/internal/tasks"
 )
 
@@ -25,6 +26,7 @@ type Deps struct {
 	Tasks    *tasks.Manager
 	Java     *java.Manager
 	Metrics  *metrics.Sampler
+	Store    *store.Store
 	WS       http.Handler
 	Version  string
 }
@@ -78,9 +80,12 @@ func NewRouter(d Deps) http.Handler {
 	mux.HandleFunc("GET /api/v1/instances/{id}/logs/{file}", s.getLog)
 	mux.HandleFunc("GET /api/v1/instances/{id}/metrics", s.instanceMetrics)
 	mux.HandleFunc("POST /api/v1/instances/{id}/eula", auth.RequireAdmin(s.eula))
+	mux.HandleFunc("GET /api/v1/instances/{id}/players", s.listPlayers)
+	mux.HandleFunc("GET /api/v1/instances/{id}/players/{name}/sessions", s.playerSessions)
+	mux.HandleFunc("GET /api/v1/instances/{id}/events", s.listEvents)
 
 	// Config, plugins, players, backups (see docs/api.md) — later phases
-	for _, p := range []string{"properties", "whitelist", "ops", "bans", "files", "plugins", "players", "backups", "schedule"} {
+	for _, p := range []string{"properties", "whitelist", "ops", "bans", "files", "plugins", "backups", "schedule"} {
 		mux.HandleFunc("/api/v1/instances/{id}/"+p, notImplemented)
 		mux.HandleFunc("/api/v1/instances/{id}/"+p+"/", notImplemented)
 	}

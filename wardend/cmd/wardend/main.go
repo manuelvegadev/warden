@@ -56,6 +56,7 @@ func main() {
 	mgr := instance.NewManager(cfg.ServersDir(), nil)
 	hub := ws.NewHub(verifier, mgr, cfg.AllowedOrigins)
 	mgr.SetBroadcaster(hub)
+	mgr.SetEventSink(st)
 	if err := mgr.LoadAll(); err != nil {
 		slog.Error("load instances", "err", err)
 		os.Exit(1)
@@ -70,7 +71,7 @@ func main() {
 
 	srv := &http.Server{
 		Addr:              cfg.Listen,
-		Handler:           api.NewRouter(api.Deps{Config: cfg, Manager: mgr, Verifier: verifier, Catalog: reg, Tasks: tm, Java: jm, Metrics: sampler, WS: hub, Version: version}),
+		Handler:           api.NewRouter(api.Deps{Config: cfg, Manager: mgr, Verifier: verifier, Catalog: reg, Tasks: tm, Java: jm, Metrics: sampler, Store: st, WS: hub, Version: version}),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
