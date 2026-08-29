@@ -1,75 +1,10 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.5.11/schema.json",
-  "vcs": {
-    "enabled": true,
-    "clientKind": "git",
-    "useIgnoreFile": true,
-    "root": ".."
-  },
-  "files": {
-    "ignoreUnknown": true,
-    "includes": ["**", "!.next", "!node_modules", "!data", "!next-env.d.ts"]
-  },
-  "formatter": {
-    "enabled": true,
-    "indentStyle": "space",
-    "indentWidth": 2,
-    "lineWidth": 120,
-    "lineEnding": "lf"
-  },
-  "javascript": {
-    "formatter": {
-      "quoteStyle": "double",
-      "jsxQuoteStyle": "double",
-      "semicolons": "always",
-      "trailingCommas": "all",
-      "arrowParentheses": "always"
-    }
-  },
+  "extends": "//",
   "linter": {
-    "enabled": true,
     "domains": {
       "next": "recommended",
       "react": "recommended"
-    },
-    "rules": {
-      "preset": "recommended",
-      "suspicious": {
-        "noConsole": {
-          "level": "warn",
-          "options": {
-            "allow": ["warn", "error"]
-          }
-        }
-      },
-      "correctness": {
-        "noUnusedImports": "error",
-        "noUnusedVariables": "error"
-      },
-      "style": {
-        "useImportType": "error"
-      }
-    }
-  },
-  "assist": {
-    "enabled": true,
-    "actions": {
-      "source": {
-        "organizeImports": "on"
-      }
-    }
-  },
-  "overrides": [
-    {
-      "includes": ["components/ui/**"],
-      "linter": {
-        "enabled": false
-      }
-    }
-  ],
-  "css": {
-    "parser": {
-      "tailwindDirectives": true
     }
   }
 }
