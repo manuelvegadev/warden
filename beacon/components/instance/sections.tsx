@@ -1,7 +1,18 @@
 "use client";
 
-import { Activity, FileCode2, Puzzle, Settings, Shield, SlidersHorizontal, Terminal, Users } from "lucide-react";
+import {
+  Activity,
+  Archive,
+  FileCode2,
+  Puzzle,
+  Settings,
+  Shield,
+  SlidersHorizontal,
+  Terminal,
+  Users,
+} from "lucide-react";
 import { AccessLists } from "@/components/instance/access-lists";
+import { BackupsTab } from "@/components/instance/backups-tab";
 import { Console } from "@/components/instance/console";
 import { FilesEditor } from "@/components/instance/files-editor";
 import { type InstanceState, useConsoleLines } from "@/components/instance/instance-context";
@@ -46,7 +57,7 @@ export const SECTIONS: Section[] = [
     slug: "players",
     label: "Players",
     icon: Users,
-    render: (s) => <PlayersTab id={s.manifest.id} online={s.status.players} />,
+    render: (s) => <PlayersTab id={s.manifest.id} online={s.status.players} isAdmin={s.isAdmin} />,
   },
   {
     slug: "properties",
@@ -71,6 +82,12 @@ export const SECTIONS: Section[] = [
     label: "Plugins",
     icon: Puzzle,
     render: (s) => <PluginsTab id={s.manifest.id} mcVersion={s.manifest.mcVersion} isAdmin={s.isAdmin} task={s.task} />,
+  },
+  {
+    slug: "backups",
+    label: "Backups",
+    icon: Archive,
+    render: (s) => <BackupsTab manifest={s.manifest} state={s.status.state} isAdmin={s.isAdmin} task={s.task} />,
   },
   {
     slug: "settings",

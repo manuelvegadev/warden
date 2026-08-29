@@ -44,6 +44,27 @@ export interface Manifest {
   createdAt: string;
   /** Completed server upgrades, newest last. */
   upgrades?: UpgradeRecord[];
+  backups: BackupSettings;
+}
+
+export interface BackupSettings {
+  enabled: boolean;
+  everyHours: number;
+  keep: number;
+  maxTotalMb: number;
+  scope: "full" | "worlds";
+}
+
+export interface BackupInfo {
+  name: string;
+  trigger: "manual" | "schedule" | "pre-upgrade" | "pre-restore" | "unknown";
+  scope: string;
+  size: number;
+  sha256?: string;
+  paths?: string[];
+  mcVersion?: string;
+  build?: number;
+  createdAt: string;
 }
 
 export interface UpgradeRecord {
@@ -80,6 +101,37 @@ export interface PlayerSession {
   joinedAt: string;
   leftAt?: string;
 }
+
+export interface Counter {
+  id: string;
+  count: number;
+}
+
+export type TopCategory = "mined" | "killed" | "killed_by" | "crafted" | "used" | "broken" | "picked_up";
+
+export interface PlayerStats {
+  dataVersion: number;
+  playTimeSeconds: number;
+  deaths: number;
+  playerKills: number;
+  mobKills: number;
+  damageDealt: number;
+  damageTaken: number;
+  jumps: number;
+  distanceMeters: number;
+  blocksMined: number;
+  itemsCrafted: number;
+  top: Record<TopCategory, Counter[]>;
+}
+
+export interface Advancement {
+  id: string;
+  done: boolean;
+  at?: string;
+}
+
+/** Transient console actions; op/ban use the list endpoints so they also work while stopped. */
+export type PlayerActionKind = "message" | "kick";
 
 export interface ServerEvent {
   ts: string;
@@ -226,6 +278,7 @@ export interface UpdateInstanceInput {
   autostart?: boolean;
   restartPolicy?: "never" | "on-crash" | "always";
   stopTimeoutSeconds?: number;
+  backups?: BackupSettings;
 }
 
 export interface InstanceDetail {
@@ -246,11 +299,13 @@ export interface LogFile {
   modTime: string;
 }
 
-export type TaskType = "install" | "upgrade" | "plugin.install" | "java.install";
+export type TaskType = "install" | "upgrade" | "backup" | "restore" | "plugin.install" | "java.install";
 
 export const TASK_LABELS: Record<TaskType, string> = {
   install: "Server install",
   upgrade: "Server upgrade",
+  backup: "Backup",
+  restore: "Restore",
   "plugin.install": "Plugin install",
   "java.install": "Java install",
 };
@@ -362,6 +417,12 @@ export const instances = {
     api<PlayerSession[]>(`/instances/${id}/players/${encodeURIComponent(name)}/sessions`),
   events: (id: string, kinds: string[], limit = 100) =>
     api<ServerEvent[]>(`/instances/${id}/events?kind=${kinds.join(",")}&limit=${limit}`),
+  playerStats: (id: string, name: string) =>
+    api<PlayerStats>(`/instances/${id}/players/${encodeURIComponent(name)}/stats`),
+  playerAdvancements: (id: string, name: string) =>
+    api<Advancement[]>(`/instances/${id}/players/${encodeURIComponent(name)}/advancements`),
+  playerAction: (id: string, name: string, action: PlayerActionKind, text?: string) =>
+    post<void>(`/instances/${id}/players/${encodeURIComponent(name)}/action`, { action, text }),
   properties: (id: string) => api<ServerProperty[]>(`/instances/${id}/properties`),
   updateProperties: (id: string, updates: Record<string, string>) =>
     api<{ restartRequired: boolean }>(`/instances/${id}/properties`, { method: "PUT", body: JSON.stringify(updates) }),
@@ -408,6 +469,17 @@ export interface ConfigFile {
 const fileContent = (instanceId: string, path: string) =>
   `/instances/${instanceId}/files/content?path=${encodeURIComponent(path)}`;
 
+export const backups = {
+  list: (instanceId: string) => api<BackupInfo[]>(`/instances/${instanceId}/backups`),
+  create: (instanceId: string) => post<{ task: Task }>(`/instances/${instanceId}/backups`),
+  restore: (instanceId: string, name: string) =>
+    post<{ task: Task }>(`/instances/${instanceId}/backups/${encodeURIComponent(name)}/restore`),
+  remove: (instanceId: string, name: string) =>
+    api<void>(`/instances/${instanceId}/backups/${encodeURIComponent(name)}`, { method: "DELETE" }),
+  downloadUrl: (instanceId: string, name: string) =>
+    `/api/wardend/instances/${instanceId}/backups/${encodeURIComponent(name)}/download`,
+};
+
 export const files = {
   list: (instanceId: string) => api<ConfigFile[]>(`/instances/${instanceId}/files`),
   read: (instanceId: string, path: string) => api<string>(fileContent(instanceId, path), { text: true }),
@@ -446,6 +518,12 @@ export const plugins = {
   proxied: (apiPath: string) => apiPath.replace(/^\/api\/v1/, "/api/wardend"),
   install: (instanceId: string, source: string, projectId: string, versionId: string) =>
     post<{ task: Task }>(`/instances/${instanceId}/plugins`, { source, projectId, versionId }),
+};
+
+/** Player skin images served by wardend (Mojang lookup, cached on the daemon). */
+export const skins = {
+  face: (name: string) => `/api/wardend/players/${encodeURIComponent(name)}/skin?face=64`,
+  full: (name: string) => `/api/wardend/players/${encodeURIComponent(name)}/skin`,
 };
 
 export const catalog = {
