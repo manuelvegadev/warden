@@ -3,11 +3,8 @@ package api
 import (
 	"log/slog"
 	"net/http"
-	"os"
 	"time"
 )
-
-func hostname() (string, error) { return os.Hostname() }
 
 func logging(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

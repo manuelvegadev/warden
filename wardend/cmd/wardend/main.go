@@ -1,4 +1,4 @@
-// wardend is the warden daemon: it supervises Minecraft instances and exposes the API.
+// wardend is the Warden daemon: it supervises Minecraft instances and exposes the API consumed by Beacon.
 package main
 
 import (
@@ -12,8 +12,14 @@ import (
 
 	"github.com/manuelvega/warden/wardend/internal/api"
 	"github.com/manuelvega/warden/wardend/internal/auth"
+	"github.com/manuelvega/warden/wardend/internal/catalog"
 	"github.com/manuelvega/warden/wardend/internal/config"
 	"github.com/manuelvega/warden/wardend/internal/instance"
+	"github.com/manuelvega/warden/wardend/internal/java"
+	"github.com/manuelvega/warden/wardend/internal/metrics"
+	"github.com/manuelvega/warden/wardend/internal/store"
+	"github.com/manuelvega/warden/wardend/internal/tasks"
+	"github.com/manuelvega/warden/wardend/internal/ws"
 )
 
 var version = "dev"
@@ -24,17 +30,10 @@ func main() {
 		slog.Error("config", "err", err)
 		os.Exit(1)
 	}
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: cfg.LogLevel()}))
-	slog.SetDefault(logger)
+	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: cfg.LogLevel()})))
 
 	if err := os.MkdirAll(cfg.ServersDir(), 0o750); err != nil {
 		slog.Error("data dir", "err", err)
-		os.Exit(1)
-	}
-
-	mgr := instance.NewManager(cfg.ServersDir())
-	if err := mgr.LoadAll(); err != nil {
-		slog.Error("load instances", "err", err)
 		os.Exit(1)
 	}
 
@@ -47,9 +46,31 @@ func main() {
 		os.Exit(1)
 	}
 
+	st, err := store.Open(cfg.DBPath())
+	if err != nil {
+		slog.Error("store", "err", err)
+		os.Exit(1)
+	}
+	defer st.Close()
+
+	mgr := instance.NewManager(cfg.ServersDir(), nil)
+	hub := ws.NewHub(verifier, mgr, cfg.AllowedOrigins)
+	mgr.SetBroadcaster(hub)
+	if err := mgr.LoadAll(); err != nil {
+		slog.Error("load instances", "err", err)
+		os.Exit(1)
+	}
+
+	reg := catalog.NewRegistry(cfg.UserAgent(version))
+	jm := java.NewManager(cfg.DataDir, reg, cfg.UserAgent(version))
+	mgr.SetJavaResolver(jm)
+	tm := tasks.NewManager(hub)
+	sampler := metrics.NewSampler(mgr, st, hub, cfg.DataDir)
+	go sampler.Run(ctx)
+
 	srv := &http.Server{
 		Addr:              cfg.Listen,
-		Handler:           api.NewRouter(cfg, mgr, verifier, version),
+		Handler:           api.NewRouter(api.Deps{Config: cfg, Manager: mgr, Verifier: verifier, Catalog: reg, Tasks: tm, Java: jm, Metrics: sampler, WS: hub, Version: version}),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
@@ -65,8 +86,8 @@ func main() {
 
 	<-ctx.Done()
 	slog.Info("shutting down")
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
-	mgr.StopAll(shutdownCtx) // clean shutdown (stop → SIGTERM → SIGKILL) of every instance
+	mgr.StopAll(shutdownCtx) // staged stop (stop → SIGTERM → SIGKILL) for every instance
 	_ = srv.Shutdown(shutdownCtx)
 }

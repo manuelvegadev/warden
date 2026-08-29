@@ -4,36 +4,59 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"os"
 	"runtime"
 
 	"github.com/manuelvega/warden/wardend/internal/auth"
+	"github.com/manuelvega/warden/wardend/internal/catalog"
 	"github.com/manuelvega/warden/wardend/internal/config"
 	"github.com/manuelvega/warden/wardend/internal/instance"
+	"github.com/manuelvega/warden/wardend/internal/java"
+	"github.com/manuelvega/warden/wardend/internal/metrics"
+	"github.com/manuelvega/warden/wardend/internal/tasks"
 )
 
-type server struct {
-	cfg     *config.Config
-	mgr     *instance.Manager
-	version string
+// Deps are the services the handlers need.
+type Deps struct {
+	Config   *config.Config
+	Manager  *instance.Manager
+	Verifier *auth.Verifier
+	Catalog  *catalog.Registry
+	Tasks    *tasks.Manager
+	Java     *java.Manager
+	Metrics  *metrics.Sampler
+	WS       http.Handler
+	Version  string
 }
 
-// NewRouter mounts the API. Everything under /api/v1 except /health requires a Beacon JWT (ADR-009).
-func NewRouter(cfg *config.Config, mgr *instance.Manager, verifier *auth.Verifier, version string) http.Handler {
-	s := &server{cfg: cfg, mgr: mgr, version: version}
+type server struct{ Deps }
+
+// NewRouter mounts the API. Everything under /api/v1 except /health and /ws requires a Beacon JWT (ADR-009).
+func NewRouter(d Deps) http.Handler {
+	s := &server{Deps: d}
 	root := http.NewServeMux()
 	root.HandleFunc("GET /api/v1/health", s.health)
+	root.Handle("GET /api/v1/ws", d.WS) // authenticates via first message
 
 	mux := http.NewServeMux()
-	root.Handle("/api/v1/", verifier.Middleware(mux))
+	root.Handle("/api/v1/", d.Verifier.Middleware(mux))
 
 	// System
 	mux.HandleFunc("GET /api/v1/system", s.system)
 	mux.HandleFunc("GET /api/v1/auth/me", s.me)
+	mux.HandleFunc("GET /api/v1/tasks", s.listTasks)
+	mux.HandleFunc("GET /api/v1/tasks/{id}", s.getTask)
 
-	// Catalog (TODO: internal/catalog)
-	mux.HandleFunc("GET /api/v1/catalog/servers", notImplemented)
-	mux.HandleFunc("GET /api/v1/catalog/servers/{provider}/versions", notImplemented)
-	mux.HandleFunc("GET /api/v1/catalog/servers/{provider}/versions/{mc}/builds", notImplemented)
+	// Java runtimes (ADR-010)
+	mux.HandleFunc("GET /api/v1/java", s.listJava)
+	mux.HandleFunc("GET /api/v1/java/required", s.javaRequired)
+	mux.HandleFunc("POST /api/v1/java", auth.RequireAdmin(s.installJava))
+	mux.HandleFunc("DELETE /api/v1/java/{id}", auth.RequireAdmin(s.removeJava))
+
+	// Catalog
+	mux.HandleFunc("GET /api/v1/catalog/servers", s.catalogServers)
+	mux.HandleFunc("GET /api/v1/catalog/servers/{provider}/versions", s.catalogVersions)
+	mux.HandleFunc("GET /api/v1/catalog/servers/{provider}/versions/{mc}/builds", s.catalogBuilds)
 	mux.HandleFunc("GET /api/v1/catalog/plugins/search", notImplemented)
 	mux.HandleFunc("GET /api/v1/catalog/plugins/{source}/{id}", notImplemented)
 	mux.HandleFunc("GET /api/v1/catalog/plugins/{source}/{id}/versions", notImplemented)
@@ -42,33 +65,50 @@ func NewRouter(cfg *config.Config, mgr *instance.Manager, verifier *auth.Verifie
 	mux.HandleFunc("GET /api/v1/instances", s.listInstances)
 	mux.HandleFunc("POST /api/v1/instances", auth.RequireAdmin(s.createInstance))
 	mux.HandleFunc("GET /api/v1/instances/{id}", s.getInstance)
-	mux.HandleFunc("PATCH /api/v1/instances/{id}", notImplemented)
-	mux.HandleFunc("DELETE /api/v1/instances/{id}", auth.RequireAdmin(notImplemented))
+	mux.HandleFunc("PATCH /api/v1/instances/{id}", auth.RequireAdmin(s.patchInstance))
+	mux.HandleFunc("DELETE /api/v1/instances/{id}", auth.RequireAdmin(s.deleteInstance))
+	mux.HandleFunc("POST /api/v1/instances/{id}/install", auth.RequireAdmin(s.installInstance))
 	mux.HandleFunc("POST /api/v1/instances/{id}/start", s.startInstance)
 	mux.HandleFunc("POST /api/v1/instances/{id}/stop", s.stopInstance)
-	mux.HandleFunc("POST /api/v1/instances/{id}/restart", notImplemented)
-	mux.HandleFunc("POST /api/v1/instances/{id}/kill", notImplemented)
+	mux.HandleFunc("POST /api/v1/instances/{id}/restart", s.restartInstance)
+	mux.HandleFunc("POST /api/v1/instances/{id}/kill", s.killInstance)
 	mux.HandleFunc("POST /api/v1/instances/{id}/command", s.sendCommand)
-	mux.HandleFunc("GET /api/v1/instances/{id}/console", notImplemented)
-	mux.HandleFunc("GET /api/v1/instances/{id}/metrics", notImplemented)
-	mux.HandleFunc("POST /api/v1/instances/{id}/eula", notImplemented)
+	mux.HandleFunc("GET /api/v1/instances/{id}/console", s.console)
+	mux.HandleFunc("GET /api/v1/instances/{id}/logs", s.listLogs)
+	mux.HandleFunc("GET /api/v1/instances/{id}/logs/{file}", s.getLog)
+	mux.HandleFunc("GET /api/v1/instances/{id}/metrics", s.instanceMetrics)
+	mux.HandleFunc("POST /api/v1/instances/{id}/eula", auth.RequireAdmin(s.eula))
 
-	// Config, plugins, players, backups (see docs/api.md)
+	// Config, plugins, players, backups (see docs/api.md) — later phases
 	for _, p := range []string{"properties", "whitelist", "ops", "bans", "files", "plugins", "players", "backups", "schedule"} {
 		mux.HandleFunc("/api/v1/instances/{id}/"+p, notImplemented)
 		mux.HandleFunc("/api/v1/instances/{id}/"+p+"/", notImplemented)
 	}
 
-	// WebSocket: authenticates with the JWT in the first message, not via header (TODO: internal/ws)
-	root.HandleFunc("GET /api/v1/ws", notImplemented)
-
-	// Diagnostic page; the real UI is Beacon (ADR-007)
+	// Diagnostics page; the real UI is Beacon (ADR-007)
 	root.HandleFunc("GET /{$}", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		_, _ = w.Write([]byte("<h1>wardend " + version + "</h1><p>API at <code>/api/v1</code>. The UI is Beacon.</p>"))
+		_, _ = w.Write([]byte("<h1>wardend " + d.Version + "</h1><p>API at <code>/api/v1</code>. The UI is Beacon.</p>"))
 	})
 
-	return cors(cfg.AllowedOrigins, logging(root))
+	return cors(d.Config.AllowedOrigins, logging(root))
+}
+
+func (s *server) health(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, 200, map[string]any{"ok": true, "version": s.Version})
+}
+
+func (s *server) system(w http.ResponseWriter, r *http.Request) {
+	host, _ := os.Hostname()
+	sys := s.Metrics.System(r.Context())
+	if rts, err := s.Java.List(); err == nil {
+		sys["java"] = rts
+	}
+	sys["hostname"] = host
+	sys["os"] = runtime.GOOS + "/" + runtime.GOARCH
+	sys["cpuCores"] = runtime.NumCPU()
+	sys["daemonVersion"] = s.Version
+	writeJSON(w, 200, sys)
 }
 
 func (s *server) me(w http.ResponseWriter, r *http.Request) {
@@ -76,19 +116,15 @@ func (s *server) me(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, p)
 }
 
-func (s *server) health(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, 200, map[string]any{"ok": true, "version": s.version})
-}
+func (s *server) listTasks(w http.ResponseWriter, _ *http.Request) { writeJSON(w, 200, s.Tasks.List()) }
 
-func (s *server) system(w http.ResponseWriter, _ *http.Request) {
-	host, _ := hostname()
-	writeJSON(w, 200, map[string]any{
-		"hostname":      host,
-		"os":            runtime.GOOS + "/" + runtime.GOARCH,
-		"cpuCores":      runtime.NumCPU(),
-		"daemonVersion": s.version,
-		// TODO: memTotal/memUsed/disk/java (internal/metrics)
-	})
+func (s *server) getTask(w http.ResponseWriter, r *http.Request) {
+	t, ok := s.Tasks.Get(r.PathValue("id"))
+	if !ok {
+		writeError(w, 404, "task_not_found", "task not found")
+		return
+	}
+	writeJSON(w, 200, t)
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
@@ -102,5 +138,5 @@ func writeError(w http.ResponseWriter, status int, code, msg string) {
 }
 
 func notImplemented(w http.ResponseWriter, _ *http.Request) {
-	writeError(w, http.StatusNotImplemented, "not_implemented", "endpoint not implemented yet; see docs/api.md")
+	writeError(w, http.StatusNotImplemented, "not_implemented", "endpoint pending; see docs/api.md")
 }
