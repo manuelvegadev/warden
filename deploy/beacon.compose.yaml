@@ -1,0 +1,28 @@
+# Beacon on its own Docker host (wardend runs elsewhere, installed with install.sh).
+#
+#   mkdir -p warden-beacon && cd warden-beacon
+#   curl -fsSLO https://github.com/manuelvegadev/warden/raw/main/deploy/beacon.compose.yaml
+#   curl -fsSL  https://github.com/manuelvegadev/warden/raw/main/deploy/beacon.env.example -o beacon.env
+#   nano beacon.env            # BETTER_AUTH_SECRET, BETTER_AUTH_URL, WARDEND_URL, WARDEND_PANEL_KEY, WARDEND_PUBLIC_WS_URL
+#   docker compose -f beacon.compose.yaml up -d
+#
+# Every variable is documented in beacon.env.example (docs/deploy.md §2). Put the panel behind an
+# HTTPS reverse proxy (Caddy, Traefik, Dokploy) and set BETTER_AUTH_URL to that public URL.
+name: warden
+
+services:
+  beacon:
+    image: ghcr.io/manuelvegadev/warden-beacon:latest
+    container_name: warden-beacon
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    env_file: beacon.env
+    volumes:
+      - beacon-data:/data
+      # Only when wardend uses WARDEND_TLS=self-signed: copy its certificate here and set
+      # NODE_EXTRA_CA_CERTS=/certs/wardend.crt in beacon.env.
+      #- ./wardend.crt:/certs/wardend.crt:ro
+
+volumes:
+  beacon-data:
