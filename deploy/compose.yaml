@@ -35,7 +35,8 @@ services:
 
   beacon:
     build:
-      context: ../beacon
+      context: ..            # workspace root: the panel depends on packages/ui
+      dockerfile: beacon/Dockerfile
     restart: unless-stopped
     depends_on: [wardend]
     ports:
