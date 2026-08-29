@@ -93,3 +93,18 @@ jobs:
           build-args: VERSION=${{ github.ref_name }}
           cache-from: type=gha,scope=${{ matrix.app }}
           cache-to: type=gha,scope=${{ matrix.app }}
+
+  # Dokploy pulls `latest` (or the release line it is pinned to) once the images are published.
+  dokploy:
+    name: Redeploy Beacon on Dokploy
+    needs: images
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          WEBHOOK: ${{ secrets.DOKPLOY_BEACON_WEBHOOK }}
+        run: |
+          if [ -z "$WEBHOOK" ]; then
+            echo "::notice::DOKPLOY_BEACON_WEBHOOK is not set; skipping the redeploy."
+            exit 0
+          fi
+          curl -fsS -X POST "$WEBHOOK" -o /dev/null -w "Dokploy answered %{http_code}\n"

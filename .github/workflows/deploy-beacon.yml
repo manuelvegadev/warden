@@ -1,0 +1,72 @@
+# CD for Beacon: publish ghcr.io/<owner>/warden-beacon:latest and tell Dokploy to pull it — only when
+# something that ends up in the image changed. Releases (release.yml) publish versioned tags and
+# call the same webhook. Set the repository secret DOKPLOY_BEACON_WEBHOOK to the app's webhook URL
+# (Dokploy → application → Deployments → Webhook URL, with Autodeploy on); without it the image is
+# still published and the deploy step is skipped.
+name: Deploy Beacon
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "beacon/**"
+      - "packages/ui/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - ".dockerignore"
+      - ".github/workflows/deploy-beacon.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-beacon
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  image:
+    name: Publish image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/warden-beacon
+          tags: |
+            type=raw,value=latest
+            type=sha
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: beacon/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: VERSION=${{ github.sha }}
+          cache-from: type=gha,scope=beacon
+          cache-to: type=gha,scope=beacon
+
+  dokploy:
+    name: Redeploy on Dokploy
+    needs: image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call the Dokploy webhook
+        env:
+          WEBHOOK: ${{ secrets.DOKPLOY_BEACON_WEBHOOK }}
+        run: |
+          if [ -z "$WEBHOOK" ]; then
+            echo "::notice::DOKPLOY_BEACON_WEBHOOK is not set; image published, no redeploy triggered."
+            exit 0
+          fi
+          curl -fsS -X POST "$WEBHOOK" -o /dev/null -w "Dokploy answered %{http_code}\n"
