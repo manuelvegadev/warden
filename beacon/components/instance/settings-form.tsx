@@ -7,6 +7,7 @@ import { SaveBar, SectionCard, SettingRow } from "@/components/instance/section-
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { useDraft } from "@/hooks/use-draft";
 import { instances, type JavaRuntime, java, type Manifest } from "@/lib/api";
 import { mono } from "@/lib/utils";
 
@@ -43,8 +44,7 @@ export function SettingsForm({ manifest, running }: { manifest: Manifest; runnin
   // Only edits are state: the baseline is derived from the manifest, so an upgrade or another
   // session changing it resyncs automatically without touching what the user is typing.
   const saved = useMemo(() => fromManifest(manifest), [manifest]);
-  const [edits, setEdits] = useState<Partial<Draft>>({});
-  const draft: Draft = { ...saved, ...edits };
+  const { draft, set, changed, dirty, reset, isDirty } = useDraft(saved);
   const [pending, setPending] = useState(false);
 
   useEffect(() => {
@@ -53,9 +53,6 @@ export function SettingsForm({ manifest, running }: { manifest: Manifest; runnin
       .then((r) => setRuntimes(r.installed))
       .catch(() => {});
   }, []);
-  const set = <K extends keyof Draft>(key: K, value: Draft[K]) => setEdits((e) => ({ ...e, [key]: value }));
-  const changed = (Object.keys(edits) as (keyof Draft)[]).filter((k) => edits[k] !== saved[k]);
-  const dirty = changed.length > 0;
 
   async function save() {
     setPending(true);
@@ -71,7 +68,7 @@ export function SettingsForm({ manifest, running }: { manifest: Manifest; runnin
         stopTimeoutSeconds: draft.stopTimeoutSeconds,
       });
       toast.success(running ? "Saved — applies on the next restart" : "Saved");
-      setEdits({});
+      reset();
       router.refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Save failed");
@@ -86,7 +83,7 @@ export function SettingsForm({ manifest, running }: { manifest: Manifest; runnin
       id={`setting-${key}`}
       label={label}
       description={description}
-      dirty={draft[key] !== saved[key]}
+      dirty={isDirty(key)}
       wide={wide}
     >
       {control}
@@ -232,7 +229,7 @@ export function SettingsForm({ manifest, running }: { manifest: Manifest; runnin
         pending={pending}
         count={changed.length}
         hint={running && dirty ? "Applies on the next restart." : undefined}
-        onDiscard={() => setEdits({})}
+        onDiscard={reset}
         onSave={save}
       />
     </div>

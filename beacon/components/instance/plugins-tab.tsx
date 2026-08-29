@@ -1,32 +1,20 @@
 "use client";
 
-import { ArrowUpCircle, MoreHorizontal, Power, Trash2, Upload } from "lucide-react";
+import { ArrowUpCircle, Power, Trash2, Upload } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { PluginDetailsDialog, PluginNameButton, type PluginRef } from "@/components/instance/plugin-details-dialog";
 import { PluginIcon } from "@/components/instance/plugin-icon";
 import { PluginSourceBadge } from "@/components/instance/plugin-source-badge";
 import { InstallPluginsDialog } from "@/components/instance/plugins-install-dialog";
+import { RowActions } from "@/components/instance/row-actions";
 import { SectionCard } from "@/components/instance/section-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { DropdownMenuGroup, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useAction } from "@/hooks/use-action";
 import { useFileDrag } from "@/hooks/use-file-drag";
 import { formatBytes, type PluginFile, type PluginUpdate, plugins, type Task } from "@/lib/api";
 import { badgeTone, formatDate, mono } from "@/lib/utils";
@@ -83,17 +71,7 @@ export function PluginsTab({
     [installed],
   );
 
-  /** Runs an action that resolves to its success message; errors become toasts. Returns success. */
-  async function act(fn: () => Promise<string>, refreshAfter: boolean | "updates" = true) {
-    try {
-      toast.success(await fn());
-      if (refreshAfter) refresh(refreshAfter === "updates");
-      return true;
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Action failed");
-      return false;
-    }
-  }
+  const act = useAction(refresh);
 
   /** Uploads every .jar / .zip in the list (others are reported and skipped), then reloads once. */
   async function upload(files: Iterable<File> | null | undefined) {
@@ -189,45 +167,38 @@ export function PluginsTab({
                   </TableCell>
                   {isAdmin && (
                     <TableCell className="pr-3">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger
-                          render={<Button size="icon-sm" variant="ghost" aria-label={`Actions for ${label}`} />}
-                        >
-                          <MoreHorizontal className="size-4" />
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="min-w-44">
-                          <DropdownMenuGroup>
-                            {update && (
-                              <DropdownMenuItem
-                                onClick={() =>
-                                  act(async () => {
-                                    await plugins.update(id, p.fileName);
-                                    return `Updating ${label} to ${update.version}…`;
-                                  }, false)
-                                }
-                              >
-                                <ArrowUpCircle className="size-4" /> Update to {update.version}
-                              </DropdownMenuItem>
-                            )}
+                      <RowActions label={`Actions for ${label}`}>
+                        <DropdownMenuGroup>
+                          {update && (
                             <DropdownMenuItem
                               onClick={() =>
                                 act(async () => {
-                                  const { enabled } = await plugins.toggle(id, p.fileName);
-                                  return `${enabled ? "Enabled" : "Disabled"} ${label}`;
-                                })
+                                  await plugins.update(id, p.fileName);
+                                  return `Updating ${label} to ${update.version}…`;
+                                }, false)
                               }
                             >
-                              <Power className="size-4" /> {p.enabled ? "Disable" : "Enable"}
+                              <ArrowUpCircle className="size-4" /> Update to {update.version}
                             </DropdownMenuItem>
-                          </DropdownMenuGroup>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuGroup>
-                            <DropdownMenuItem variant="destructive" onClick={() => setRemoving(p)}>
-                              <Trash2 className="size-4" /> Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuGroup>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                          )}
+                          <DropdownMenuItem
+                            onClick={() =>
+                              act(async () => {
+                                const { enabled } = await plugins.toggle(id, p.fileName);
+                                return `${enabled ? "Enabled" : "Disabled"} ${label}`;
+                              })
+                            }
+                          >
+                            <Power className="size-4" /> {p.enabled ? "Disable" : "Enable"}
+                          </DropdownMenuItem>
+                        </DropdownMenuGroup>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuGroup>
+                          <DropdownMenuItem variant="destructive" onClick={() => setRemoving(p)}>
+                            <Trash2 className="size-4" /> Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuGroup>
+                      </RowActions>
                     </TableCell>
                   )}
                 </TableRow>
@@ -246,37 +217,24 @@ export function PluginsTab({
         </div>
       )}
       <PluginDetailsDialog selected={selected} onClose={closeDetails} />
-      <Dialog open={removing !== null} onOpenChange={(o) => !o && setRemoving(null)}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Delete {removing?.meta?.name ?? removing?.fileName}?</DialogTitle>
-            <DialogDescription>
-              Removes <span className={mono}>{removing?.fileName}</span> from server/plugins. The plugin's own data
-              folder is kept. Takes effect on the next server start.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setRemoving(null)}>
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => {
-                const p = removing;
-                setRemoving(null);
-                if (p) {
-                  act(async () => {
-                    await plugins.remove(id, p.fileName);
-                    return `Deleted ${p.fileName}`;
-                  });
-                }
-              }}
-            >
-              Delete
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={removing !== null}
+        title={`Delete ${removing?.meta?.name ?? removing?.fileName}?`}
+        description={
+          <>
+            Removes <span className={mono}>{removing?.fileName}</span> from server/plugins. The plugin's own data folder
+            is kept. Takes effect on the next server start.
+          </>
+        }
+        confirmLabel="Delete"
+        destructive
+        onClose={() => setRemoving(null)}
+        onConfirm={() => {
+          const p = removing;
+          setRemoving(null);
+          if (p) act(() => plugins.remove(id, p.fileName).then(() => `Deleted ${p.fileName}`));
+        }}
+      />
     </SectionCard>
   );
 }

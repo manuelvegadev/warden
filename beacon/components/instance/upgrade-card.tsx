@@ -4,17 +4,10 @@ import { ArrowRight, ArrowUpCircle, History, RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { SectionCard } from "@/components/instance/section-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import {
   type InstanceState,
   instances,
@@ -148,30 +141,18 @@ export function UpgradeCard({
           </ul>
         </details>
       )}
-      <Dialog open={confirm !== null} onOpenChange={(o) => !o && setConfirm(null)}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>
-              Upgrade to {confirm?.mcVersion} build #{confirm?.build}?
-            </DialogTitle>
-            <DialogDescription>
-              wardend first archives the current jar, server.properties, the config folder and every world to the
-              instance's backups folder, then swaps the jar. Plugins may need updates for a new Minecraft version
-              {confirm && confirm.mcVersion !== manifest.mcVersion
-                ? " — and Paper migrates world data on first start; that cannot be undone except from the backup."
-                : "."}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setConfirm(null)}>
-              Cancel
-            </Button>
-            <Button onClick={() => confirm && upgrade(confirm)}>
-              <ArrowUpCircle className="size-4" /> Upgrade
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={confirm !== null}
+        title={`Upgrade to ${confirm?.mcVersion} build #${confirm?.build}?`}
+        description={`wardend first archives the current configs, plugins and every world to the instance's backups folder, then swaps the jar. Plugins may need updates for a new Minecraft version${
+          confirm && confirm.mcVersion !== manifest.mcVersion
+            ? " — and Paper migrates world data on first start; that cannot be undone except from the backup."
+            : "."
+        }`}
+        confirmLabel="Upgrade"
+        onClose={() => setConfirm(null)}
+        onConfirm={() => confirm && upgrade(confirm)}
+      />
     </SectionCard>
   );
 }

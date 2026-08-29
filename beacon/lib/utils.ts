@@ -21,3 +21,10 @@ export const formatDate = (iso: string) =>
   new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
 /** Locale date + time. Client-side only. */
 export const formatDateTime = (iso: string) => new Date(iso).toLocaleString();
+
+/** 3725 → "1h 2m"; under an hour → "5m". */
+export const formatDuration = (seconds: number) => {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  return h ? `${h}h ${m}m` : `${m}m`;
+};

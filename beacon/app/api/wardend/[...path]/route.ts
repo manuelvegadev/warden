@@ -27,8 +27,10 @@ async function proxy(req: NextRequest, ctx: { params: Promise<{ path: string[] }
   const headers: Record<string, string> = {
     "Content-Type": upstream.headers.get("content-type") ?? "application/json",
   };
-  const disposition = upstream.headers.get("content-disposition");
-  if (disposition) headers["Content-Disposition"] = disposition;
+  for (const h of ["content-disposition", "cache-control", "etag", "last-modified"]) {
+    const v = upstream.headers.get(h);
+    if (v) headers[h] = v;
+  }
   return new NextResponse(upstream.body, { status: upstream.status, headers });
 }
 
