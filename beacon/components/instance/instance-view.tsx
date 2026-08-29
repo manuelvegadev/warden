@@ -1,13 +1,16 @@
 "use client";
 
+import { Activity, Settings, Shield, SlidersHorizontal, Terminal, Users } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
+import { AccessLists } from "@/components/instance/access-lists";
 import { Console } from "@/components/instance/console";
 import { Controls } from "@/components/instance/controls";
 import { MetricsChart } from "@/components/instance/metrics-chart";
 import { PlayersTab } from "@/components/instance/players-tab";
+import { PropertiesEditor } from "@/components/instance/properties-editor";
 import { ResourceCards } from "@/components/instance/resource-cards";
 import { SettingsForm } from "@/components/instance/settings-form";
 import { InstanceSidebar } from "@/components/instance/sidebar";
@@ -27,7 +30,7 @@ import {
   type Task,
 } from "@/lib/api";
 
-export function InstanceView({ initial }: { initial: InstanceDetail }) {
+export function InstanceView({ initial, isAdmin }: { initial: InstanceDetail; isAdmin: boolean }) {
   const router = useRouter();
   const { manifest } = initial;
   const [status, setStatus] = useState<InstanceStatus>(initial.status);
@@ -129,7 +132,7 @@ export function InstanceView({ initial }: { initial: InstanceDetail }) {
       )}
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_260px]">
-        <div className="grid min-w-0 gap-6">
+        <div className="grid min-w-0 content-start gap-6">
           <ResourceCards
             metrics={metrics}
             history={history}
@@ -140,10 +143,30 @@ export function InstanceView({ initial }: { initial: InstanceDetail }) {
 
           <Tabs defaultValue="console">
             <TabsList>
-              <TabsTrigger value="console">Console</TabsTrigger>
-              <TabsTrigger value="metrics">Metrics</TabsTrigger>
-              <TabsTrigger value="players">Players</TabsTrigger>
-              <TabsTrigger value="settings">Settings</TabsTrigger>
+              <TabsTrigger value="console" className="gap-1.5">
+                <Terminal className="size-3.5" aria-hidden />
+                Console
+              </TabsTrigger>
+              <TabsTrigger value="metrics" className="gap-1.5">
+                <Activity className="size-3.5" aria-hidden />
+                Metrics
+              </TabsTrigger>
+              <TabsTrigger value="players" className="gap-1.5">
+                <Users className="size-3.5" aria-hidden />
+                Players
+              </TabsTrigger>
+              <TabsTrigger value="properties" className="gap-1.5">
+                <SlidersHorizontal className="size-3.5" aria-hidden />
+                Properties
+              </TabsTrigger>
+              <TabsTrigger value="access" className="gap-1.5">
+                <Shield className="size-3.5" aria-hidden />
+                Access
+              </TabsTrigger>
+              <TabsTrigger value="settings" className="gap-1.5">
+                <Settings className="size-3.5" aria-hidden />
+                Settings
+              </TabsTrigger>
             </TabsList>
             <TabsContent value="console">
               <Console
@@ -158,6 +181,12 @@ export function InstanceView({ initial }: { initial: InstanceDetail }) {
             </TabsContent>
             <TabsContent value="players">
               <PlayersTab id={manifest.id} online={status.players} />
+            </TabsContent>
+            <TabsContent value="properties">
+              <PropertiesEditor id={manifest.id} running={status.state === "running"} />
+            </TabsContent>
+            <TabsContent value="access">
+              <AccessLists id={manifest.id} isAdmin={isAdmin} />
             </TabsContent>
             <TabsContent value="settings">
               <SettingsForm manifest={manifest} running={status.state !== "stopped" && status.state !== "crashed"} />

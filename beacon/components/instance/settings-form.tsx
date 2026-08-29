@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { instances, type JavaRuntime, java, type Manifest } from "@/lib/api";
+import { mono } from "@/lib/utils";
 
 /** Editable instance settings (PATCH /instances/{id}). Changes apply on the next start. */
 export function SettingsForm({ manifest, running }: { manifest: Manifest; running: boolean }) {
@@ -112,7 +113,7 @@ export function SettingsForm({ manifest, running }: { manifest: Manifest; runnin
             id="jvmFlags"
             name="jvmFlags"
             defaultValue={(manifest.jvmFlags ?? []).join(" ")}
-            className="font-[family-name:var(--font-console)]"
+            className={mono}
             placeholder="-XX:+UseG1GC …"
           />
           <p className="text-xs text-muted-foreground">-Xms/-Xmx and -jar are added automatically.</p>

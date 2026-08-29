@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import type { ConsoleLine } from "@/lib/api";
+import { mono } from "@/lib/utils";
 import "@xterm/xterm/css/xterm.css";
 
 const colors: Record<ConsoleLine["level"], string> = {
@@ -181,7 +182,7 @@ export function Console({
           onKeyDown={onKey}
           placeholder={disabled ? "Server is not running" : "Type a command (e.g. list, say hello)…"}
           disabled={disabled}
-          className="font-[family-name:var(--font-console)]"
+          className={mono}
           autoComplete="off"
         />
         <Button type="submit" disabled={disabled || !value.trim()}>

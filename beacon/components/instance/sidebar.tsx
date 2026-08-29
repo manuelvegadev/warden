@@ -5,8 +5,9 @@ import { useUptime } from "@/components/instance/resource-cards";
 import { StateBadge } from "@/components/state-badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatBytes, type InstanceStatus, type Manifest, type MetricSample } from "@/lib/api";
+import { mono } from "@/lib/utils";
 
-const mono = "font-[family-name:var(--font-console)] tabular-nums";
+const monoNum = `${mono} tabular-nums`;
 
 function Row({
   icon: Icon,
@@ -23,7 +24,7 @@ function Row({
         <Icon className="size-3.5" aria-hidden />
         {label}
       </span>
-      <span className={`truncate ${mono}`}>{value}</span>
+      <span className={`truncate ${monoNum}`}>{value}</span>
     </div>
   );
 }
@@ -63,7 +64,7 @@ export function InstanceSidebar({
             Players online · {live ? status.players.length : 0}
           </div>
           {live && status.players.length > 0 ? (
-            <ul className={`grid gap-0.5 text-sm ${mono}`}>
+            <ul className={`grid gap-0.5 text-sm ${monoNum}`}>
               {status.players.map((p) => (
                 <li key={p}>{p}</li>
               ))}

@@ -6,6 +6,7 @@ import { Sparkline } from "@/components/instance/sparkline";
 import { Card, CardContent } from "@/components/ui/card";
 import type { MetricPoint } from "@/hooks/use-metrics-history";
 import type { InstanceState, MetricSample } from "@/lib/api";
+import { mono } from "@/lib/utils";
 
 /** Client-only clock: computed after mount so SSR and hydration render the same placeholder. */
 export function useUptime(startedAt?: string) {
@@ -98,10 +99,7 @@ export function ResourceCards({
               <c.icon className="size-3.5" aria-hidden />
               {c.label}
             </div>
-            <div
-              className="mt-1 truncate text-base font-semibold tabular-nums font-[family-name:var(--font-console)]"
-              title={c.value}
-            >
+            <div className={`mt-1 truncate text-base font-semibold tabular-nums ${mono}`} title={c.value}>
               {c.value}
             </div>
           </CardContent>
