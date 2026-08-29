@@ -68,3 +68,23 @@ Pick the file with `primary: true`. Verify `sha512`.
 | `https://mc-heads.net/avatar/{uuid}` or `https://crafatar.com/avatars/{uuid}` | Avatars for the UI (third-party services). |
 
 The server maintains `usercache.json` with `{name, uuid, expiresOn}`; use it first and query Mojang only when missing.
+
+## PurpurMC v2 — Purpur downloads
+
+- Base: `https://api.purpurmc.org/v2/purpur`. No auth, no documented rate limit.
+- `GET /` → `{"versions":[...]}` (oldest first, no pre-releases). `GET /{mc}` → `{"builds":{"latest":"2497","all":[...]}}`.
+- `GET /{mc}/{build}` → `{"result":"SUCCESS","timestamp":ms,"md5":"...","commits":[{"description":...}]}` — one request per build, so wardend only details the newest 20, six at a time.
+- Download: `GET /{mc}/{build}/download` (jar). Only MD5 is published; wardend verifies it.
+
+## Fabric Meta v2 — Fabric server launcher
+
+- Base: `https://meta.fabricmc.net/v2/versions`. No auth.
+- `GET /game` → `[{"version","stable"}]` newest first (`stable:false` = snapshot). `GET /loader/{mc}` → loaders usable with that game version, newest first. `GET /installer` → installer versions; wardend uses the newest stable one.
+- Server jar: `GET /loader/{mc}/{loader}/{installer}/server/jar` — a launcher that downloads the vanilla server and the loader libraries on first start. **No checksum is published**; the download is unverified (HTTPS only).
+- Fabric servers load mods from `mods/`, not Bukkit plugins; the Fabric API mod is usually needed and is not installed by wardend.
+
+## Mojang piston-meta — Vanilla server
+
+- `GET https://piston-meta.mojang.com/mc/game/version_manifest_v2.json` → `{"latest":{"release","snapshot"},"versions":[{"id","type","url"}]}` newest first.
+- Each version URL is a JSON with `downloads.server: {sha1,size,url}` (missing for very old versions) and `javaVersion.majorVersion`.
+- One build per version; wardend reports it as build `1` and verifies SHA-1.

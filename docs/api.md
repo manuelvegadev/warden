@@ -17,7 +17,7 @@ The UI is served from `/` (embedded SPA); the WebSocket from `/api/v1/ws`.
 | POST | `/auth/login` | `{username,password}` → `{user}` + cookie |
 | POST | `/auth/logout` | |
 | GET | `/auth/me` | Current user |
-| GET | `/system` | `{hostname, os, cpuCores, memTotal, memUsed, disk:{path,total,used}, java:[{path,version}], daemonVersion, uptime}` |
+| GET | `/system` | `{hostname, os, platform, kernel, cpuCores, cpuPercent, load:[1m,5m,15m], memTotal, memUsed, hostUptime (s), disk:{path,total,used}, daemonVersion, goVersion, startedAt}` (managed Java runtimes live under `/java`) |
 | GET | `/system/metrics` | Global CPU/RAM/network snapshot |
 | GET | `/tasks` | Most recent tasks first |
 | GET | `/tasks/{id}` | Long-running task status `{id,type,status,progress,message,error}` |
@@ -36,9 +36,9 @@ Instance create/patch accept `javaRuntime` (`"auto"` or a runtime id) and `javaP
 ## Catalog (external providers, cached)
 | Method | Path | Description |
 |---|---|---|
-| GET | `/catalog/servers` | `[{"id":"paper","name":"Paper"}]` (available providers) |
-| GET | `/catalog/servers/paper/versions?includePre=false` | `{"versions":["1.21.8","1.21.7",...],"latest":"1.21.8"}` |
-| GET | `/catalog/servers/paper/versions/{mc}/builds?channel=STABLE` | `[{"id":60,"channel":"STABLE","time":"...","size":N,"sha256":"...","name":"paper-1.21.8-60.jar","changes":["..."]}]` |
+| GET | `/catalog/servers` | `[{"id":"paper","name":"Paper","plugins":true,"tpsCommand":true,"singleBuild":false},{"id":"purpur",…},{"id":"fabric",…},{"id":"vanilla",…}]` — providers with their traits |
+| GET | `/catalog/servers/{provider}/versions?includePre=false` | `{"versions":["1.21.8","1.21.7",...],"latest":"1.21.8"}` |
+| GET | `/catalog/servers/{provider}/versions/{mc}/builds?channel=STABLE` | `[{"id":60,"channel":"STABLE","time":"...","size":N,"hash":{"algo":"sha256","value":"..."},"name":"paper-1.21.8-60.jar","changes":["..."]}]`. Build ids: Paper/Purpur build numbers; Fabric = loader version encoded as `major*10^6+minor*10^3+patch` (`changes[0]` names it); Vanilla always `1`. `hash.algo` is empty when the upstream publishes no digest (Fabric). |
 | GET | `/catalog/plugins/search?q=&source=hangar|modrinth|all&mc=1.21.8&limit=&offset=` | `{"hits":[{"source":"hangar","id":"ViaVersion","name":"ViaVersion","author":"kennytv","description":"...","iconUrl":"...","downloads":N,"categories":[],"url":"..."}],"total":N}`. `all` queries both sources concurrently and sorts by downloads. |
 | GET | `/catalog/plugins/{source}/{id}` | Details |
 | GET | `/catalog/plugins/{source}/{id}/versions?mc=1.21.8` | `[{"id":"...","name":"5.12.0","channel":"release","mcVersions":[],"fileName":"...","size":N,"hash":{"algo":"sha256","value":"..."},"dependencies":[{"name","required"}],"publishedAt":"..."}]` |
@@ -70,7 +70,7 @@ Creation body:
 {
   "id": "survival",
   "name": "Survival 2026",
-  "software": "paper",
+  "software": "paper",           // paper | purpur | fabric | vanilla
   "mcVersion": "1.21.8",
   "build": 60,                 // optional: latest STABLE
   "memoryMb": 4096,
