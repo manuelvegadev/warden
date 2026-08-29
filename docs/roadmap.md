@@ -30,7 +30,7 @@
 - [x] `server.properties` schema-driven editor (validation, restart hints); whitelist/ops/bans via live commands or JSON files, UUIDs from usercache/Mojang/offline
 - [ ] Confined file editor (Paper YAML configs)
 - [x] `catalog/hangar` + `catalog/modrinth` search/versions; install with hash verification
-- [ ] Plugin management: update/toggle/upload/delete; read `plugin.yml` from jars
+- [x] Plugin management: update/toggle/upload/delete; `plugin.yml`/`paper-plugin.yml` metadata; update check against the catalog
 - [ ] Paper build/version upgrade with prior backup
 - [x] Panel: config screens; plugins table (icon, version, source, install date) + Prism-style install dialog (search, queue, per-plugin version, batch install)
 
@@ -44,3 +44,6 @@
 - [ ] TLS built into the daemon; optional daemon Dockerfile
 - [ ] Multi-node in the panel (several daemons)
 - [ ] Other providers: Purpur, Fabric, Vanilla
+
+## Backlog (optional, unscheduled)
+- [ ] Plugin scanning before load. Plugins run inside the server JVM with the daemon's privileges, so the only defence is pre-load. Layers, all optional: (1) built-in static heuristics on the jar/zip — native libs or nested jars, `Runtime.exec`/`ProcessBuilder`/`defineClass`/`javax.script`/`Unsafe` references, Base64+reflection droppers, known indicators (e.g. Fractureiser), heavy obfuscation — reported as warnings, never as a verdict; (2) ClamAV via `clamd` socket when configured (`WARDEN_CLAMAV_SOCKET`), blocking on positives; (3) VirusTotal hash lookup with an API key (no file upload). Flow: quarantine (`plugins/.quarantine`) → scan → `scan:{status,findings}` in the manifest → badge in the panel; `malicious` blocked, `warnings` need an explicit admin override. See docs/security.md.

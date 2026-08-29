@@ -57,3 +57,11 @@ Browser ──WSS + single-use ticket (1st message)─────────�
 
 ## 7. Update (ADR-009)
 **Better Auth** is adopted in the panel: identity moves to the panel (SQLite/Postgres), the daemon verifies JWTs **offline via JWKS** (`/api/auth/jwks`) with `aud="wardend"`, and the WS uses the short-lived JWT from `/api/auth/token` as the first message instead of the opaque ticket. Everything else in §5 (BFF, `HttpOnly` cookie, `X-Panel-Key`, `Origin`, TLS, hardening) remains in force.
+
+## Plugins (third-party code)
+
+Plugins are arbitrary Java loaded into the server JVM: once loaded they can do anything the `warden`
+user can. Current mitigations: catalog downloads are verified against the hash the source publishes;
+every jar (downloaded or uploaded) must be a real archive with a plugin descriptor; the daemon never
+runs as root. Malware scanning (static heuristics, ClamAV, VirusTotal) is planned as an optional
+layer — see the backlog in docs/roadmap.md.

@@ -109,13 +109,14 @@ Creation body:
 ## Plugins
 | Method | Path | Description |
 |---|---|---|
-| GET | `/instances/{id}/plugins` | `[{fileName,enabled,size,iconUrl?,source:{fileName,source,projectId,name,versionId,version,hashAlgo,hash,installedAt}|omitted}]`. `iconUrl` is the API path of the icon endpoint below, present only when an icon was fetched. Lists `plugins/*.jar` and `*.jar.disabled`; `source` comes from `instance.json` for jars installed through the catalog. (Phase 2c will add `name`/`version` from `plugin.yml` and `updateAvailable`.) |
-| POST | `/instances/{id}/plugins` | `{"source":"hangar","projectId":"ViaVersion","versionId":"5.12.0"}` (`versionId:"latest"` = newest release for the instance's MC version) → `202` task `plugin.install` (downloads to `plugins/`, verifies the published hash, replaces an older jar of the same project, registers name, icon and install date in `instance.json`). Admin only. Install several by issuing one request per plugin. |
+| GET | `/instances/{id}/plugins` | `[{fileName,enabled,size,meta?:{name,version,description,authors,apiVersion},iconUrl?,source?:{fileName,source,projectId,name,versionId,version,hashAlgo,hash,installedAt}}]`. `meta` is parsed from `plugin.yml`/`paper-plugin.yml` (cached by size+mtime); `source` exists for jars installed from the catalog (`hangar`/`modrinth`) or uploaded (`manual`). |
+| GET | `/instances/{id}/plugins/updates` | `[{fileName,version,versionId}]` — catalog plugins whose newest compatible release differs from the installed one (10 s budget, ≤4 lookups in flight, failures ignored). Separate from the listing so the table never waits on the catalog. | Lists `plugins/*.jar` and `*.jar.disabled`; `source` comes from `instance.json` for jars installed through the catalog. |
+| POST | `/instances/{id}/plugins` | `{"source":"hangar","projectId":"ViaVersion","versionId":"5.12.0"}` (`versionId:"latest"` = newest release for the instance's MC version) → `202` task `plugin.install` (downloads to `plugins/`, verifies the published hash, replaces an older jar of the same project, registers name, icon and install date in `instance.json`). The download is rejected unless it is a jar with a plugin descriptor — Hangar `externalUrl` entries can point at a web page. Admin only. Install several by issuing one request per plugin. |
 | GET | `/instances/{id}/plugins/{fileName}/icon` | Project icon fetched from the catalog at install time (stored in `<instance>/icons/`, ≤2 MB); `404` when none. |
-| POST | `/instances/{id}/plugins/upload` | multipart .jar |
-| POST | `/instances/{id}/plugins/{fileName}/update` | To the latest compatible version |
-| POST | `/instances/{id}/plugins/{fileName}/toggle` | Renames `.jar` ↔ `.jar.disabled` |
-| DELETE | `/instances/{id}/plugins/{fileName}` | |
+| POST | `/instances/{id}/plugins/upload` | multipart field `file` (≤128 MB): a plugin jar (must contain a plugin descriptor) or a `.zip` bundle, from which every jar with a descriptor is extracted (other entries ignored) → `201 {"plugins":[PluginFile…]}` with `source.source="manual"`. Admin only. |
+| POST | `/instances/{id}/plugins/{fileName}/update` | Reinstalls a catalog plugin at the newest compatible release → `202` task `plugin.install`. `400` for manual jars. Admin only. |
+| POST | `/instances/{id}/plugins/{fileName}/toggle` | Renames `.jar` ↔ `.jar.disabled` → `{"enabled":bool}`. Admin only. |
+| DELETE | `/instances/{id}/plugins/{fileName}` | Removes the jar (enabled or disabled), its icon and manifest record → `204`. The plugin's data folder is kept. Admin only. |
 
 ## Players
 | Method | Path | Description |
