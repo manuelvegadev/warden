@@ -30,11 +30,13 @@ daemon/                 Go — the `wardend` daemon
     backup/             save-off/save-all/tar.zst
     tasks/              long-running tasks with progress
   deploy/               single-host compose file and the wardend.env reference (the installer is `wardend install`)
-panel/                  Next.js — the UI
-  app/                  App Router: (auth)/login, (dashboard)/instances/[id]/{console,config,plugins,players,backups}
-  components/           shadcn/ui + own components (Console, MetricsChart, PluginBrowser…)
-  lib/                  typed API client, useDaemonSocket hook, auth
-  Dockerfile
+beacon/                 Next.js — the UI (pnpm workspace member)
+  app/                  App Router: (auth)/login, (dashboard)/instances/[id]/[section], settings
+  components/           own components (Console, MetricsChart, PluginsTab…); shadcn primitives come from @warden/ui
+  lib/                  typed API client, useWardendSocket hook, auth
+  Dockerfile            built from the repo root (`docker build -f beacon/Dockerfile .`)
+landing/                Astro static site (React islands from @warden/ui) — GitHub Pages (ADR-014)
+packages/ui/            @warden/ui: shadcn/ui components + design tokens shared by beacon and landing
 docs/                   research, ADRs, API
 ```
 

@@ -16,7 +16,16 @@ browser ──HTTPS──▶ Beacon (Dokploy/Traefik) ──HTTPS (JWT + X-Panel
 
 ## 1. wardend on Ubuntu
 
-The binary installs itself:
+The binary installs itself. The one-liner served by the landing page (`landing/public/install.sh`)
+picks the right architecture, verifies the download against the release's `SHA256SUMS` and runs the
+installer; flags after `--` go to `wardend install`:
+
+```bash
+curl -fsSL https://warden.manuelvega.dev/install.sh | sudo bash              # first install (interactive)
+curl -fsSL https://warden.manuelvega.dev/install.sh | sudo bash -s -- --yes  # upgrade, keep the configuration
+```
+
+Or by hand:
 
 ```bash
 # on the box (amd64; use wardend-linux-arm64 on ARM)
@@ -60,9 +69,23 @@ docker run -d --name warden-beacon --restart unless-stopped \
 
 When the installer runs Beacon it writes these variables to `/etc/warden/beacon.env` (root-only; `BETTER_AUTH_SECRET` is kept across re-runs because it encrypts the JWKS keys stored in the volume) and starts the container with `--env-file`. `host.docker.internal` is how the container reaches wardend on the host; with `WARDEND_TLS=self-signed` that name must be one of the certificate's SANs (`WARDEND_TLS_HOSTS`) — the installer adds it. To expose the panel on the internet put it behind a reverse proxy with HTTPS (Caddy, Traefik) and set `BETTER_AUTH_URL` to that public URL (it is also the issuer wardend verifies).
 
-### 2b. On Dokploy
+### 2b. On any Docker host (compose)
 
-1. Create an application from the image `ghcr.io/manuelvegadev/warden-beacon:latest` (or Dockerfile build type with build path `beacon/`).
+[`deploy/beacon.compose.yaml`](../deploy/beacon.compose.yaml) runs the published image with an env file:
+
+```bash
+mkdir -p warden-beacon && cd warden-beacon
+curl -fsSLO https://github.com/manuelvegadev/warden/raw/main/deploy/beacon.compose.yaml
+curl -fsSL  https://github.com/manuelvegadev/warden/raw/main/deploy/beacon.env.example -o beacon.env
+nano beacon.env            # BETTER_AUTH_SECRET, BETTER_AUTH_URL, WARDEND_URL, WARDEND_PANEL_KEY, WARDEND_PUBLIC_WS_URL
+docker compose -f beacon.compose.yaml up -d
+```
+
+Then in wardend's env set `WARDEND_PANEL_ISSUER` to Beacon's URL and the same panel key, and restart wardend. Put the panel behind an HTTPS reverse proxy and use that URL as `BETTER_AUTH_URL`.
+
+### 2c. On Dokploy
+
+1. Create an application from the image `ghcr.io/manuelvegadev/warden-beacon:latest` (or Dockerfile build type with build path `.` and Dockerfile `beacon/Dockerfile` — the panel depends on `packages/ui`, ADR-014).
 2. Environment: the variables from `deploy/beacon.env.example` with the daemon's public URL: `WARDEND_URL=https://mc.example.com:8443`, `WARDEND_PUBLIC_WS_URL=wss://mc.example.com:8443`, `BETTER_AUTH_URL=https://beacon.example.com`.
 3. Mount a volume at `/data`, add the domain with HTTPS (Let's Encrypt via Traefik), deploy.
 4. First visit: the first account created becomes admin; with `BEACON_OPEN_SIGNUP=false` further users are created from **Settings → Account** by an admin.
@@ -86,7 +109,22 @@ Then: open `https://<HOST>:8443/api/v1/health` once in each browser and accept t
 
 For an internet-facing box use §1–2 instead: ACME certificates and Beacon behind Dokploy's HTTPS.
 
-## 4. Checklist
+## 4. Landing page (GitHub Pages)
+
+`landing/` is a static Astro site published to **https://warden.manuelvega.dev** by
+`.github/workflows/pages.yml` on every push to `main` that touches `landing/` or `packages/ui/`
+(or manually from Actions → Pages → Run workflow). One-time setup:
+
+1. Repository **Settings → Pages → Build and deployment → Source: GitHub Actions**.
+2. DNS at the domain registrar: `CNAME warden → manuelvegadev.github.io` (for an apex domain use
+   the `A`/`AAAA` records from GitHub's Pages docs instead).
+3. **Settings → Pages → Custom domain**: `warden.manuelvega.dev`, then tick *Enforce HTTPS* once the
+   certificate is issued (minutes to an hour). `landing/public/CNAME` keeps the domain across deploys.
+
+Local preview: `pnpm --filter landing dev` (http://localhost:3100); `pnpm --filter landing build`
+writes the site to `landing/dist` (`pnpm --filter landing preview` serves it).
+
+## 5. Checklist
 
 - `curl https://mc.example.com:8443/api/v1/health` → `{"ok":true,…}`
 - Beacon → Instances loads (BFF ↔ wardend OK); an instance console streams (WSS OK).

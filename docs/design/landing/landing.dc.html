@@ -1,0 +1,613 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&family=Google+Sans+Code:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; font-family: Geist, system-ui, -apple-system, sans-serif; color: #fcfcfc; background: #252525; -webkit-font-smoothing: antialiased; }
+    a { color: #fcfcfc; } a:hover { color: #ffffff; }
+    .mono { font-family: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace; font-variant-numeric: tabular-nums; }
+    .console { font-family: "Google Sans Code", "Geist Mono", ui-monospace, monospace; line-height: 1.1; }
+    .card { background: #353535; border-radius: 14px; box-shadow: 0 0 0 1px rgba(255,255,255,0.10); overflow: hidden; }
+    .badge { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 26px; font-size: 12px; font-weight: 500; border: 1px solid transparent; white-space: nowrap; }
+    .b-blue { border-color: rgba(59,130,246,0.30); background: rgba(59,130,246,0.15); color: #3b82f6; }
+    .b-violet { border-color: rgba(139,92,246,0.30); background: rgba(139,92,246,0.15); color: #a78bfa; }
+    .b-amber { border-color: rgba(245,158,11,0.30); background: rgba(245,158,11,0.15); color: #f59e0b; }
+    .b-lime { border-color: rgba(132,204,22,0.30); background: rgba(132,204,22,0.15); color: #84cc16; }
+    .b-green { border-color: rgba(5,150,105,0.30); background: rgba(5,150,105,0.15); color: #10b981; }
+    .b-red { border-color: rgba(220,38,38,0.30); background: rgba(220,38,38,0.15); color: #ef4444; }
+    .b-sky { border-color: rgba(14,165,233,0.30); background: rgba(14,165,233,0.15); color: #38bdf8; }
+    .b-muted { background: #444444; color: #b3b3b3; }
+    .b-outline { border-color: rgba(255,255,255,0.15); color: #fcfcfc; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 32px; padding: 0 10px; border-radius: 10px; font-size: 14px; font-weight: 500; border: 0; cursor: pointer; user-select: none; white-space: nowrap; }
+    .btn-primary { background: #ebebeb; color: #353535; } .btn-primary:hover { background: #ffffff; }
+    .btn-secondary { background: #444444; color: #fcfcfc; } .btn-secondary:hover { background: #4d4d4d; }
+    .btn-outline { background: transparent; color: #fcfcfc; box-shadow: 0 0 0 1px rgba(255,255,255,0.15) inset; } .btn-outline:hover { background: rgba(255,255,255,0.06); }
+    .btn-sm { height: 28px; font-size: 13px; }
+    .btn-lg { height: 40px; padding: 0 16px; font-size: 15px; }
+    .muted { color: #b3b3b3; } .dim { color: #8a8a8a; }
+    .nav { display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 8px; border-radius: 8px; font-size: 14px; color: #fcfcfc; cursor: pointer; user-select: none; }
+    .nav:hover { background: #444444; }
+    .nav-on { background: #444444; font-weight: 500; }
+    .glabel { font-size: 12px; color: #8a8a8a; padding: 8px 8px 4px; }
+    .row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 16px; border-top: 1px solid rgba(255,255,255,0.10); }
+    .srow { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 0; font-size: 14px; }
+    .input { height: 32px; border: 1px solid rgba(255,255,255,0.15); border-radius: 10px; padding: 0 10px; font-size: 14px; display: flex; align-items: center; background: rgba(255,255,255,0.05); box-sizing: border-box; color: #fcfcfc; }
+    th { text-align: left; font-weight: 500; color: #b3b3b3; font-size: 12px; padding: 8px 12px; border-bottom: 1px solid rgba(255,255,255,0.10); }
+    td { padding: 9px 12px; font-size: 13px; border-bottom: 1px solid rgba(255,255,255,0.10); vertical-align: middle; }
+    tr:last-child td { border-bottom: 0; }
+    .chip { height: 24px; padding: 0 10px; border-radius: 8px; font-size: 12px; display: inline-flex; align-items: center; background: rgba(255,255,255,0.08); color: #d4d4d4; cursor: pointer; user-select: none; }
+    .chip:hover { background: rgba(255,255,255,0.16); }
+    .switch { width: 36px; height: 20px; border-radius: 20px; position: relative; cursor: pointer; transition: background 0.2s; flex-shrink: 0; }
+    .knob { position: absolute; top: 2px; width: 16px; height: 16px; border-radius: 16px; background: #ffffff; transition: left 0.2s; }
+    .eyebrow { font-size: 12px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: #8a8a8a; }
+    h2 { font-size: 36px; font-weight: 600; letter-spacing: -0.025em; line-height: 1.1; margin: 0; }
+    .file { display: flex; align-items: center; gap: 8px; height: 28px; padding: 0 8px; border-radius: 6px; font-size: 13px; cursor: pointer; }
+    .file:hover { background: #444444; } .file-on { background: #444444; }
+    @keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+    .rise { animation: rise 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+    .d1 { animation-delay: 0.08s; } .d2 { animation-delay: 0.18s; } .d3 { animation-delay: 0.3s; } .d4 { animation-delay: 0.45s; }
+    @keyframes blink { 50% { opacity: 0; } }
+    .cursor { animation: blink 1s step-end infinite; }
+    .feat { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 96px; align-items: center; padding: 112px 0; border-top: 1px solid rgba(255,255,255,0.10); }
+    .feat h3 { font-size: 30px; font-weight: 600; letter-spacing: -0.025em; line-height: 1.12; margin: 0; }
+    .feat > .card { transform: perspective(1400px) rotateY(-10deg) rotateX(5deg) rotateZ(1deg); transform-origin: center; transition: transform 0.6s cubic-bezier(0.2, 0.7, 0.2, 1), box-shadow 0.6s; box-shadow: 0 0 0 1px rgba(255,255,255,0.10), 30px 40px 80px -30px rgba(0,0,0,0.7); }
+    .feat > .card:first-child { transform: perspective(1400px) rotateY(10deg) rotateX(5deg) rotateZ(-1deg); box-shadow: 0 0 0 1px rgba(255,255,255,0.10), -30px 40px 80px -30px rgba(0,0,0,0.7); }
+    .feat > .card:hover { transform: perspective(1400px) rotateY(0) rotateX(0) rotateZ(0); box-shadow: 0 0 0 1px rgba(255,255,255,0.14), 0 24px 60px -30px rgba(0,0,0,0.6); }
+    .feat p { font-size: 16px; line-height: 1.55; margin: 0; color: #b3b3b3; text-wrap: pretty; }
+    .bar { height: 6px; border-radius: 6px; background: rgba(255,255,255,0.10); overflow: hidden; }
+    @keyframes fillup { from { width: 0; } to { width: 100%; } }
+    .fillup { height: 100%; background: #fcfcfc; animation: fillup 6s linear infinite; }
+    @keyframes draw { from { stroke-dashoffset: 900; } to { stroke-dashoffset: 0; } }
+    .draw { stroke-dasharray: 900; animation: draw 2.4s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+    @keyframes dash { to { stroke-dashoffset: -24; } }
+    .wire { stroke: rgba(255,255,255,0.22); stroke-width: 1.5; fill: none; stroke-dasharray: 6 6; animation: dash 1.2s linear infinite; }
+    .wire-back { animation-direction: reverse; }
+    @keyframes pulse { 0%, 100% { opacity: 0.5; transform: scale(1); } 50% { opacity: 1; transform: scale(1.06); } }
+    .pulse { animation: pulse 3s ease-in-out infinite; transform-origin: center; }
+    .lbl { font-size: 11px; fill: #b3b3b3; font-family: "Geist Mono", ui-monospace, monospace; }
+    .box { fill: #353535; stroke: rgba(255,255,255,0.12); }
+    @keyframes sniff { 0%, 100% { transform: translate(180px, 130px) rotate(0deg); } 30% { transform: translate(180px, 126px) rotate(-3deg); } 60% { transform: translate(180px, 128px) rotate(3deg); } }
+    .sniff { animation: sniff 4s ease-in-out infinite; }
+    @keyframes soul { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
+    .soul, .glowdot { animation: soul 2s ease-in-out infinite; }
+    @keyframes ring { 0% { transform: scale(0.4); opacity: 0.8; } 100% { transform: scale(2.6); opacity: 0; } }
+    .ring { animation: ring 4s ease-out infinite; transform-origin: center; transform-box: fill-box; }
+    .r2 { animation-delay: 2s; }
+    @keyframes led { 0%, 100% { opacity: 1; } 50% { opacity: 0.15; } }
+    .led { animation: led 1.1s steps(2, end) infinite; }
+    .l2 { animation-duration: 0.7s; } .l3 { animation-duration: 1.7s; } .l4 { animation-duration: 0.45s; } .l5 { animation-duration: 2.3s; }
+    @keyframes hover { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+    .hover { animation: hover 3.5s ease-in-out infinite; }
+    @keyframes beam { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
+    .beam { animation: beam 3.5s ease-in-out infinite; }
+    @keyframes glow { 0%, 100% { opacity: 0.3; } 50% { opacity: 0.55; } }
+    .glow { animation: glow 7s ease-in-out infinite; }
+  </style>
+</helmet>
+
+<div style="width: 1440px; min-height: 6300px; background: #252525; display: flex; flex-direction: column; position: relative; overflow: hidden;">
+  <div class="glow" style="position: absolute; left: 50%; top: -200px; width: 1200px; height: 600px; transform: translateX(-50%); background: radial-gradient(ellipse at center, rgba(59,130,246,0.20), rgba(139,92,246,0.08) 45%, transparent 70%); pointer-events: none;"></div>
+
+  <div style="display: flex; align-items: center; justify-content: space-between; height: 56px; padding: 0 80px; position: relative;">
+    <div style="display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 16px;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fcfcfc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5l-8-3z"></path><path d="M9 12l2 2 4-4"></path></svg>
+      Warden
+    </div>
+    <div class="muted" style="display: flex; align-items: center; gap: 24px; font-size: 14px;"><span>Features</span><span>Install</span><span>Docs</span><span>GitHub ↗</span><div class="btn btn-primary">Get started</div></div>
+  </div>
+
+  <!-- Hero copy -->
+  <div style="padding: 72px 80px 36px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 18px; position: relative;">
+    <div class="badge b-outline rise" style="background: rgba(255,255,255,0.04);">v0.2.0 · Paper, Purpur, Fabric, Vanilla</div>
+    <h1 class="rise d1" style="font-size: 60px; font-weight: 600; letter-spacing: -0.035em; line-height: 1.0; margin: 0; max-width: 900px; text-wrap: balance;">A modern control plane for Minecraft servers. Fast, live, designed.</h1>
+    <p class="rise d2 muted" style="font-size: 18px; line-height: 1.5; margin: 0; max-width: 620px; text-wrap: pretty;">Warden is written in Go: one binary that supervises every server on the box and streams console, metrics and events over WebSocket to Beacon, the panel below — open on a running server. Click around.</p>
+    <div class="rise d3" style="display: flex; gap: 12px;"><div class="btn btn-primary btn-lg">Get started</div><div class="btn btn-outline btn-lg">Docs &amp; wiki on GitHub ↗</div></div>
+  </div>
+
+  <!-- Mini Beacon: sidebar (inset) + content panel -->
+  <div class="rise d4" style="padding: 0 80px; position: relative;">
+    <div style="border-radius: 14px; background: #353535; box-shadow: 0 0 0 1px rgba(255,255,255,0.10), 0 40px 100px -40px rgba(0,0,0,0.6); display: grid; grid-template-columns: 224px minmax(0, 1fr); overflow: hidden; height: 720px;">
+
+      <!-- Sidebar -->
+      <div style="padding: 8px; display: flex; flex-direction: column; gap: 2px;">
+        <div class="nav" style="font-weight: 600; font-size: 16px; height: 36px; cursor: default; margin-bottom: 6px;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fcfcfc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2"></rect><rect x="2" y="14" width="20" height="8" rx="2"></rect></svg>Beacon</div>
+        <div class="input" style="justify-content: space-between; margin: 0 0 6px; cursor: pointer;" onClick="{{ nextInstance }}"><span style="display: flex; gap: 6px; align-items: center; font-size: 13px;">{{ inst.name }} <span class="badge {{ inst.swCls }}">{{ inst.sw }}</span></span><span class="dim">⇅</span></div>
+        <div class="glabel">Instance</div>
+        <sc-for list="{{ sections }}" as="s" hint-placeholder-count="9">
+          <div class="nav {{ s.cls }}" onClick="{{ s.pick }}"><span style="width: 16px; height: 16px; border-radius: 4px; background: rgba(255,255,255,0.12); flex-shrink: 0;"></span>{{ s.label }}</div>
+        </sc-for>
+        <div style="flex-grow: 1;"></div>
+        <div class="nav muted"><span style="width: 16px; height: 16px; border-radius: 4px; background: rgba(255,255,255,0.12); flex-shrink: 0;"></span>Java runtimes</div>
+        <div style="display: flex; align-items: center; gap: 10px; padding: 8px; margin-top: 4px;"><div style="width: 32px; height: 32px; border-radius: 8px; background: #4b5563;"></div><div style="min-width: 0;"><div style="font-size: 13px; font-weight: 500;">admin</div><div class="dim" style="font-size: 11px;">admin@[YOUR DOMAIN]</div></div></div>
+      </div>
+
+      <!-- Inset content -->
+      <div style="margin: 8px 8px 8px 0; border-radius: 12px; background: #252525; box-shadow: 0 0 0 1px rgba(255,255,255,0.08); display: flex; flex-direction: column; min-width: 0; overflow: hidden;">
+        <div style="display: flex; align-items: center; gap: 8px; height: 48px; padding: 0 16px; border-bottom: 1px solid rgba(255,255,255,0.10); font-size: 14px; flex-shrink: 0;"><span class="dim">☰</span><span class="dim">|</span><span class="muted">Home</span><span class="dim">›</span><span class="muted">{{ inst.name }}</span><span class="dim">›</span><span>{{ sectionLabel }}</span></div>
+
+        <!-- Instance header: title, controls, resource cards -->
+        <div style="padding: 16px 20px; border-bottom: 1px solid rgba(255,255,255,0.10); display: flex; flex-direction: column; gap: 14px; flex-shrink: 0;">
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+            <div style="display: flex; align-items: center; gap: 12px; font-size: 22px; font-weight: 600;">{{ inst.name }} <span class="badge {{ stateCls }}">{{ stateLabel }}</span></div>
+            <div style="display: flex; gap: 8px;">
+              <sc-if value="{{ running }}" hint-placeholder-val="{{ true }}"><div class="btn btn-secondary" onClick="{{ stop }}">Stop</div><div class="btn btn-outline" onClick="{{ restart }}">Restart</div></sc-if>
+              <sc-if value="{{ stopped }}" hint-placeholder-val="{{ false }}"><div class="btn btn-primary" onClick="{{ start }}">Start</div></sc-if>
+            </div>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px;">
+            <div class="card" style="position: relative; height: 84px;">
+              <svg viewBox="0 0 200 60" preserveAspectRatio="none" style="position: absolute; left: 0; bottom: 0; width: 100%; height: 48px;"><path d="{{ cpuArea }}" fill="rgba(255,255,255,0.06)"></path><path d="{{ cpuLine }}" fill="none" stroke="#8a8a8a" stroke-width="1.5"></path></svg>
+              <div style="position: relative; padding: 12px 16px;"><div class="muted" style="font-size: 12px;">CPU</div><div class="mono" style="font-size: 16px; font-weight: 600; margin-top: 2px;">{{ cpuNow }}</div></div>
+            </div>
+            <div class="card" style="position: relative; height: 84px;">
+              <svg viewBox="0 0 200 60" preserveAspectRatio="none" style="position: absolute; left: 0; bottom: 0; width: 100%; height: 48px;"><path d="{{ memArea }}" fill="rgba(255,255,255,0.06)"></path><path d="{{ memLine }}" fill="none" stroke="#8a8a8a" stroke-width="1.5"></path></svg>
+              <div style="position: relative; padding: 12px 16px;"><div class="muted" style="font-size: 12px;">RAM</div><div class="mono" style="font-size: 16px; font-weight: 600; margin-top: 2px;">{{ memNow }}</div></div>
+            </div>
+            <div class="card" style="position: relative; height: 84px;">
+              <svg viewBox="0 0 200 60" preserveAspectRatio="none" style="position: absolute; left: 0; bottom: 0; width: 100%; height: 48px;"><path d="{{ netArea }}" fill="rgba(255,255,255,0.06)"></path><path d="{{ netLine }}" fill="none" stroke="#8a8a8a" stroke-width="1.5"></path></svg>
+              <div style="position: relative; padding: 12px 16px;"><div class="muted" style="font-size: 12px;">Network</div><div class="mono" style="font-size: 16px; font-weight: 600; margin-top: 2px;">{{ netNow }}</div></div>
+            </div>
+            <div class="card" style="position: relative; height: 84px;">
+              <svg viewBox="0 0 200 60" preserveAspectRatio="none" style="position: absolute; left: 0; bottom: 0; width: 100%; height: 48px;"><path d="{{ tpsArea }}" fill="rgba(255,255,255,0.06)"></path><path d="{{ tpsLine }}" fill="none" stroke="#8a8a8a" stroke-width="1.5"></path></svg>
+              <div style="position: relative; padding: 12px 16px;"><div class="muted" style="font-size: 12px;">TPS</div><div class="mono" style="font-size: 16px; font-weight: 600; margin-top: 2px;">{{ tpsNow }}</div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Main + right aside -->
+        <div style="display: grid; grid-template-columns: minmax(0, 1fr) 260px; flex-grow: 1; min-height: 0;">
+          <div style="padding: 20px; min-width: 0; display: flex; flex-direction: column; overflow: hidden;">
+
+            <sc-if value="{{ isConsole }}" hint-placeholder-val="{{ true }}">
+              <div class="card" style="background: #1c1c1c; display: flex; flex-direction: column; flex-grow: 1; min-height: 0;">
+                <div class="console" style="padding: 14px; font-size: 12.5px; color: #d4d4d4; display: flex; flex-direction: column; gap: 3px; flex-grow: 1; overflow: hidden; justify-content: flex-end;">
+                  <sc-for list="{{ lines }}" as="l" hint-placeholder-count="8"><div style="color: {{ l.color }}; white-space: pre-wrap;">{{ l.text }}</div></sc-for>
+                  <div class="cursor dim">█</div>
+                </div>
+                <div style="display: flex; gap: 8px; padding: 10px 14px; border-top: 1px solid rgba(255,255,255,0.10); align-items: center;">
+                  <div class="input console" style="flex-grow: 1; color: #8a8a8a; font-size: 12.5px;">Type a command…</div>
+                  <sc-for list="{{ commands }}" as="c" hint-placeholder-count="3"><div class="chip mono" onClick="{{ c.run }}">{{ c.text }}</div></sc-for>
+                </div>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ isMetrics }}" hint-placeholder-val="{{ false }}">
+              <div class="card" style="padding: 16px; display: flex; flex-direction: column; gap: 10px; flex-grow: 1;">
+                <div style="display: flex; justify-content: space-between; align-items: baseline;"><div style="font-size: 15px; font-weight: 600;">Last hour</div><div class="dim" style="font-size: 12px;">2 s samples · persisted 7 days</div></div>
+                <svg viewBox="0 0 600 160" preserveAspectRatio="none" style="width: 100%; height: 180px;">
+                  <line x1="0" y1="40" x2="600" y2="40" stroke="rgba(255,255,255,0.08)"></line><line x1="0" y1="80" x2="600" y2="80" stroke="rgba(255,255,255,0.08)"></line><line x1="0" y1="120" x2="600" y2="120" stroke="rgba(255,255,255,0.08)"></line>
+                  <path d="{{ bigTps }}" fill="none" stroke="#fcfcfc" stroke-width="2"></path>
+                  <path d="{{ bigCpu }}" fill="none" stroke="#8a8a8a" stroke-width="1.5"></path>
+                </svg>
+                <div class="dim" style="display: flex; gap: 16px; font-size: 12px;"><span>— TPS (white)</span><span>— CPU % (gray)</span><span class="mono">12:10 → 13:10</span></div>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ isPlayers }}" hint-placeholder-val="{{ false }}">
+              <div class="card"><table style="width: 100%; border-collapse: collapse;">
+                <thead><tr><th>Player</th><th>Play time</th><th>Sessions</th><th>Last seen</th><th></th></tr></thead>
+                <tbody><sc-for list="{{ players }}" as="p" hint-placeholder-count="4">
+                  <tr><td style="font-weight: 500;"><span style="display: inline-flex; align-items: center; gap: 8px;"><span style="width: 20px; height: 20px; border-radius: 4px; background: {{ p.tint }}; display: inline-block;"></span>{{ p.name }}</span></td><td class="mono">{{ p.time }}</td><td class="mono">{{ p.sessions }}</td><td class="muted">{{ p.seen }}</td><td><span class="badge {{ p.cls }}">{{ p.status }}</span></td></tr>
+                </sc-for></tbody>
+              </table></div>
+            </sc-if>
+
+            <sc-if value="{{ isProps }}" hint-placeholder-val="{{ false }}">
+              <div style="display: flex; flex-direction: column; gap: 10px;">
+                <div style="display: flex; align-items: end; justify-content: space-between;"><div><div style="font-size: 15px; font-weight: 600;">Gameplay</div><div class="dim" style="font-size: 12px;">server.properties</div></div><sc-if value="{{ dirty }}" hint-placeholder-val="{{ false }}"><span class="badge b-amber">restart pending</span></sc-if></div>
+                <div class="card"><sc-for list="{{ props }}" as="p" hint-placeholder-count="4">
+                  <div class="row" style="border-top: {{ p.border }};"><div><div style="font-size: 14px; font-weight: 500;">{{ p.label }}</div><div class="dim mono" style="font-size: 12px;">{{ p.key }}</div></div><div class="switch" style="background: {{ p.bg }};" onClick="{{ p.flip }}"><div class="knob" style="left: {{ p.left }};"></div></div></div>
+                </sc-for></div>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ isFiles }}" hint-placeholder-val="{{ false }}">
+              <div class="card" style="display: grid; grid-template-columns: 200px minmax(0, 1fr); flex-grow: 1;">
+                <div style="padding: 8px; border-right: 1px solid rgba(255,255,255,0.10); display: flex; flex-direction: column; gap: 2px;">
+                  <sc-for list="{{ files }}" as="f" hint-placeholder-count="5"><div class="file {{ f.cls }} mono" onClick="{{ f.pick }}">{{ f.name }}</div></sc-for>
+                </div>
+                <div class="console" style="padding: 14px; font-size: 12.5px; color: #d4d4d4; white-space: pre-wrap; background: #1c1c1c;">{{ fileBody }}</div>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ isAccess }}" hint-placeholder-val="{{ false }}">
+              <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px;">
+                <div class="card"><div style="padding: 10px 14px; font-size: 14px; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.10);">Whitelist <span class="badge b-green" style="margin-left: 6px;">on</span></div><div class="mono" style="padding: 8px 14px; font-size: 13px; line-height: 1.9;">Steve<br>Alex<br>jeb_</div></div>
+                <div class="card"><div style="padding: 10px 14px; font-size: 14px; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.10);">Operators</div><div class="mono" style="padding: 8px 14px; font-size: 13px; line-height: 1.9;">Steve <span class="dim">· level 4</span></div></div>
+                <div class="card" style="grid-column: span 2;"><div style="padding: 10px 14px; font-size: 14px; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.10);">Bans</div><div class="dim" style="padding: 10px 14px; font-size: 13px;">Nobody banned. Bans issued from the player card land here with their reason.</div></div>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ isPlugins }}" hint-placeholder-val="{{ false }}">
+              <div style="display: flex; flex-direction: column; gap: 10px;">
+                <div style="display: flex; align-items: center; justify-content: space-between;"><div style="font-size: 15px; font-weight: 600;">Plugins <span class="dim" style="font-weight: 400;">· {{ installedCount }} installed</span></div><div class="btn btn-primary btn-sm" onClick="{{ installAll }}">Install queue ({{ queueCount }})</div></div>
+                <div class="card"><table style="width: 100%; border-collapse: collapse;">
+                  <thead><tr><th>Plugin</th><th>Version</th><th>Source</th><th>Status</th><th></th></tr></thead>
+                  <tbody><sc-for list="{{ plugins }}" as="p" hint-placeholder-count="5">
+                    <tr><td style="font-weight: 500;">{{ p.name }}</td><td class="mono">{{ p.version }}</td><td><span class="badge b-outline">{{ p.source }}</span></td><td><span class="badge {{ p.cls }}">{{ p.status }}</span></td><td style="text-align: right;"><div class="btn btn-outline btn-sm" onClick="{{ p.act }}">{{ p.action }}</div></td></tr>
+                  </sc-for></tbody>
+                </table></div>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ isBackups }}" hint-placeholder-val="{{ false }}">
+              <div style="display: flex; flex-direction: column; gap: 10px;">
+                <div style="display: flex; align-items: center; justify-content: space-between;"><div style="font-size: 15px; font-weight: 600;">Backups <span class="dim" style="font-weight: 400;">· nightly 03:00 · keep 7</span></div><div class="btn btn-primary btn-sm" onClick="{{ backupNow }}">Back up now</div></div>
+                <div class="card"><table style="width: 100%; border-collapse: collapse;">
+                  <thead><tr><th>Archive</th><th>Size</th><th>Kind</th><th></th></tr></thead>
+                  <tbody><sc-for list="{{ backups }}" as="b" hint-placeholder-count="3">
+                    <tr><td class="mono">{{ b.name }}</td><td class="mono muted">{{ b.size }}</td><td><span class="badge {{ b.cls }}">{{ b.kind }}</span></td><td style="text-align: right;"><span class="dim" style="font-size: 12px;">Restore · Download</span></td></tr>
+                  </sc-for></tbody>
+                </table></div>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ isSettings }}" hint-placeholder-val="{{ false }}">
+              <div class="card">
+                <div class="row" style="border-top: 0;"><div><div style="font-size: 14px; font-weight: 500;">Memory</div><div class="dim" style="font-size: 12px;">Xms = Xmx</div></div><div class="input mono" style="width: 160px;">{{ inst.mem }} MB</div></div>
+                <div class="row"><div><div style="font-size: 14px; font-weight: 500;">JVM preset</div><div class="dim" style="font-size: 12px;">Aikar's flags</div></div><div class="input" style="width: 160px; justify-content: space-between;">Aikar <span class="dim">▾</span></div></div>
+                <div class="row"><div><div style="font-size: 14px; font-weight: 500;">Restart on crash</div><div class="dim" style="font-size: 12px;">exponential backoff</div></div><div class="switch" style="background: #ebebeb;"><div class="knob" style="left: 18px; background: #353535;"></div></div></div>
+                <div class="row"><div><div style="font-size: 14px; font-weight: 500;">Autostart</div><div class="dim" style="font-size: 12px;">with wardend</div></div><div class="switch" style="background: #ebebeb;"><div class="knob" style="left: 18px; background: #353535;"></div></div></div>
+                <div class="row"><div><div style="font-size: 14px; font-weight: 500;">Stop timeout</div><div class="dim" style="font-size: 12px;">grace before SIGKILL</div></div><div class="input mono" style="width: 160px;">30 s</div></div>
+              </div>
+            </sc-if>
+          </div>
+
+          <!-- Right aside -->
+          <div style="border-left: 1px solid rgba(255,255,255,0.10); padding: 16px; display: flex; flex-direction: column; gap: 12px; overflow: hidden;">
+            <div class="card" style="padding: 12px 16px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;"><span class="muted" style="font-size: 12px;">Status</span><span class="badge {{ stateCls }}">{{ stateLabel }}</span></div>
+              <div class="srow"><span class="muted">Uptime</span><span class="mono">{{ uptime }}</span></div>
+              <div class="srow"><span class="muted">PID</span><span class="mono">{{ pid }}</span></div>
+            </div>
+            <div class="card" style="padding: 12px 16px;">
+              <div class="muted" style="font-size: 12px; margin-bottom: 4px;">Players · {{ onlineCount }}</div>
+              <div class="mono" style="font-size: 14px; line-height: 1.6;">{{ onlineNames }}</div>
+            </div>
+            <div class="card" style="padding: 12px 16px;">
+              <div class="muted" style="font-size: 12px; margin-bottom: 4px;">Server</div>
+              <div class="srow"><span class="muted">Software</span><span class="mono">{{ inst.sw }} {{ inst.ver }}</span></div>
+              <div class="srow"><span class="muted">Build</span><span class="mono">{{ inst.build }}</span></div>
+              <div class="srow"><span class="muted">Port</span><span class="mono">{{ inst.port }}</span></div>
+              <div class="srow"><span class="muted">Size</span><span class="mono">{{ inst.size }}</span></div>
+              <div class="srow"><span class="muted">RAM</span><span class="mono">{{ inst.mem }} MB</span></div>
+              <div class="srow"><span class="muted">Java</span><span class="mono">Temurin 21</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- How it works: Warden ⇄ Beacon -->
+  <div style="padding: 112px 80px 0; position: relative; display: flex; flex-direction: column; gap: 40px;">
+    <div style="display: flex; flex-direction: column; gap: 10px; max-width: 760px; align-self: center; text-align: center;"><div class="eyebrow">How it works</div><h2>Warden guards the box. Beacon lights it up.</h2></div>
+    <svg viewBox="0 0 1280 620" style="width: 100%; height: 620px; display: block;">
+      <defs>
+        <radialGradient id="soul" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#5eead4" stop-opacity="0.9"></stop><stop offset="1" stop-color="#5eead4" stop-opacity="0"></stop></radialGradient>
+        <linearGradient id="beam" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#5eead4" stop-opacity="0.55"></stop><stop offset="1" stop-color="#5eead4" stop-opacity="0"></stop></linearGradient>
+        <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#b3b3b3"></path></marker>
+      </defs>
+
+      <!-- LEFT: server tower -->
+      <g transform="translate(120 20)">
+        <rect x="0" y="120" width="360" height="400" rx="20" fill="#353535" stroke="rgba(255,255,255,0.12)"></rect>
+        <!-- sniff rings -->
+        <g transform="translate(180 120)">
+          <circle class="ring" cx="0" cy="0" r="40" fill="none" stroke="#5eead4" stroke-width="1.5"></circle>
+          <circle class="ring r2" cx="0" cy="0" r="40" fill="none" stroke="#5eead4" stroke-width="1.5"></circle>
+        </g>
+        <!-- Warden figure (stylised voxel guardian) -->
+        <g class="sniff" transform="translate(180 130)">
+          <ellipse cx="0" cy="8" rx="80" ry="40" fill="url(#soul)" class="soul"></ellipse>
+          <g transform="translate(-60 -150)">
+            <!-- horns -->
+            <rect x="8" y="-10" width="14" height="34" rx="3" fill="#0f766e"></rect><rect x="98" y="-10" width="14" height="34" rx="3" fill="#0f766e"></rect>
+            <!-- head -->
+            <rect x="14" y="18" width="92" height="62" rx="8" fill="#0b2a2e"></rect>
+            <rect x="26" y="36" width="68" height="14" rx="4" fill="#062024"></rect>
+            <rect x="34" y="40" width="10" height="6" rx="2" fill="#5eead4" class="glowdot"></rect><rect x="76" y="40" width="10" height="6" rx="2" fill="#5eead4" class="glowdot"></rect>
+            <!-- torso -->
+            <rect x="0" y="84" width="120" height="96" rx="10" fill="#0f3a3f"></rect>
+            <rect x="42" y="100" width="36" height="52" rx="6" fill="#062024"></rect>
+            <rect x="52" y="112" width="16" height="10" rx="2" fill="#5eead4" class="glowdot"></rect><rect x="52" y="128" width="16" height="10" rx="2" fill="#5eead4" class="glowdot"></rect>
+            <!-- arms -->
+            <rect x="-30" y="88" width="26" height="110" rx="8" fill="#0b2a2e" class="arm"></rect><rect x="124" y="88" width="26" height="110" rx="8" fill="#0b2a2e" class="arm arm2"></rect>
+            <rect x="-30" y="170" width="26" height="28" rx="6" fill="#a8b5a0"></rect><rect x="124" y="170" width="26" height="28" rx="6" fill="#a8b5a0"></rect>
+            <!-- legs -->
+            <rect x="14" y="182" width="38" height="58" rx="8" fill="#0b2a2e"></rect><rect x="68" y="182" width="38" height="58" rx="8" fill="#0b2a2e"></rect>
+          </g>
+        </g>
+        <!-- instance rows with LEDs -->
+        <g transform="translate(30 300)" font-family="Geist Mono, ui-monospace, monospace" font-size="13">
+          <rect x="0" y="0" width="300" height="42" rx="10" fill="#252525" stroke="rgba(255,255,255,0.10)"></rect><circle cx="20" cy="21" r="4" fill="#10b981" class="led"></circle><circle cx="34" cy="21" r="4" fill="#f59e0b" class="led l2"></circle><text x="52" y="26" fill="#fcfcfc">survival-main</text><text x="220" y="26" fill="#8a8a8a">8192 MB</text>
+          <rect x="0" y="50" width="300" height="42" rx="10" fill="#252525" stroke="rgba(255,255,255,0.10)"></rect><circle cx="20" cy="71" r="4" fill="#10b981" class="led l3"></circle><circle cx="34" cy="71" r="4" fill="#f59e0b" class="led l4"></circle><text x="52" y="76" fill="#fcfcfc">creative-build</text><text x="220" y="76" fill="#8a8a8a">4096 MB</text>
+          <rect x="0" y="100" width="300" height="42" rx="10" fill="#252525" stroke="rgba(255,255,255,0.10)"></rect><circle cx="20" cy="121" r="4" fill="#10b981" class="led l2"></circle><circle cx="34" cy="121" r="4" fill="#f59e0b" class="led l5"></circle><text x="52" y="126" fill="#fcfcfc">fabric-test</text><text x="220" y="126" fill="#8a8a8a">2048 MB</text>
+          <rect x="0" y="150" width="300" height="42" rx="10" fill="#252525" stroke="rgba(255,255,255,0.10)"></rect><circle cx="20" cy="171" r="4" fill="#444444"></circle><circle cx="34" cy="171" r="4" fill="#444444"></circle><text x="52" y="176" fill="#8a8a8a">lobby</text><text x="220" y="176" fill="#8a8a8a">stopped</text>
+        </g>
+      </g>
+      <text x="300" y="585" text-anchor="middle" fill="#fcfcfc" font-size="16" font-weight="600" font-family="Geist, system-ui, sans-serif">wardend</text>
+      <text x="300" y="606" text-anchor="middle" class="lbl">Go daemon on the box · supervises, samples, backs up</text>
+
+      <!-- CENTER: connection -->
+      <g transform="translate(640 250)">
+        <g transform="translate(-22 -78)"><path d="M22 0 4 7v12c0 11 7.6 21 18 25 10.4-4 18-14 18-25V7L22 0z" fill="rgba(94,234,212,0.12)" stroke="#5eead4" stroke-width="1.5" stroke-linejoin="round"></path><path d="M24 10 14 25h8l-2 12 10-15h-8l2-12z" fill="#5eead4"></path></g>
+        <text x="0" y="-18" text-anchor="middle" fill="#fcfcfc" font-size="15" font-weight="600" font-family="Geist, system-ui, sans-serif">Real-time, secure connection</text>
+        <text x="0" y="2" text-anchor="middle" class="lbl">WebSocket + REST · TLS · short-lived JWT</text>
+        <line class="wire" x1="-130" y1="40" x2="130" y2="40" marker-start="url(#ah)" marker-end="url(#ah)"></line>
+        <text x="0" y="66" text-anchor="middle" class="lbl">console · metrics · events · commands</text>
+      </g>
+
+      <!-- RIGHT: phone with Beacon -->
+      <g transform="translate(900 20)">
+        <!-- beacon block + beam -->
+        <g transform="translate(150 60)">
+          <rect x="-40" y="-170" width="80" height="150" fill="url(#beam)" class="beam"></rect>
+          <g class="hover">
+            <polygon points="0,-46 40,-24 0,-2 -40,-24" fill="#1f4d4a" stroke="#5eead4" stroke-width="1.5"></polygon>
+            <polygon points="-40,-24 0,-2 0,42 -40,20" fill="#0f2f2e" stroke="#5eead4" stroke-width="1.5"></polygon>
+            <polygon points="40,-24 0,-2 0,42 40,20" fill="#163d3b" stroke="#5eead4" stroke-width="1.5"></polygon>
+            <polygon points="0,-30 22,-18 0,-6 -22,-18" fill="#5eead4" class="soul"></polygon>
+          </g>
+        </g>
+        <rect x="60" y="120" width="180" height="400" rx="28" fill="#353535" stroke="rgba(255,255,255,0.14)" stroke-width="1.5"></rect>
+        <rect x="70" y="130" width="160" height="380" rx="22" fill="#252525"></rect>
+        <rect x="124" y="140" width="52" height="6" rx="3" fill="#353535"></rect>
+        <text x="86" y="176" fill="#fcfcfc" font-size="12" font-weight="600" font-family="Geist, system-ui, sans-serif">survival-main</text>
+        <rect x="176" y="166" width="46" height="13" rx="6" fill="rgba(5,150,105,0.15)" stroke="rgba(5,150,105,0.30)"></rect><text x="183" y="176" fill="#10b981" font-size="8" font-family="Geist, system-ui, sans-serif">running</text>
+        <text x="86" y="196" fill="#8a8a8a" font-size="9" font-family="Geist, system-ui, sans-serif">Metrics · last hour</text>
+        <rect x="84" y="204" width="132" height="90" rx="10" fill="#353535"></rect>
+        <path class="draw" d="M92 260 L104 258 L116 262 L128 240 L140 250 L150 232 L160 256 L172 244 L184 250 L196 236 L208 246" fill="none" stroke="#fcfcfc" stroke-width="1.5"></path>
+        <path class="draw" d="M92 276 L104 272 L116 278 L128 268 L140 270 L150 262 L160 274 L172 270 L184 276 L196 266 L208 272" fill="none" stroke="#8a8a8a" stroke-width="1"></path>
+        <g font-family="Geist Mono, monospace" font-size="9">
+          <rect x="84" y="304" width="62" height="40" rx="8" fill="#353535"></rect><text x="92" y="318" fill="#8a8a8a">CPU</text><text x="92" y="334" fill="#fcfcfc" font-size="11">31.2 %</text>
+          <rect x="154" y="304" width="62" height="40" rx="8" fill="#353535"></rect><text x="162" y="318" fill="#8a8a8a">TPS</text><text x="162" y="334" fill="#fcfcfc" font-size="11">19.9</text>
+          <rect x="84" y="352" width="62" height="40" rx="8" fill="#353535"></rect><text x="92" y="366" fill="#8a8a8a">RAM</text><text x="92" y="382" fill="#fcfcfc" font-size="11">5.1G/8G</text>
+          <rect x="154" y="352" width="62" height="40" rx="8" fill="#353535"></rect><text x="162" y="366" fill="#8a8a8a">Players</text><text x="162" y="382" fill="#fcfcfc" font-size="11">3</text>
+        </g>
+        <rect x="84" y="404" width="132" height="86" rx="8" fill="#1c1c1c"></rect>
+        <text x="92" y="420" fill="#d4d4d4" font-size="7.5" font-family="Google Sans Code, monospace">[12:07] Steve joined</text>
+        <text x="92" y="434" fill="#f59e0b" font-size="7.5" font-family="Google Sans Code, monospace">[12:06] Can't keep up!</text>
+        <text x="92" y="448" fill="#22d3ee" font-size="7.5" font-family="Google Sans Code, monospace">&gt; tps</text>
+        <text x="92" y="462" fill="#d4d4d4" font-size="7.5" font-family="Google Sans Code, monospace">TPS 19.97 19.98 20.0</text>
+        <rect x="128" y="498" width="44" height="3" rx="2" fill="#8a8a8a"></rect>
+      </g>
+      <text x="1050" y="585" text-anchor="middle" fill="#fcfcfc" font-size="16" font-weight="600" font-family="Geist, system-ui, sans-serif">Beacon</text>
+      <text x="1050" y="606" text-anchor="middle" class="lbl">Next.js panel · installable PWA · signs in, then steps aside</text>
+    </svg>
+  </div>
+
+  <!-- Architecture -->
+  <div style="padding: 112px 80px 0; position: relative; display: flex; flex-direction: column; gap: 40px;">
+    <div style="display: flex; flex-direction: column; gap: 10px; max-width: 760px;"><div class="eyebrow">Under the hood</div><h2>Built in Go, on the metal, with the panel wherever it fits.</h2></div>
+    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px;">
+      <div class="card" style="padding: 24px; display: flex; flex-direction: column; gap: 12px;">
+        <div class="mono dim" style="font-size: 12px;">wardend · Go 1.25</div>
+        <div style="font-size: 20px; font-weight: 600; letter-spacing: -0.01em;">One static binary, no runtime to install.</div>
+        <p class="muted" style="margin: 0; font-size: 15px; line-height: 1.55; text-wrap: pretty;">The daemon is a single Go executable with an embedded scheduler, SQLite store and TLS. It starts in milliseconds, idles at a few MB of RAM and leaves the CPU and memory of the machine to the servers themselves.</p>
+        <div class="card mono" style="background: #1c1c1c; padding: 10px 12px; font-size: 12px; color: #d4d4d4; line-height: 1.7;">$ ls -la wardend<br><span class="dim">-rwxr-xr-x  1 warden warden  19M  wardend</span></div>
+      </div>
+      <div class="card" style="padding: 24px; display: flex; flex-direction: column; gap: 12px;">
+        <div class="mono dim" style="font-size: 12px;">transport · WebSocket + REST</div>
+        <div style="font-size: 20px; font-weight: 600; letter-spacing: -0.01em;">Live by default.</div>
+        <p class="muted" style="margin: 0; font-size: 15px; line-height: 1.55; text-wrap: pretty;">Console lines, state changes, metrics samples and task progress are pushed over a single authenticated WebSocket the moment they happen. REST covers the rest. No polling loops, no page refreshes.</p>
+        <div class="card mono" style="background: #1c1c1c; padding: 10px 12px; font-size: 12px; color: #d4d4d4; line-height: 1.7;"><span class="dim">ws ›</span> console · state · events<br><span class="dim">ws ›</span> metrics (2 s) · tasks<br><span class="dim">jwt</span> first message · Ed25519</div>
+      </div>
+      <div class="card" style="padding: 24px; display: flex; flex-direction: column; gap: 12px;">
+        <div class="mono dim" style="font-size: 12px;">beacon · Next.js, separate service</div>
+        <div style="font-size: 20px; font-weight: 600; letter-spacing: -0.01em;">The panel is its own deployable.</div>
+        <p class="muted" style="margin: 0; font-size: 15px; line-height: 1.55; text-wrap: pretty;">Beacon only signs you in and serves the UI; the browser talks to wardend directly. Run it as a container next to the daemon (the installer offers it) or on a separate host or Dokploy, depending on how many nodes you manage.</p>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;"><span class="badge b-outline">same box · Docker</span><span class="badge b-outline">separate host</span><span class="badge b-outline">Dokploy</span><span class="badge b-outline">PWA</span></div>
+      </div>
+    </div>
+    <div style="display: flex; gap: 12px; align-items: center;"><div class="btn btn-outline">Architecture docs ↗</div><div class="btn btn-outline">ADRs ↗</div><div class="btn btn-outline">API spec ↗</div></div>
+  </div>
+
+  <!-- Features: explanation + example -->
+  <div style="padding: 112px 80px 0; position: relative; display: flex; flex-direction: column;">
+    <div style="display: flex; flex-direction: column; gap: 10px; max-width: 720px; padding-bottom: 64px;"><div class="eyebrow">Features</div><h2>Everything a server admin does, with the server's own data.</h2></div>
+
+    <div class="feat">
+      <div style="display: flex; flex-direction: column; gap: 14px;"><div class="eyebrow">Instances</div><h3>Pick the software, the version, the build. Done.</h3><p>Paper, Purpur, Fabric and Vanilla from their official catalogs. wardend downloads the jar, verifies its hash, writes the EULA and <span class="mono">server.properties</span>, and selects a managed Temurin runtime that matches the Minecraft version.</p></div>
+      <div class="card" style="padding: 20px; display: flex; flex-direction: column; gap: 14px;">
+        <div><div style="font-size: 16px; font-weight: 600;">New server</div><div class="dim" style="font-size: 12px;">catalog · Fill v3, api.purpurmc.org, Fabric Meta, piston-meta</div></div>
+        <div class="card" style="background: #252525;">
+          <div class="row" style="border-top: 0;"><div style="font-size: 14px; font-weight: 500;">Software</div><div class="input" style="width: 200px; justify-content: space-between;"><span style="display: flex; gap: 6px; align-items: center;"><span class="badge b-blue">Paper</span></span><span class="dim">▾</span></div></div>
+          <div class="row"><div style="font-size: 14px; font-weight: 500;">Minecraft version</div><div class="input mono" style="width: 200px; justify-content: space-between;">1.21.8 <span class="dim">▾</span></div></div>
+          <div class="row"><div style="font-size: 14px; font-weight: 500;">Build</div><div class="input mono" style="width: 200px; justify-content: space-between;">#112 · stable <span class="dim">▾</span></div></div>
+          <div class="row"><div style="font-size: 14px; font-weight: 500;">Java runtime</div><div class="input mono" style="width: 200px; justify-content: space-between;">Temurin 21 (auto) <span class="dim">▾</span></div></div>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 6px;"><div class="bar"><div class="fillup"></div></div><div class="dim mono" style="font-size: 11px;">Downloading paper-1.21.8-112.jar · sha256 verified · preparing runtime…</div></div>
+      </div>
+    </div>
+
+    <div class="feat">
+      <div class="card" style="background: #1c1c1c;">
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid rgba(255,255,255,0.10);"><div style="display: flex; gap: 6px; align-items: center; font-size: 13px; font-weight: 500;">Console <span class="badge b-green">running</span></div><div class="dim" style="font-size: 12px;">WebSocket · levels &amp; colors preserved</div></div>
+        <div class="console" style="padding: 14px; font-size: 12.5px; color: #d4d4d4; white-space: pre-wrap;">[12:04:09 INFO]: Done (6.812s)! For help, type "help"
+<span style="color: #f59e0b;">[12:06:41 WARN]: Can't keep up! Is the server overloaded? Running 2314ms behind</span>
+[12:07:12 INFO]: Steve joined the game
+<span style="color: #22d3ee;">&gt; say Backup in 5 minutes</span>
+[12:08:00 INFO]: [Server] Backup in 5 minutes
+<span style="color: #c084fc;">[wardend]: survival-main exited (code 1) — restarting in 5 s (attempt 1/5)</span>
+[12:08:07 INFO]: Starting minecraft server version 1.21.8</div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 14px;"><div class="eyebrow">Console &amp; supervision</div><h3>The console you know, plus a daemon that never sleeps.</h3><p>Live log over WebSocket with the original levels, command history, staged stop. When the server crashes, wardend brings it back with exponential backoff; TPS is polled quietly every 16 s and the reply stays out of your view.</p></div>
+    </div>
+
+    <div class="feat">
+      <div style="display: flex; flex-direction: column; gap: 14px;"><div class="eyebrow">Plugins</div><h3>Hangar and Modrinth, one search box.</h3><p>Search both catalogs, queue several plugins, pick a version for each and install them in a batch — every jar hash-verified. Update checks, enable/disable and manual uploads live in the same table. Paper and Purpur only; the tab hides elsewhere.</p></div>
+      <div class="card" style="padding: 16px; display: flex; flex-direction: column; gap: 12px;">
+        <div class="input" style="justify-content: space-between;"><span class="dim">Search Hangar and Modrinth…</span><span class="dim">⌘K</span></div>
+        <div class="card" style="background: #252525;"><table style="width: 100%; border-collapse: collapse;"><tbody>
+          <tr><td style="font-weight: 500;">LuckPerms</td><td class="mono muted">5.5.1</td><td><span class="badge b-outline">Hangar</span></td><td style="text-align: right;"><span class="badge b-amber">queued</span></td></tr>
+          <tr><td style="font-weight: 500;">ViaVersion</td><td class="mono muted">5.4.2</td><td><span class="badge b-outline">Hangar</span></td><td style="text-align: right;"><span class="badge b-amber">queued</span></td></tr>
+          <tr><td style="font-weight: 500;">spark</td><td class="mono muted">1.10.140</td><td><span class="badge b-outline">Modrinth</span></td><td style="text-align: right;"><span class="badge b-muted">add</span></td></tr>
+        </tbody></table></div>
+        <div style="display: flex; justify-content: space-between; align-items: center;"><span class="dim" style="font-size: 12px;">2 in queue · versions chosen per plugin</span><div class="btn btn-primary btn-sm">Install 2 plugins</div></div>
+      </div>
+    </div>
+
+    <div class="feat">
+      <div class="card" style="padding: 16px; display: flex; flex-direction: column; gap: 10px;">
+        <div style="display: flex; justify-content: space-between; align-items: baseline;"><div style="font-size: 15px; font-weight: 600;">Metrics · last hour</div><div class="mono" style="font-size: 20px; font-weight: 600;">19.97 <span class="dim" style="font-size: 12px; font-weight: 400;">tps</span></div></div>
+        <svg viewBox="0 0 600 140" preserveAspectRatio="none" style="width: 100%; height: 150px;">
+          <line x1="0" y1="35" x2="600" y2="35" stroke="rgba(255,255,255,0.08)"></line><line x1="0" y1="70" x2="600" y2="70" stroke="rgba(255,255,255,0.08)"></line><line x1="0" y1="105" x2="600" y2="105" stroke="rgba(255,255,255,0.08)"></line>
+          <path class="draw" d="M0 22 L60 24 L120 20 L180 26 L240 22 L300 60 L340 28 L400 22 L460 25 L520 21 L600 23" fill="none" stroke="#fcfcfc" stroke-width="2"></path>
+          <path class="draw" d="M0 100 L60 92 L120 104 L180 78 L240 86 L300 50 L340 74 L400 82 L460 68 L520 90 L600 84" fill="none" stroke="#8a8a8a" stroke-width="1.5"></path>
+        </svg>
+        <div class="dim" style="display: flex; gap: 16px; font-size: 12px;"><span>— TPS</span><span>— CPU %</span><span>· RAM, network and host stats on their own tabs</span></div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 14px;"><div class="eyebrow">Metrics</div><h3>Sampled every two seconds, kept for a week.</h3><p>CPU, RAM, network and TPS per instance from the process itself — no plugin needed. One hour in memory for the live charts, seven days in SQLite for the "what happened last night" question. Host CPU, memory and disk on the Home page.</p></div>
+    </div>
+
+    <div class="feat">
+      <div style="display: flex; flex-direction: column; gap: 14px;"><div class="eyebrow">Players</div><h3>The history the server already keeps, in one card.</h3><p>Sessions from the log, advancements and statistics from the world folder, skins from Mojang. Message, kick, ban or op a player without opening the console — whitelist, ops and bans stay in sync with the files.</p></div>
+      <div class="card" style="padding: 20px; display: flex; flex-direction: column; gap: 16px;">
+        <div style="display: flex; align-items: center; gap: 12px;"><div style="width: 40px; height: 40px; border-radius: 8px; background: #4b5563;"></div><div><div style="font-size: 16px; font-weight: 600;">Steve</div><div class="dim mono" style="font-size: 12px;">online · 2h 14m this session</div></div><div style="flex-grow: 1;"></div><span class="badge b-green">online</span></div>
+        <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px;">
+          <div class="card" style="background: #252525; padding: 10px 12px;"><div class="dim" style="font-size: 12px;">Play time</div><div class="mono" style="font-size: 15px; font-weight: 600; margin-top: 4px;">61h 20m</div></div>
+          <div class="card" style="background: #252525; padding: 10px 12px;"><div class="dim" style="font-size: 12px;">Sessions</div><div class="mono" style="font-size: 15px; font-weight: 600; margin-top: 4px;">87</div></div>
+          <div class="card" style="background: #252525; padding: 10px 12px;"><div class="dim" style="font-size: 12px;">Advancements</div><div class="mono" style="font-size: 15px; font-weight: 600; margin-top: 4px;">42 / 118</div></div>
+        </div>
+        <div style="display: flex; gap: 8px;"><div class="btn btn-outline btn-sm">Message</div><div class="btn btn-outline btn-sm">Kick</div><div class="btn btn-outline btn-sm">Op</div><div class="btn btn-outline btn-sm" style="color: #ef4444;">Ban</div></div>
+      </div>
+    </div>
+
+    <div class="feat">
+      <div class="card" style="padding: 16px; display: flex; flex-direction: column; gap: 12px;">
+        <div style="display: flex; justify-content: space-between; align-items: center;"><div style="font-size: 15px; font-weight: 600;">Backups</div><div class="dim mono" style="font-size: 12px;">nightly 03:00 · keep 7 · max 20 GB</div></div>
+        <div class="card" style="background: #252525;"><table style="width: 100%; border-collapse: collapse;"><tbody>
+          <tr><td class="mono">2026-08-29T03-00.tar.zst</td><td class="mono muted">1.9 GB</td><td><span class="badge b-outline">scheduled</span></td><td class="dim" style="text-align: right; font-size: 12px;">Restore · Download</td></tr>
+          <tr><td class="mono">2026-08-28T03-00.tar.zst</td><td class="mono muted">1.9 GB</td><td><span class="badge b-outline">scheduled</span></td><td class="dim" style="text-align: right; font-size: 12px;">Restore · Download</td></tr>
+          <tr><td class="mono">2026-08-27T18-12.tar.zst</td><td class="mono muted">1.8 GB</td><td><span class="badge b-amber">pre-upgrade</span></td><td class="dim" style="text-align: right; font-size: 12px;">Restore · Download</td></tr>
+        </tbody></table></div>
+        <div class="console dim" style="font-size: 12px; white-space: pre-wrap;">[wardend]: save-off → save-all flush → tar.zst (41 s) → save-on</div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 14px;"><div class="eyebrow">Backups &amp; upgrades</div><h3>Scheduled, compressed, restorable.</h3><p>save-off, flush, tar.zst with a sidecar manifest, all inside the daemon. Retention by count or total size. Restore takes a safety copy first; upgrading the server build takes a backup before it swaps the jar.</p></div>
+    </div>
+  </div>
+
+  <!-- Install -->
+  <div style="margin: 112px 80px 0; padding: 64px 80px; border-top: 1px solid rgba(255,255,255,0.10); display: flex; flex-direction: column; align-items: center; gap: 20px; text-align: center; position: relative;">
+    <h2>Two commands on a fresh Ubuntu box.</h2>
+    <p class="muted" style="font-size: 16px; margin: 0; max-width: 560px; text-wrap: pretty;">The installer writes the systemd unit, picks a TLS mode and can start the Beacon panel as a container next to the daemon.</p>
+    <div class="card mono" style="background: #1c1c1c; color: #d4d4d4; padding: 16px 20px; font-size: 13.5px; text-align: left; line-height: 1.7; width: 760px; box-sizing: border-box;">curl -fsSL https://github.com/manuelvegadev/warden/releases/latest/download/wardend-linux-amd64 -o wardend<br>chmod +x wardend &amp;&amp; sudo ./wardend install</div>
+    <div style="display: flex; gap: 12px;"><div class="btn btn-primary btn-lg">Getting started ↗</div><div class="btn btn-outline btn-lg">Docs &amp; wiki on GitHub ↗</div></div>
+  </div>
+
+  <div class="dim" style="display: flex; justify-content: space-between; padding: 32px 80px 40px; border-top: 1px solid rgba(255,255,255,0.10); font-size: 13px; margin-top: 48px; position: relative;">
+    <div>Warden · wardend + Beacon</div>
+    <div style="display: flex; gap: 20px;"><span>GitHub</span><span>Docs</span><span>ADRs</span><span>Changelog</span></div>
+  </div>
+</div>
+</x-dc>
+<script data-dc-script data-props='{"$preview":{"width":1440,"height":6300}}'>
+const INSTANCES = [
+  { name: 'survival-main', sw: 'Paper', swCls: 'b-blue', ver: '1.21.8', build: '#112', port: 25565, mem: 8192, size: '4.7 GB' },
+  { name: 'creative-build', sw: 'Purpur', swCls: 'b-violet', ver: '1.21.8', build: '#2405', port: 25566, mem: 4096, size: '1.9 GB' },
+  { name: 'fabric-test', sw: 'Fabric', swCls: 'b-amber', ver: '1.21.8', build: 'loader 0.17.2', port: 25567, mem: 2048, size: '612 MB' },
+];
+const LOG = [
+  ['[12:04:01 INFO]: Starting minecraft server version 1.21.8', '#d4d4d4'],
+  ['[12:04:03 INFO]: This server is running Paper version 1.21.8-112', '#d4d4d4'],
+  ['[12:04:05 INFO]: Preparing level "world"', '#d4d4d4'],
+  ['[12:04:09 INFO]: Done (6.812s)! For help, type "help"', '#d4d4d4'],
+  ['[12:06:41 WARN]: Can\'t keep up! Is the server overloaded? Running 2314ms behind', '#f59e0b'],
+  ['[12:07:12 INFO]: Steve joined the game', '#d4d4d4'],
+  ['[12:07:40 INFO]: Alex joined the game', '#d4d4d4'],
+  ['[12:09:02 INFO]: jeb_ joined the game', '#d4d4d4'],
+];
+const SECTIONS = [['console', 'Console'], ['metrics', 'Metrics'], ['players', 'Players'], ['properties', 'Properties'], ['files', 'Files'], ['access', 'Access'], ['plugins', 'Plugins'], ['backups', 'Backups'], ['settings', 'Settings']];
+const FILES = {
+  'server.properties': 'max-players=40\nview-distance=10\ndifficulty=hard\nwhite-list=true\npvp=true\nmotd=A Warden server',
+  'bukkit.yml': 'settings:\n  allow-end: true\n  warn-on-overload: true\nspawn-limits:\n  monsters: 70\n  animals: 10',
+  'spigot.yml': 'settings:\n  bungeecord: false\n  restart-on-crash: false   # wardend handles this\nworld-settings:\n  default:\n    merge-radius:\n      item: 2.5',
+  'config/paper-global.yml': 'chunk-loading-advanced:\n  auto-config-send-distance: true\ntimings:\n  enabled: false\nunsupported-settings:\n  allow-piston-duplication: false',
+  'plugins/LuckPerms/config.yml': 'server: global\nstorage-method: h2\nsync-minutes: -1',
+};
+const stamp = () => '[' + new Date().toTimeString().slice(0, 8) + ' INFO]: ';
+const path = (xs, w, h, close) => {
+  const n = xs.length, pts = xs.map((v, i) => [(i / (n - 1)) * w, h - 2 - v * (h - 6)]);
+  const d = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
+  return close ? d + ' L' + w + ' ' + h + ' L0 ' + h + ' Z' : d;
+};
+const series = (n, f) => Array.from({ length: n }, (_, i) => f(i));
+class Component extends DCLogic {
+  constructor(p) {
+    super(p);
+    this.state = {
+      inst: 0, section: 'console', running: true, lines: LOG.slice(0, 5), fed: 5, uptime: 3 * 3600 + 22 * 60 + 8, dirty: false, file: 'server.properties',
+      cpu: series(30, (i) => 0.3 + 0.12 * Math.sin(i / 3)), mem: series(30, (i) => 0.5 + i * 0.006), net: series(30, (i) => 0.2 + 0.15 * Math.abs(Math.sin(i / 2))), tps: series(30, () => 0.98),
+      props: [['Whitelist', 'white-list', true], ['PvP', 'pvp', true], ['Command blocks', 'enable-command-block', false], ['Flight', 'allow-flight', false]].map(([label, key, on]) => ({ label, key, on })),
+      plugins: [['LuckPerms', '5.5.0', 'Hangar', 'installed'], ['Chunky', '1.4.28', 'Modrinth', 'installed'], ['EssentialsX', '2.21.1', 'Hangar', 'installed'], ['ViaVersion', '5.4.2', 'Hangar', 'available'], ['spark', '1.10.140', 'Modrinth', 'available']].map(([name, version, source, status]) => ({ name, version, source, status })),
+      backups: [['2026-08-29T03-00.tar.zst', '1.9 GB', 'scheduled'], ['2026-08-28T03-00.tar.zst', '1.9 GB', 'scheduled'], ['2026-08-27T18-12.tar.zst', '1.8 GB', 'pre-upgrade']].map(([name, size, kind]) => ({ name, size, kind })),
+    };
+  }
+  componentDidMount() {
+    this.timer = setInterval(() => this.setState((s) => {
+      if (!s.running) return null;
+      const j = (a, k, lo, hi) => a.slice(1).concat([Math.min(hi, Math.max(lo, a[a.length - 1] + (Math.random() - 0.5) * k))]);
+      const next = { cpu: j(s.cpu, 0.14, 0.08, 0.9), mem: j(s.mem, 0.03, 0.35, 0.85), net: j(s.net, 0.2, 0.05, 0.9), tps: j(s.tps, 0.03, 0.9, 1), uptime: s.uptime + 1.5 };
+      if (s.fed < LOG.length) { next.lines = s.lines.slice(-11).concat([LOG[s.fed]]); next.fed = s.fed + 1; }
+      return next;
+    }), 1500);
+  }
+  componentWillUnmount() { clearInterval(this.timer); }
+  push(text, color) { this.setState((s) => ({ lines: s.lines.slice(-11).concat([[text, color || '#d4d4d4']]) })); }
+  renderVals() {
+    const s = this.state, inst = INSTANCES[s.inst], running = s.running;
+    const joined = running ? s.lines.filter((l) => l[0].includes('joined')).map((l) => l[0].split(']: ')[1].split(' ')[0]) : [];
+    const last = (a) => a[a.length - 1];
+    const h = Math.floor(s.uptime / 3600), m = Math.floor((s.uptime % 3600) / 60), sec = Math.floor(s.uptime % 60);
+    const is = (id) => s.section === id;
+    return {
+      inst, nextInstance: () => this.setState({ inst: (s.inst + 1) % INSTANCES.length }),
+      sections: SECTIONS.filter(([id]) => id !== 'plugins' || inst.sw !== 'Fabric').map(([id, label]) => ({ label, cls: is(id) ? 'nav-on' : '', pick: () => this.setState({ section: id }) })),
+      sectionLabel: (SECTIONS.find(([id]) => is(id)) || SECTIONS[0])[1],
+      isConsole: is('console'), isMetrics: is('metrics'), isPlayers: is('players'), isProps: is('properties'), isFiles: is('files'), isAccess: is('access'), isPlugins: is('plugins'), isBackups: is('backups'), isSettings: is('settings'),
+      running, stopped: !running, stateCls: running ? 'b-green' : 'b-muted', stateLabel: running ? 'running' : 'stopped',
+      stop: () => { this.push('[wardend]: Stopping ' + inst.name + ' (save-all → stop → 30 s grace)', '#c084fc'); this.setState({ running: false }); },
+      start: () => this.setState({ running: true, lines: [], fed: 0, uptime: 0 }),
+      restart: () => this.setState({ running: true, dirty: false, fed: 0, uptime: 0, lines: [['[wardend]: Restarting ' + inst.name, '#c084fc']] }),
+      lines: s.lines.map(([text, color]) => ({ text, color })),
+      commands: [
+        { text: 'list', run: () => this.push(stamp() + 'There are ' + joined.length + ' of a max of 40 players online' + (joined.length ? ': ' + joined.join(', ') : '')) },
+        { text: 'say Backup in 5 minutes', run: () => { this.push('> say Backup in 5 minutes', '#22d3ee'); this.push(stamp() + '[Server] Backup in 5 minutes'); } },
+        { text: 'tps', run: () => this.push(stamp() + 'TPS from last 1m, 5m, 15m: ' + (last(s.tps) * 20).toFixed(2) + ', 19.98, 20.0') },
+      ],
+      cpuLine: path(s.cpu, 200, 60, false), cpuArea: path(s.cpu, 200, 60, true), cpuNow: running ? (last(s.cpu) * 100).toFixed(1) + ' %' : '—',
+      memLine: path(s.mem, 200, 60, false), memArea: path(s.mem, 200, 60, true), memNow: running ? (last(s.mem) * inst.mem / 1024).toFixed(1) + 'G/' + inst.mem / 1024 + 'G' : '—',
+      netLine: path(s.net, 200, 60, false), netArea: path(s.net, 200, 60, true), netNow: running ? '↓' + Math.round(last(s.net) * 900) + 'K ↑' + Math.round(last(s.net) * 2400) + 'K/s' : '—',
+      tpsLine: path(s.tps, 200, 60, false), tpsArea: path(s.tps, 200, 60, true), tpsNow: running ? (last(s.tps) * 20).toFixed(1) : '—',
+      bigTps: path(s.tps.concat(s.tps.slice().reverse()), 600, 160, false), bigCpu: path(s.cpu.concat(s.cpu.slice().reverse()), 600, 160, false),
+      uptime: running ? h + 'h ' + m + 'm ' + sec + 's' : '—', pid: running ? 41872 : '—',
+      onlineCount: joined.length, onlineNames: joined.length ? joined.join('\n') : 'Nobody online.',
+      players: [['Steve', '61h 20m', 87, '#4b5563'], ['Alex', '12h 05m', 21, '#6b7280'], ['jeb_', '3h 44m', 6, '#78716c'], ['Herobrine', '0h 12m', 1, '#374151']].map(([name, time, sessions, tint]) => { const on = joined.includes(name); return { name, time, sessions, tint, seen: on ? 'now' : '3 d ago', cls: on ? 'b-green' : 'b-muted', status: on ? 'online' : 'offline' }; }),
+      props: s.props.map((p, i) => ({ ...p, border: i ? '1px solid rgba(255,255,255,0.10)' : '0', bg: p.on ? '#ebebeb' : '#444444', left: p.on ? '18px' : '2px', flip: () => this.setState((st) => ({ dirty: true, props: st.props.map((q, k) => (k === i ? { ...q, on: !q.on } : q)) })) })),
+      dirty: s.dirty,
+      files: Object.keys(FILES).map((name) => ({ name, cls: s.file === name ? 'file-on' : '', pick: () => this.setState({ file: name }) })),
+      fileBody: FILES[s.file],
+      plugins: s.plugins.map((p, i) => {
+        const cls = { installed: 'b-green', queued: 'b-amber', available: 'b-muted' }[p.status];
+        const action = { installed: 'Uninstall', queued: 'Remove', available: 'Add to queue' }[p.status];
+        const nextStatus = { installed: 'available', queued: 'available', available: 'queued' }[p.status];
+        return { ...p, cls, action, act: () => this.setState((st) => ({ plugins: st.plugins.map((q, k) => (k === i ? { ...q, status: nextStatus } : q)) })) };
+      }),
+      installedCount: s.plugins.filter((p) => p.status === 'installed').length,
+      queueCount: s.plugins.filter((p) => p.status === 'queued').length,
+      installAll: () => { this.setState((st) => ({ plugins: st.plugins.map((p) => (p.status === 'queued' ? { ...p, status: 'installed' } : p)) })); this.push('[wardend]: Installed queued plugins (sha256 verified)', '#c084fc'); },
+      backups: s.backups.map((b) => ({ ...b, cls: { scheduled: 'b-outline', 'pre-upgrade': 'b-amber', manual: 'b-sky' }[b.kind] })),
+      backupNow: () => { const d = new Date(), name = d.toISOString().slice(0, 16).replace(':', '-') + '.tar.zst'; this.setState((st) => ({ backups: [{ name, size: '1.9 GB', kind: 'manual' }].concat(st.backups) })); this.push('[wardend]: backup ' + inst.name + ' → ' + name + ' (1.9 GB) in 41 s', '#c084fc'); },
+    };
+  }
+}
+</script>
+</body>
+</html>

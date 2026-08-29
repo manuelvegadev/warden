@@ -1,0 +1,9 @@
+{
+  "artboards": [
+    { "file": "landing.dc.html", "title": "Warden landing · dark, live Beacon hero", "x": 0, "y": 0, "w": 1440, "h": 6300, "is_interactive": true }
+  ],
+  "annotations": [
+    { "id": "hero-note", "x": 1560, "y": 0, "w": 420, "text": "Hero = a mini Beacon opened on survival-main.\n• Sidebar: every instance section is navigable (Console, Metrics, Players, Properties, Files, Access, Plugins, Backups, Settings); the instance switcher cycles Paper / Purpur / Fabric (Plugins hides on Fabric).\n• Header: Stop / Restart / Start, resource tiles with live sparklines.\n• Console feeds lines over time and answers the command chips; right aside mirrors the real one (Status, Players, Server).\nAll data is dummy." }
+  ],
+  "launch": { "view": "focused", "file": "landing.dc.html" }
+}

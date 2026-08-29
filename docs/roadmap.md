@@ -43,6 +43,7 @@
 - [x] Backups (save-off/save-all flush/tar.zst with sidecar), restore with pre-restore safety copy, download/delete, in-daemon scheduler with keep/max-size retention
 - [x] TLS built into the daemon (files / ACME / self-signed), systemd unit + install script, optional daemon Dockerfile, deployment guide (`docs/deploy.md`)
 - [ ] Multi-node in the panel (several daemons)
+- [x] Landing page (`landing/`, static export on GitHub Pages) and `@warden/ui` shared package (ADR-014)
 - [x] Other providers: Purpur (api.purpurmc.org, md5), Fabric (meta.fabricmc.net launcher jar, loader = build), Vanilla (piston-meta, sha1); software picker in the panel, Plugins tab only for Paper/Purpur (ADR-013)
 
 ## Backlog (optional, unscheduled)
