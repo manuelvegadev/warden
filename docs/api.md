@@ -91,14 +91,15 @@ Creation body:
 ## Instance configuration
 | Method | Path | Description |
 |---|---|---|
-| GET | `/instances/{id}/properties` | `[{key,value,type:"bool|int|string|enum",default,enum:[],description,requiresRestart}]` |
+| GET | `/instances/{id}/properties` | `[{key,value,type:"bool|int|string|enum",default,enum:[],min,max,group,description,requiresRestart,managed,known}]` — schema in `internal/mc/properties_schema.go`; unknown keys returned as strings |
+| GET/PUT | `/instances/{id}/properties/raw` | Whole file as `text/plain`. PUT validates every `key=value` line against the schema; edits made while running are re-applied after the server rewrites the file on stop. Admin only for PUT. |
 | PUT | `/instances/{id}/properties` | `{"motd":"...", "max-players":"30"}` (only the keys sent). Response indicates `restartRequired` |
 | GET/PUT | `/instances/{id}/whitelist` | `[{uuid,name}]`; PUT replaces and runs `whitelist reload` |
 | POST/DELETE | `/instances/{id}/whitelist/{name}` | Resolves UUID via usercache/Mojang |
 | GET | `/instances/{id}/ops` | `[{uuid,name,level}]` |
 | POST/DELETE | `/instances/{id}/ops/{name}` | Runs `op`/`deop` if running; edits the JSON if stopped |
 | GET | `/instances/{id}/bans` | `{players:[...], ips:[...]}` |
-| POST | `/instances/{id}/bans` | `{"player":"Steve","reason":"...","expires":null}` or `{"ip":"..."}` |
+| POST | `/instances/{id}/bans` | `{"target":"Steve or 10.0.0.7","reason":"..."}` — the daemon decides between a player and an IP ban |
 | DELETE | `/instances/{id}/bans/{target}` | `pardon` / `pardon-ip` |
 | GET | `/instances/{id}/files?path=config` | Listing `[{name,size,mtime,dir}]` (confined to the instance dir) |
 | GET/PUT | `/instances/{id}/files/content?path=config/paper-global.yml` | Text (2 MB limit); PUT creates a `.bak` backup |

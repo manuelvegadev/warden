@@ -27,7 +27,8 @@
 - [x] Settings tab: name, memory, JVM preset/custom flags, Java runtime, restart policy, autostart, stop timeout
 
 ## Phase 2 — Configuration and plugins
-- [ ] `server.properties` schema; whitelist/ops/bans; confined file editor
+- [x] `server.properties` schema-driven editor (validation, restart hints); whitelist/ops/bans via live commands or JSON files, UUIDs from usercache/Mojang/offline
+- [ ] Confined file editor (Paper YAML configs)
 - [ ] `catalog/hangar` + `catalog/modrinth`; install/update/toggle plugins; read `plugin.yml` from jars
 - [ ] Paper build/version upgrade with prior backup
 - [ ] Panel: config screens and plugin browser

@@ -32,7 +32,7 @@ The panel will generate these flags from a template ("Aikar", "Basic", "Custom")
 | File | Format | Notes |
 |---|---|---|
 | `eula.txt` | properties | `eula=true` |
-| `server.properties` | properties | Relevant keys: `server-port`, `motd`, `max-players`, `online-mode`, `white-list`, `enforce-whitelist`, `difficulty`, `gamemode`, `pvp`, `view-distance`, `simulation-distance`, `level-name`, `level-seed`, `enable-rcon`, `rcon.port`, `rcon.password`, `enable-query`, `query.port`, `spawn-protection`, `allow-flight`, `enforce-secure-profile`. See schema in `internal/mc/properties_schema.go`. |
+| `server.properties` | properties | Relevant keys: `server-port`, `motd`, `max-players`, `online-mode`, `white-list`, `enforce-whitelist`, `difficulty`, `gamemode`, `pvp`, `view-distance`, `simulation-distance`, `level-name`, `level-seed`, `enable-rcon`, `rcon.port`, `rcon.password`, `enable-query`, `query.port`, `spawn-protection`, `allow-flight`, `enforce-secure-profile`. See schema in `internal/mc/properties_schema.go`. **The server rewrites this file from memory on shutdown**; edits made while it runs would be lost, so wardend re-applies them after the process exits. |
 | `whitelist.json` | `[{"uuid","name"}]` | Reload with `whitelist reload`. |
 | `ops.json` | `[{"uuid","name","level":1-4,"bypassesPlayerLimit"}]` | Prefer the `op/deop` commands. |
 | `banned-players.json` | `[{"uuid","name","created","source","expires","reason"}]` | |
