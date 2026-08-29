@@ -1,0 +1,17 @@
+# Go
+/bin/
+/dist/
+*.exe
+# Node / web
+node_modules/
+web/dist/
+# Datos locales de instancias (nunca commitear mundos ni jars)
+/data/
+/servers/
+*.jar
+# OS / editores
+.DS_Store
+.idea/
+.vscode/
+*.log
+.env
