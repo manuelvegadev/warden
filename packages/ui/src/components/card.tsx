@@ -1,6 +1,5 @@
+import { cn } from "@warden/ui/lib/utils";
 import type * as React from "react";
-
-import { cn } from "@/lib/utils";
 
 function Card({ className, size = "default", ...props }: React.ComponentProps<"div"> & { size?: "default" | "sm" }) {
   return (
