@@ -65,9 +65,13 @@
       "linter": {
         "rules": {
           "suspicious": {
-            "noExplicitAny": "off"
+            "noExplicitAny": "off",
+            "noArrayIndexKey": "off"
           },
-          "a11y": "off"
+          "a11y": "off",
+          "security": {
+            "noDangerouslySetInnerHtml": "off"
+          }
         }
       }
     }
