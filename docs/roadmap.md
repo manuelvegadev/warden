@@ -19,12 +19,12 @@
 - [x] `internal/metrics`: gopsutil every 2 s, in-memory 1 h ring + SQLite, `/metrics` endpoint
 - [x] Beacon: instance list (live), creation dialog (Paper versions/builds), console (xterm.js) with command history, resource cards, controls
 
-## Phase 1.5 — Hardening (before phase 2)
-- [ ] Tests for instance supervisor (fake `java` script) and ws hub
+## Phase 1.5 — Hardening ✅
+- [x] Tests for instance supervisor (fake `java` script), quiet TPS polling, ws hub (local Ed25519 JWKS) and player store
 - [x] Managed Java runtimes: Temurin via Adoptium into `<data>/java`, auto-selection by MC version, Settings → Java (ADR-010)
-- [ ] Network I/O per instance (interface counters) and TPS via `tps` command parsing
-- [ ] Metrics chart (1 h) in Beacon; players tab with join/leave history
-- [ ] Edit instance settings (memory, flags, autostart, restart policy) from Beacon
+- [x] Host network rates (interface counters) and TPS via quiet `tps` polling every ~16 s (reply hidden from the console)
+- [x] Metrics tab (CPU, memory, TPS, network — 1 h, time axis, persisted in SQLite); Players tab with play time, sessions and recent activity
+- [x] Settings tab: name, memory, JVM preset/custom flags, Java runtime, restart policy, autostart, stop timeout
 
 ## Phase 2 — Configuration and plugins
 - [ ] `server.properties` schema; whitelist/ops/bans; confined file editor

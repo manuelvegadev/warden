@@ -59,7 +59,8 @@ Instance create/patch accept `javaRuntime` (`"auto"` or a runtime id) and `javaP
 | GET | `/instances/{id}/console?lines=500` | Last lines of the ring buffer `[{ts,level,text}]`; falls back to the tail of `logs/latest.log` when the buffer is empty (daemon restart) |
 | GET | `/instances/{id}/logs` | `[{name,size,modTime}]` — `latest.log` first, then rotated `*.log.gz` |
 | GET | `/instances/{id}/logs/{file}?tail=500` | `{file, lines[]}` (max 5000; gz decompressed on the fly). `?download=1` streams the raw file with `Content-Disposition`. Without params: plain text. |
-| GET | `/instances/{id}/metrics?range=1h&step=10s` | Time series `[{ts,cpu,memRss,diskUsed,netRx,netTx,tps,players}]` from SQLite |
+| GET | `/instances/{id}/events?kind=player.join,player.leave&limit=100` | Persisted server events, newest first `[{ts,kind,player,text}]` |
+| GET | `/instances/{id}/metrics?range=1h` | Time series `[{ts,cpu,memRss,diskUsed,netRx,netTx,tps,players}]` from SQLite |
 | POST | `/instances/{id}/install` | Retry/redo the install task (`{"AcceptEULA":true,"Properties":{}}`) → `202 {task}`. Instance must be stopped. |
 | POST | `/instances/{id}/eula` | `{"accept":true}` → writes `eula.txt` |
 | POST | `/instances/{id}/upgrade` | `{"mcVersion":"1.21.8","build":60}` → `202` task. Takes a backup first. |
@@ -117,7 +118,9 @@ Creation body:
 ## Players
 | Method | Path | Description |
 |---|---|---|
-| GET | `/instances/{id}/players?online=true` | `[{uuid,name,online,firstSeen,lastSeen,playTimeSeconds,ip?,isOp,isWhitelisted}]` |
+| GET | `/instances/{id}/players` | `[{name,firstSeen,lastSeen,playTimeSeconds,online}]` from the store; `online` reflects the live process |
+| GET | `/instances/{id}/players/{name}/sessions?limit=50` | `[{name,joinedAt,leftAt?}]` |
+| GET | `/instances/{id}/players?online=true` (planned) | `[{uuid,name,online,firstSeen,lastSeen,playTimeSeconds,ip?,isOp,isWhitelisted}]` |
 | GET | `/instances/{id}/players/{uuid}` | Profile: sessions, key statistics (`play_time`, `deaths`, `mob_kills`, `player_kills`, `walk_one_cm`…), advancements `{done:N,total:N}` |
 | GET | `/instances/{id}/players/{uuid}/advancements` | `[{id:"minecraft:story/mine_stone",done:true,completedAt,criteria:{...}}]` |
 | GET | `/instances/{id}/players/{uuid}/stats` | Normalized JSON from `stats/<uuid>.json` |
