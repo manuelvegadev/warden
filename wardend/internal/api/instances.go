@@ -304,6 +304,8 @@ func (s *server) instanceAction(w http.ResponseWriter, r *http.Request, fn func(
 		switch {
 		case errors.Is(err, instance.ErrAlreadyRunning), errors.Is(err, instance.ErrNotRunning), errors.Is(err, instance.ErrNotInstalled):
 			writeError(w, 409, "invalid_state", err.Error())
+		case errors.Is(err, instance.ErrBadName), errors.Is(err, instance.ErrBadIP):
+			writeError(w, 400, "bad_request", err.Error())
 		default:
 			writeError(w, 500, "action_failed", err.Error())
 		}

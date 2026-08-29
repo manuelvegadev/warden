@@ -84,8 +84,23 @@ func NewRouter(d Deps) http.Handler {
 	mux.HandleFunc("GET /api/v1/instances/{id}/players/{name}/sessions", s.playerSessions)
 	mux.HandleFunc("GET /api/v1/instances/{id}/events", s.listEvents)
 
-	// Config, plugins, players, backups (see docs/api.md) — later phases
-	for _, p := range []string{"properties", "whitelist", "ops", "bans", "files", "plugins", "backups", "schedule"} {
+	// Configuration and access lists
+	mux.HandleFunc("GET /api/v1/instances/{id}/properties", s.getProperties)
+	mux.HandleFunc("PUT /api/v1/instances/{id}/properties", auth.RequireAdmin(s.putProperties))
+	mux.HandleFunc("GET /api/v1/instances/{id}/properties/raw", s.getPropertiesRaw)
+	mux.HandleFunc("PUT /api/v1/instances/{id}/properties/raw", auth.RequireAdmin(s.putPropertiesRaw))
+	mux.HandleFunc("GET /api/v1/instances/{id}/whitelist", s.getWhitelist)
+	mux.HandleFunc("POST /api/v1/instances/{id}/whitelist/{name}", s.addWhitelist)
+	mux.HandleFunc("DELETE /api/v1/instances/{id}/whitelist/{name}", s.removeWhitelist)
+	mux.HandleFunc("GET /api/v1/instances/{id}/ops", s.getOps)
+	mux.HandleFunc("POST /api/v1/instances/{id}/ops/{name}", auth.RequireAdmin(s.addOp))
+	mux.HandleFunc("DELETE /api/v1/instances/{id}/ops/{name}", auth.RequireAdmin(s.removeOp))
+	mux.HandleFunc("GET /api/v1/instances/{id}/bans", s.getBans)
+	mux.HandleFunc("POST /api/v1/instances/{id}/bans", s.addBan)
+	mux.HandleFunc("DELETE /api/v1/instances/{id}/bans/{target}", s.removeBan)
+
+	// Files, plugins, backups (see docs/api.md) — later phases
+	for _, p := range []string{"files", "plugins", "backups", "schedule"} {
 		mux.HandleFunc("/api/v1/instances/{id}/"+p, notImplemented)
 		mux.HandleFunc("/api/v1/instances/{id}/"+p+"/", notImplemented)
 	}
