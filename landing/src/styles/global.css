@@ -1,0 +1,56 @@
+@import "tailwindcss";
+@import "shadcn/tailwind.css";
+@import "@warden/ui/styles/theme.css";
+
+/* Self-hosted fonts (fontsource) exposed under the variable names @warden/ui's theme expects. */
+:root {
+  --font-geist-sans: "Geist Variable", system-ui, sans-serif;
+  --font-geist-mono: "Geist Mono Variable", ui-monospace, monospace;
+  --font-console: "Google Sans Code", "Geist Mono Variable", ui-monospace, monospace;
+}
+
+@layer base {
+  html {
+    @apply font-sans scroll-smooth;
+    color-scheme: dark;
+  }
+}
+
+/* Fade-up once when scrolled into view (Layout.astro flips data-inview with an IntersectionObserver). */
+.reveal {
+  opacity: 0;
+  transform: translateY(18px);
+  transition:
+    opacity 0.6s cubic-bezier(0.2, 0.7, 0.2, 1),
+    transform 0.6s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+.reveal[data-inview] {
+  opacity: 1;
+  transform: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}
+
+/* Chart lines draw themselves in on first paint (features, how-it-works). */
+@keyframes draw {
+  from {
+    stroke-dashoffset: 900;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.draw {
+  stroke-dasharray: 900;
+  animation: draw 2.4s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .draw {
+    animation: none;
+  }
+}

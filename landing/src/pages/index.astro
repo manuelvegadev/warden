@@ -1,0 +1,31 @@
+---
+import { Features } from "@/components/features";
+import { BeaconDemo } from "@/components/demo/beacon-demo";
+import { Hero } from "@/components/hero";
+import { HowItWorks } from "@/components/how-it-works";
+import { Install } from "@/components/install";
+import { SiteFooter } from "@/components/site-footer";
+import { SiteNav } from "@/components/site-nav";
+import { UnderTheHood } from "@/components/under-the-hood";
+import Layout from "@/layouts/Layout.astro";
+
+const description =
+  "Warden is a Go daemon that supervises Paper, Purpur, Fabric and Vanilla servers on your own box, with Beacon, a live web panel on top.";
+---
+
+<Layout title="Warden — a modern control plane for Minecraft servers" description={description}>
+  <div id="top">
+    <SiteNav />
+    <main>
+      {/* Only the demo and the install tabs hydrate; everything else is rendered to HTML at build time. */}
+      <Hero>
+        <BeaconDemo client:visible />
+      </Hero>
+      <HowItWorks />
+      <UnderTheHood />
+      <Features />
+      <Install client:visible />
+    </main>
+    <SiteFooter />
+  </div>
+</Layout>

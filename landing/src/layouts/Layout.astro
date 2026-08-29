@@ -1,0 +1,53 @@
+---
+// Geist ships one CSS with unicode-range per subset (the browser fetches only what it renders);
+// Google Sans Code is imported latin-only. assetsInlineLimit: 0 keeps every face an external file.
+import "@fontsource-variable/geist/wght.css";
+import "@fontsource-variable/geist-mono/wght.css";
+import "@fontsource/google-sans-code/latin-400.css";
+import "@fontsource/google-sans-code/latin-500.css";
+import "@/styles/global.css";
+
+interface Props {
+  title: string;
+  description: string;
+}
+const { title, description } = Astro.props;
+const url = Astro.site?.toString() ?? "/";
+---
+
+<!doctype html>
+<!-- The landing is dark-only: the `dark` class selects the dark tokens from @warden/ui. -->
+<html lang="en" class="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={url} />
+    <meta property="og:title" content="Warden" />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={url} />
+    <meta property="og:site_name" content="Warden" />
+    <meta property="og:type" content="website" />
+    <meta name="theme-color" content="#252525" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  </head>
+  <body class="min-h-screen bg-background font-sans text-foreground antialiased">
+    <slot />
+    <script>
+      // Reveal-on-scroll for `.reveal` elements; each fires once.
+      const io = new IntersectionObserver(
+        (entries) => {
+          for (const e of entries) {
+            if (e.isIntersecting) {
+              e.target.setAttribute("data-inview", "");
+              io.unobserve(e.target);
+            }
+          }
+        },
+        { rootMargin: "-80px 0px" },
+      );
+      for (const el of document.querySelectorAll(".reveal")) io.observe(el);
+    </script>
+  </body>
+</html>

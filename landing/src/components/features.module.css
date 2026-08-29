@@ -1,0 +1,44 @@
+/* 3D tilt on the example cards (flattens on hover) and the small loops inside them. */
+.tilt {
+  transform: perspective(1400px) rotateY(-10deg) rotateX(5deg) rotateZ(1deg);
+  transform-origin: center;
+  transition:
+    transform 0.6s cubic-bezier(0.2, 0.7, 0.2, 1),
+    box-shadow 0.6s;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.1),
+    30px 40px 80px -30px rgba(0, 0, 0, 0.7);
+}
+.tiltLeft {
+  transform: perspective(1400px) rotateY(10deg) rotateX(5deg) rotateZ(-1deg);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.1),
+    -30px 40px 80px -30px rgba(0, 0, 0, 0.7);
+}
+.tilt:hover {
+  transform: perspective(1400px) rotateY(0) rotateX(0) rotateZ(0);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.14),
+    0 24px 60px -30px rgba(0, 0, 0, 0.6);
+}
+@keyframes fillup {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+.fillup {
+  transform-origin: left;
+  animation: fillup 6s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tilt,
+  .tiltLeft {
+    transform: none;
+  }
+  .fillup {
+    animation: none;
+  }
+}
