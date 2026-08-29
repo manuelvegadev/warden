@@ -17,10 +17,10 @@ async function proxy(req: NextRequest, ctx: { params: Promise<{ path: string[] }
     const status = msg === "unauthenticated" ? 401 : 502;
     return NextResponse.json({ error: { code: status === 401 ? "unauthenticated" : "wardend_unreachable", message: msg } }, { status });
   }
-  return new NextResponse(upstream.body, {
-    status: upstream.status,
-    headers: { "Content-Type": upstream.headers.get("content-type") ?? "application/json" },
-  });
+  const headers: Record<string, string> = { "Content-Type": upstream.headers.get("content-type") ?? "application/json" };
+  const disposition = upstream.headers.get("content-disposition");
+  if (disposition) headers["Content-Disposition"] = disposition;
+  return new NextResponse(upstream.body, { status: upstream.status, headers });
 }
 
 export { proxy as GET, proxy as POST, proxy as PUT, proxy as PATCH, proxy as DELETE };
