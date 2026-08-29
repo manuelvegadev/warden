@@ -1,2 +1,2 @@
-// Package metrics muestrea CPU/RAM/disco/red por instancia desde /proc (gopsutil) y persiste series en SQLite.
+// Package metrics samples CPU/RAM/disk/network per instance from /proc (gopsutil) and persists series in SQLite.
 package metrics

@@ -1,4 +1,4 @@
-// Package api expone la API REST v1 descrita en docs/api.md.
+// Package api exposes the REST API v1 described in docs/api.md.
 package api
 
 import (
@@ -17,7 +17,7 @@ type server struct {
 	version string
 }
 
-// NewRouter monta la API. Todo /api/v1 salvo /health exige JWT de Beacon (ADR-009).
+// NewRouter mounts the API. Everything under /api/v1 except /health requires a Beacon JWT (ADR-009).
 func NewRouter(cfg *config.Config, mgr *instance.Manager, verifier *auth.Verifier, version string) http.Handler {
 	s := &server{cfg: cfg, mgr: mgr, version: version}
 	root := http.NewServeMux()
@@ -26,11 +26,11 @@ func NewRouter(cfg *config.Config, mgr *instance.Manager, verifier *auth.Verifie
 	mux := http.NewServeMux()
 	root.Handle("/api/v1/", verifier.Middleware(mux))
 
-	// Sistema
+	// System
 	mux.HandleFunc("GET /api/v1/system", s.system)
 	mux.HandleFunc("GET /api/v1/auth/me", s.me)
 
-	// Catálogo (TODO: internal/catalog)
+	// Catalog (TODO: internal/catalog)
 	mux.HandleFunc("GET /api/v1/catalog/servers", notImplemented)
 	mux.HandleFunc("GET /api/v1/catalog/servers/{provider}/versions", notImplemented)
 	mux.HandleFunc("GET /api/v1/catalog/servers/{provider}/versions/{mc}/builds", notImplemented)
@@ -38,7 +38,7 @@ func NewRouter(cfg *config.Config, mgr *instance.Manager, verifier *auth.Verifie
 	mux.HandleFunc("GET /api/v1/catalog/plugins/{source}/{id}", notImplemented)
 	mux.HandleFunc("GET /api/v1/catalog/plugins/{source}/{id}/versions", notImplemented)
 
-	// Instancias
+	// Instances
 	mux.HandleFunc("GET /api/v1/instances", s.listInstances)
 	mux.HandleFunc("POST /api/v1/instances", auth.RequireAdmin(s.createInstance))
 	mux.HandleFunc("GET /api/v1/instances/{id}", s.getInstance)
@@ -53,19 +53,19 @@ func NewRouter(cfg *config.Config, mgr *instance.Manager, verifier *auth.Verifie
 	mux.HandleFunc("GET /api/v1/instances/{id}/metrics", notImplemented)
 	mux.HandleFunc("POST /api/v1/instances/{id}/eula", notImplemented)
 
-	// Config, plugins, jugadores, backups (ver docs/api.md)
+	// Config, plugins, players, backups (see docs/api.md)
 	for _, p := range []string{"properties", "whitelist", "ops", "bans", "files", "plugins", "players", "backups", "schedule"} {
 		mux.HandleFunc("/api/v1/instances/{id}/"+p, notImplemented)
 		mux.HandleFunc("/api/v1/instances/{id}/"+p+"/", notImplemented)
 	}
 
-	// WebSocket: autentica con el JWT en el primer mensaje, no por cabecera (TODO: internal/ws)
+	// WebSocket: authenticates with the JWT in the first message, not via header (TODO: internal/ws)
 	root.HandleFunc("GET /api/v1/ws", notImplemented)
 
-	// Página de diagnóstico; la UI real es Beacon (ADR-007)
+	// Diagnostic page; the real UI is Beacon (ADR-007)
 	root.HandleFunc("GET /{$}", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		_, _ = w.Write([]byte("<h1>wardend " + version + "</h1><p>API en <code>/api/v1</code>. La UI es Beacon.</p>"))
+		_, _ = w.Write([]byte("<h1>wardend " + version + "</h1><p>API at <code>/api/v1</code>. The UI is Beacon.</p>"))
 	})
 
 	return cors(cfg.AllowedOrigins, logging(root))
@@ -102,5 +102,5 @@ func writeError(w http.ResponseWriter, status int, code, msg string) {
 }
 
 func notImplemented(w http.ResponseWriter, _ *http.Request) {
-	writeError(w, http.StatusNotImplemented, "not_implemented", "endpoint pendiente; ver docs/api.md")
+	writeError(w, http.StatusNotImplemented, "not_implemented", "endpoint not implemented yet; see docs/api.md")
 }

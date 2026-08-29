@@ -1,25 +1,23 @@
-# Nombres y estructura del repositorio
+# Names and repository structure
 
-## ¿Monorepo?
-**Sí.** Un solo repo con `wardend/` y `beacon/` (más `docs/`). Razones: la API es un contrato compartido entre ambos (se versionan juntos, un PR cambia los dos lados), un solo lugar para ADRs y CI, y Dokploy puede construir desde un subdirectorio (`beacon/`). Tooling: Go módulo independiente en `wardend/`, `npm` en `beacon/`; no hace falta Turborepo/Nx mientras solo haya una app Node. Releases: tags `daemon/v0.1.0` y `panel/v0.1.0` separados.
+## Monorepo?
+**Yes.** A single repo with `wardend/` and `beacon/` (plus `docs/`). Reasons: the API is a contract shared by both (they are versioned together, one PR changes both sides), a single place for ADRs and CI, and Dokploy can build from a subdirectory (`beacon/`). Tooling: independent Go module in `wardend/`, `npm` in `beacon/`; no need for Turborepo/Nx while there is only one Node app. Releases: separate `daemon/v0.1.0` and `panel/v0.1.0` tags.
 
-## Propuestas de nombre
-Criterio: corto, tecleable como comando (`<daemon>` en systemd, binario), con guiño a Minecraft, y sin colisionar con proyectos conocidos (Wings, Crafty, Pelican, Pufferpanel, Lodestone Console… ⚠️ *Lodestone* ya existe como panel de Minecraft en Rust).
+## Name proposals
+Criteria: short, typeable as a command (`<daemon>` in systemd, binary), with a nod to Minecraft, and not colliding with known projects (Wings, Crafty, Pelican, Pufferpanel, Lodestone Console… ⚠️ *Lodestone* already exists as a Minecraft panel in Rust).
 
-| Proyecto | Daemon (Go) | Panel (Next.js) | Comentario |
+| Project | Daemon (Go) | Panel (Next.js) | Comment |
 |---|---|---|---|
-| **Warden** | `wardend` | `beacon` / "Warden" | El Warden vigila. El daemon con sufijo `d` al estilo Unix. |
-| **Beacon** | `beacond` | `beacon` | El beacon es la "señal" del servidor; panel = beacon, daemon = quien lo alimenta. |
-| **Observer** + **Command Block** | `observerd` | `commandblock` | Dos bloques con roles literales: observar/ejecutar. Nombres largos. |
-| **Hopper** | `hopperd` | `hopper-ui` | Hopper mueve cosas entre contenedores; simpático pero poco descriptivo. |
-| **Craftdeck** | `craftd` | `craftdeck` | Sin referencia a un ítem; "deck" = tablero de mando. Muy tecleable. |
-| **Piston** | `pistond` | `piston` | Empuja/arranca cosas. Colisiona con Piston (runtime de código). |
+| **Warden** | `wardend` | `beacon` / "Warden" | The Warden keeps watch. Daemon with a Unix-style `d` suffix. |
+| **Beacon** | `beacond` | `beacon` | The beacon is the server's "signal"; panel = beacon, daemon = what powers it. |
+| **Observer** + **Command Block** | `observerd` | `commandblock` | Two blocks with literal roles: observe/execute. Long names. |
+| **Hopper** | `hopperd` | `hopper-ui` | A hopper moves things between containers; cute but not very descriptive. |
+| **Craftdeck** | `craftd` | `craftdeck` | No reference to an item; "deck" = control board. Very typeable. |
+| **Piston** | `pistond` | `piston` | Pushes/starts things. Collides with Piston (code runtime). |
 
-## Recomendación
-- Repo/proyecto: **Craftdeck** (`craftdeck`).
-- Daemon: **`craftd`** (binario `craftd`, servicio `craftd.service`, variables `CRAFTD_*`).
-- Panel: **`craftdeck`** (imagen Docker `craftdeck-panel`).
+## Decision
+- Repo/project: **Warden**.
+- Daemon: **`wardend`** (binary `wardend`, service `wardend.service`, `WARDEND_*` variables).
+- Panel: **Beacon** (`beacon/`).
 
-Alternativa con más personalidad: **Warden** (`wardend`) + panel **Beacon** — daemon que vigila, panel que muestra.
-
-Los nombres actuales del esqueleto (`wardend`, `panel`) son provisionales; renombrar es un `sed` global y se hará en cuanto se elija.
+A daemon that keeps watch, a panel that shows. The earlier recommendation (**Craftdeck** / `craftd`) was discarded in favor of this option, which has more personality.

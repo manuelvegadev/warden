@@ -1,40 +1,40 @@
-# Investigación
+# Research
 
-Fecha: 2026-08-28
+Date: 2026-08-28
 
-## 1. Cómo están construidas las alternativas existentes
+## 1. How the existing alternatives are built
 
-| Panel | Backend | UI | Aislamiento | Notas |
+| Panel | Backend | UI | Isolation | Notes |
 |---|---|---|---|---|
-| **Pterodactyl** | Panel en PHP (Laravel) + daemon *Wings* en **Go** | Web (React) | Docker obligatorio | Multi-nodo, multi-juego. Panel + Wings consumen ~1.5–2 GB RAM en reposo. Arquitectura de referencia: daemon separado que expone REST + WebSocket para consola/stats. |
-| **Pelican Panel** | Fork de Pterodactyl (PHP + Go) | Web | Docker | Misma arquitectura, mantenimiento más activo. |
-| **PufferPanel** | **Go** (monolito) | Web (Vue) | Opcional | Muy ligero, sistema de plantillas por juego. |
-| **Crafty Controller** | **Python** (Tornado), monolito | Web | Sin Docker: hace `fork` del proceso Java y lo maneja por stdin/stdout | Solo Minecraft, un solo nodo, 300–400 MB RAM. Es lo más parecido a lo que queremos. |
-| **MCSManager** | **Node.js** (web + daemon separados) | Web | Sin Docker (opcional) | 100–200 MB RAM. Procesos nativos. |
-| **AMP (CubeCoders)** | C# | Web | Opcional | Comercial. |
+| **Pterodactyl** | Panel in PHP (Laravel) + *Wings* daemon in **Go** | Web (React) | Docker required | Multi-node, multi-game. Panel + Wings use ~1.5–2 GB RAM idle. Reference architecture: separate daemon exposing REST + WebSocket for console/stats. |
+| **Pelican Panel** | Fork of Pterodactyl (PHP + Go) | Web | Docker | Same architecture, more active maintenance. |
+| **PufferPanel** | **Go** (monolith) | Web (Vue) | Optional | Very light, per-game template system. |
+| **Crafty Controller** | **Python** (Tornado), monolith | Web | No Docker: `fork`s the Java process and drives it via stdin/stdout | Minecraft only, single node, 300–400 MB RAM. The closest to what we want. |
+| **MCSManager** | **Node.js** (separate web + daemon) | Web | No Docker (optional) | 100–200 MB RAM. Native processes. |
+| **AMP (CubeCoders)** | C# | Web | Optional | Commercial. |
 
-### Conclusiones
-- Todas usan **interfaz web**. Ninguna nativa. Tiene sentido: el servidor es headless en Ubuntu y se administra desde cualquier dispositivo.
-- Los daemons serios (Wings, PufferPanel) están en **Go**: binario estático, buen manejo de procesos y concurrencia, fácil de instalar como servicio `systemd`.
-- Los paneles solo-Minecraft (Crafty, MCSManager) **no usan Docker**: lanzan `java -jar server.jar` directamente y hablan con él por **stdin/stdout**. Es más simple y suficiente para un servidor propio.
-- El patrón común: **API REST para acciones + WebSocket para consola y métricas en tiempo real**.
+### Conclusions
+- All of them use a **web interface**. None is native. It makes sense: the server is headless on Ubuntu and is managed from any device.
+- The serious daemons (Wings, PufferPanel) are written in **Go**: static binary, good process handling and concurrency, easy to install as a `systemd` service.
+- The Minecraft-only panels (Crafty, MCSManager) **do not use Docker**: they launch `java -jar server.jar` directly and talk to it over **stdin/stdout**. Simpler and sufficient for a self-hosted server.
+- The common pattern: **REST API for actions + WebSocket for console and real-time metrics**.
 
-Fuentes: [Pterodactyl Wings architecture](https://mintlify.wiki/pterodactyl/wings/concepts/architecture), [deepwiki pterodactyl/wings](https://deepwiki.com/pterodactyl/wings), [Pterodactyl vs Crafty vs MCSManager 2026](https://mineguard.pro/en/blog/pterodactyl-vs-crafty-vs-mcsmanager-2026), [Open Source Game Server Panels Compared 2026](https://catalystctl.com/blog/open-source-game-server-panels/), [Pufferpanel vs Crafty](https://www.saashub.com/compare-pufferpanel-vs-crafty-controller), [Pterodactyl vs AMP vs Crafty](https://www.bigiron.cc/guides/pterodactyl-vs-amp-vs-crafty-controller).
+Sources: [Pterodactyl Wings architecture](https://mintlify.wiki/pterodactyl/wings/concepts/architecture), [deepwiki pterodactyl/wings](https://deepwiki.com/pterodactyl/wings), [Pterodactyl vs Crafty vs MCSManager 2026](https://mineguard.pro/en/blog/pterodactyl-vs-crafty-vs-mcsmanager-2026), [Open Source Game Server Panels Compared 2026](https://catalystctl.com/blog/open-source-game-server-panels/), [Pufferpanel vs Crafty](https://www.saashub.com/compare-pufferpanel-vs-crafty-controller), [Pterodactyl vs AMP vs Crafty](https://www.bigiron.cc/guides/pterodactyl-vs-amp-vs-crafty-controller).
 
-## 2. Formas de interactuar con un servidor de Minecraft Java
+## 2. Ways to interact with a Minecraft Java server
 
-| Mecanismo | Qué da | Requisitos | Uso previsto |
+| Mechanism | What it provides | Requirements | Intended use |
 |---|---|---|---|
-| **stdin/stdout del proceso** | Consola completa, ejecutar cualquier comando (`say`, `whitelist add`, `stop`…), ver joins/leaves/chat/logros en el log | Ser el proceso padre (el daemon lo lanza) | **Principal**. Gratis si somos quien lanza el `java`. |
-| **RCON** (TCP, puerto 25575) | Ejecutar comandos y recibir la respuesta como texto | `enable-rcon=true` + `rcon.password` en `server.properties` | Secundario: obtener la *respuesta* de un comando (p.ej. `list`) de forma sincrónica, sin parsear el log. |
-| **Server List Ping** (TCP, puerto del juego) | MOTD, versión, jugadores online/max y muestra de nombres, latencia | Ninguno | Estado rápido del servidor y jugadores online, aun si no somos el padre del proceso. |
-| **Query** (UDP, GameSpy4) | Lista completa de jugadores, plugins, mapa | `enable-query=true` | Opcional; más frágil que Ping. |
-| **Archivos del mundo** | `world/advancements/<uuid>.json` (logros), `world/stats/<uuid>.json` (estadísticas), `usercache.json` (uuid→nombre), `whitelist.json`, `ops.json`, `banned-players.json`, `server.properties` | Acceso al disco | Logros, estadísticas, y gestión de configuración. Ojo: el servidor guarda estos archivos periódicamente y al `save-all`. |
-| **Logs** (`logs/latest.log`) | Historial de eventos | Acceso al disco | Reconstruir historial de conexiones cuando el daemon no estaba escuchando. |
+| **Process stdin/stdout** | Full console, run any command (`say`, `whitelist add`, `stop`…), see joins/leaves/chat/advancements in the log | Being the parent process (the daemon launches it) | **Primary**. Free if we are the one launching `java`. |
+| **RCON** (TCP, port 25575) | Run commands and receive the response as text | `enable-rcon=true` + `rcon.password` in `server.properties` | Secondary: get the *response* of a command (e.g. `list`) synchronously, without parsing the log. |
+| **Server List Ping** (TCP, game port) | MOTD, version, online/max players and a sample of names, latency | None | Quick server status and online players, even if we are not the process parent. |
+| **Query** (UDP, GameSpy4) | Full player list, plugins, map | `enable-query=true` | Optional; more fragile than Ping. |
+| **World files** | `world/advancements/<uuid>.json` (advancements), `world/stats/<uuid>.json` (statistics), `usercache.json` (uuid→name), `whitelist.json`, `ops.json`, `banned-players.json`, `server.properties` | Disk access | Advancements, statistics, and config management. Note: the server saves these files periodically and on `save-all`. |
+| **Logs** (`logs/latest.log`) | Event history | Disk access | Rebuild connection history when the daemon was not listening. |
 
-Fuentes: [RCON – Minecraft Wiki](https://minecraft.wiki/w/RCON), [mctools docs (RCON/Query/Ping)](https://mctools.readthedocs.io/), [mcipc](https://github.com/conqp/mcipc), [Advancement – Minecraft Wiki](https://minecraft.wiki/w/Advancement).
+Sources: [RCON – Minecraft Wiki](https://minecraft.wiki/w/RCON), [mctools docs (RCON/Query/Ping)](https://mctools.readthedocs.io/), [mcipc](https://github.com/conqp/mcipc), [Advancement – Minecraft Wiki](https://minecraft.wiki/w/Advancement).
 
-### Eventos parseables del log (formato vanilla/Paper)
+### Parseable log events (vanilla/Paper format)
 ```
 [HH:MM:SS] [Server thread/INFO]: Done (12.345s)! For help, type "help"
 [HH:MM:SS] [Server thread/INFO]: Steve joined the game
@@ -44,34 +44,34 @@ Fuentes: [RCON – Minecraft Wiki](https://minecraft.wiki/w/RCON), [mctools docs
 [HH:MM:SS] [Server thread/INFO]: There are 2 of a max of 20 players online: Steve, Alex
 ```
 
-## 3. Métricas de recursos en Linux
+## 3. Resource metrics on Linux
 
-- **CPU y RAM del proceso Java**: `/proc/<pid>/stat` y `/proc/<pid>/status`. En Go: `gopsutil` (`process.NewProcess(pid).CPUPercent()`, `.MemoryInfo()`).
-- **Disco**: tamaño del directorio de la instancia (`filepath.Walk`) + espacio libre del volumen (`disk.Usage`).
-- **Red**: Linux no expone tráfico por proceso sin eBPF/`nethogs`. Opciones:
-  1. Contadores del sistema/interfaz (`/proc/net/dev`) — simple, aproximado (una sola instancia ⇒ prácticamente todo el tráfico es del server).
-  2. Ejecutar la instancia en un **cgroup v2** propio (`systemd-run --scope` o crear `/sys/fs/cgroup/mc-<id>/`) — da CPU/RAM exactas y permite límites; red por cgroup requiere eBPF.
-  3. Docker (`docker stats`) — da todo incluido red, a costa de más complejidad.
+- **CPU and RAM of the Java process**: `/proc/<pid>/stat` and `/proc/<pid>/status`. In Go: `gopsutil` (`process.NewProcess(pid).CPUPercent()`, `.MemoryInfo()`).
+- **Disk**: size of the instance directory (`filepath.Walk`) + free space on the volume (`disk.Usage`).
+- **Network**: Linux does not expose per-process traffic without eBPF/`nethogs`. Options:
+  1. System/interface counters (`/proc/net/dev`) — simple, approximate (with a single instance, practically all traffic belongs to the server).
+  2. Run the instance in its own **cgroup v2** (`systemd-run --scope` or create `/sys/fs/cgroup/mc-<id>/`) — gives exact CPU/RAM and allows limits; per-cgroup network requires eBPF.
+  3. Docker (`docker stats`) — gives everything including network, at the cost of more complexity.
   
-  Decisión inicial: `/proc` + gopsutil, red a nivel de interfaz. cgroups como mejora futura.
+  Initial decision: `/proc` + gopsutil, network at interface level. cgroups as a future improvement.
 
-## 4. Lenguajes evaluados para el daemon
+## 4. Languages evaluated for the daemon
 
 | | Go | Rust | Java/Kotlin | Node.js | Python |
 |---|---|---|---|---|---|
-| Binario único sin runtime | ✅ | ✅ | ❌ (necesita JVM, aunque ya está instalada por MC) | ❌ | ❌ |
-| Manejo de procesos hijos / stdin-stdout | Excelente (`os/exec`) | Bueno (`tokio::process`) | Aceptable (`ProcessBuilder`) | Bueno | Bueno |
-| HTTP + WebSocket | stdlib + `gorilla/websocket` o `nhooyr` | `axum` + `tokio-tungstenite` | Spring/Javalin | Express/Fastify + `ws` | FastAPI |
-| Métricas del sistema | `gopsutil` | `sysinfo` | OSHI | `systeminformation` | `psutil` |
-| RCON / Ping | `gorcon/rcon`, `go-mc` | crate `rcon`, `mcping` | varias | `rcon-client`, `minecraft-server-util` | `mctools`, `mcipc` |
-| Embeber la UI web en el binario | `embed` (stdlib) | `rust-embed` | JAR resources | ❌ | ❌ |
-| Consumo de RAM del daemon | ~20–40 MB | ~10–20 MB | ~150–300 MB | ~80–150 MB | ~100–200 MB |
-| Velocidad de desarrollo | Alta | Media (curva de aprendizaje) | Media | Alta | Alta |
-| Precedente en el ecosistema | Wings, PufferPanel | — | — | MCSManager | Crafty |
+| Single binary without runtime | ✅ | ✅ | ❌ (needs a JVM, though one is already installed for MC) | ❌ | ❌ |
+| Child process / stdin-stdout handling | Excellent (`os/exec`) | Good (`tokio::process`) | Acceptable (`ProcessBuilder`) | Good | Good |
+| HTTP + WebSocket | stdlib + `gorilla/websocket` or `nhooyr` | `axum` + `tokio-tungstenite` | Spring/Javalin | Express/Fastify + `ws` | FastAPI |
+| System metrics | `gopsutil` | `sysinfo` | OSHI | `systeminformation` | `psutil` |
+| RCON / Ping | `gorcon/rcon`, `go-mc` | `rcon` crate, `mcping` | several | `rcon-client`, `minecraft-server-util` | `mctools`, `mcipc` |
+| Embedding the web UI in the binary | `embed` (stdlib) | `rust-embed` | JAR resources | ❌ | ❌ |
+| Daemon RAM usage | ~20–40 MB | ~10–20 MB | ~150–300 MB | ~80–150 MB | ~100–200 MB |
+| Development speed | High | Medium (learning curve) | Medium | High | High |
+| Precedent in the ecosystem | Wings, PufferPanel | — | — | MCSManager | Crafty |
 
-**Go** es el punto óptimo: es lo que usan los daemons de referencia, entrega un binario estático para `systemd`, y la iteración es rápida. **Rust** sería igualmente válido si se prioriza aprenderlo, pero alarga el desarrollo. **Java** tiene la ventaja de compartir JVM con el servidor y poder leer NBT con librerías maduras, pero el daemon pesaría más que el propio panel de Crafty.
+**Go** is the sweet spot: it is what the reference daemons use, it yields a static binary for `systemd`, and iteration is fast. **Rust** would be equally valid if learning it is a priority, but it lengthens development. **Java** has the advantage of sharing the JVM with the server and being able to read NBT with mature libraries, but the daemon would weigh more than Crafty's entire panel.
 
-## 5. Interfaz: web vs nativa
+## 5. Interface: web vs native
 
-- Web: accesible desde PC/móvil sin instalar nada, es lo que hacen todos los paneles, y la consola en vivo + gráficas de recursos son triviales con WebSocket + una librería de charts.
-- Nativa (Tauri/Electron/JavaFX): añade una app cliente que hay que distribuir y mantener, y de todos modos necesitaría la misma API. Descartada; una PWA cubre el caso de "app en el móvil".
+- Web: reachable from PC/mobile without installing anything, it is what every panel does, and live console + resource charts are trivial with WebSocket + a charting library.
+- Native (Tauri/Electron/JavaFX): adds a client app that must be distributed and maintained, and it would need the same API anyway. Discarded; a PWA covers the "app on the phone" case.

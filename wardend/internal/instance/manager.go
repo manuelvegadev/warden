@@ -16,7 +16,7 @@ var idRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{1,31}$`)
 var ErrNotFound = errors.New("instance not found")
 var ErrInvalidID = errors.New("invalid instance id")
 
-// Manager conoce todas las instancias bajo serversDir.
+// Manager knows every instance under serversDir.
 type Manager struct {
 	root string
 	mu   sync.RWMutex
@@ -27,7 +27,7 @@ func NewManager(serversDir string) *Manager {
 	return &Manager{root: serversDir, byID: map[string]*Instance{}}
 }
 
-// LoadAll lee cada <root>/<id>/instance.json.
+// LoadAll reads every <root>/<id>/instance.json.
 func (m *Manager) LoadAll() error {
 	entries, err := os.ReadDir(m.root)
 	if err != nil {
@@ -72,7 +72,7 @@ func (m *Manager) List() []*Instance {
 	return out
 }
 
-// Create escribe el manifiesto y el árbol de directorios. La descarga del jar es una tarea aparte (tasks).
+// Create writes the manifest and the directory tree. Downloading the jar is a separate task (tasks).
 func (m *Manager) Create(man *Manifest) (*Instance, error) {
 	if !idRe.MatchString(man.ID) {
 		return nil, ErrInvalidID

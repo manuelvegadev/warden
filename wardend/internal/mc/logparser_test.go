@@ -12,7 +12,7 @@ func TestParse(t *testing.T) {
 		{`[12:00:05] [Server thread/INFO]: Done (4.123s)! For help, type "help"`, EvServerReady, ""},
 		{`[12:01:01 INFO]: Steve joined the game`, EvPlayerJoin, "Steve"},
 		{`[12:05:00 INFO]: Steve left the game`, EvPlayerLeave, "Steve"},
-		{`[12:02:00 INFO]: <Steve> hola`, EvPlayerChat, "Steve"},
+		{`[12:02:00 INFO]: <Steve> hello`, EvPlayerChat, "Steve"},
 		{`[12:02:10 INFO]: Steve has made the advancement [Stone Age]`, EvPlayerAdvance, "Steve"},
 		{`[12:09:01 WARN]: Can't keep up! Is the server overloaded?`, EvServerOverloaded, ""},
 	}

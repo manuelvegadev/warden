@@ -11,16 +11,16 @@ func writeErr(w http.ResponseWriter, status int, code, msg string) {
 	_ = json.NewEncoder(w).Encode(map[string]any{"error": map[string]string{"code": code, "message": msg}})
 }
 
-// Middleware exige X-Panel-Key (si está configurada) y un JWT válido; deja el Principal en el contexto.
+// Middleware requires X-Panel-Key (if configured) and a valid JWT; it stores the Principal in the context.
 func (v *Verifier) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !v.CheckPanelKey(r) {
-			writeErr(w, http.StatusForbidden, "bad_panel_key", "X-Panel-Key inválida")
+			writeErr(w, http.StatusForbidden, "bad_panel_key", "invalid X-Panel-Key")
 			return
 		}
 		raw := BearerToken(r)
 		if raw == "" {
-			writeErr(w, http.StatusUnauthorized, "unauthenticated", "falta Authorization: Bearer")
+			writeErr(w, http.StatusUnauthorized, "unauthenticated", "missing Authorization: Bearer")
 			return
 		}
 		p, err := v.Verify(r.Context(), raw)
@@ -32,12 +32,12 @@ func (v *Verifier) Middleware(next http.Handler) http.Handler {
 	})
 }
 
-// RequireAdmin envuelve un handler que solo pueden usar administradores.
+// RequireAdmin wraps a handler that only administrators may use.
 func RequireAdmin(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		p, ok := FromContext(r.Context())
 		if !ok || !p.IsAdmin() {
-			writeErr(w, http.StatusForbidden, "forbidden", "requiere rol admin")
+			writeErr(w, http.StatusForbidden, "forbidden", "admin role required")
 			return
 		}
 		next(w, r)

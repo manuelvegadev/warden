@@ -7,14 +7,14 @@ import (
 	"time"
 )
 
-// Manifest es el contenido de instance.json. Ver docs/adr/006-multi-instancia.md.
+// Manifest is the content of instance.json. See docs/adr/006-multi-instance.md.
 type Manifest struct {
 	ID            string            `json:"id"`
 	Name          string            `json:"name"`
 	Software      string            `json:"software"`  // "paper"
 	MCVersion     string            `json:"mcVersion"` // "1.21.8"
 	Build         int               `json:"build"`
-	Jar           string            `json:"jar"` // nombre del jar dentro de server/
+	Jar           string            `json:"jar"` // jar file name inside server/
 	JavaPath      string            `json:"javaPath,omitempty"`
 	MemoryMB      int               `json:"memoryMb"`
 	JVMPreset     string            `json:"jvmFlagsPreset"` // aikar|basic|custom

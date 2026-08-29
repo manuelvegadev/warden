@@ -1,29 +1,29 @@
-# Tooling para desarrollo asistido (MCP + skills)
+# Tooling for assisted development (MCP + skills)
 
-Configurado el 2026-08-28. Los MCP del proyecto están en `.mcp.json` (raíz); las skills en `.claude/skills/` (instaladas con `npx skills add …`, se versionan en el repo).
+Configured on 2026-08-28. The project MCPs live in `.mcp.json` (root); skills in `.claude/skills/` (installed with `npx skills add …`, versioned in the repo).
 
 ## MCP servers (`.mcp.json`)
-| Servidor | Para qué | Fuente |
+| Server | Purpose | Source |
 |---|---|---|
-| `better-auth` (remoto `https://mcp.better-auth.com/mcp`) | Búsqueda de docs y ejemplos de Better Auth desde el agente | https://better-auth.com/docs/ai-resources/mcp |
-| `shadcn` (`pnpm --dir beacon dlx shadcn@latest mcp`) | Listar/añadir componentes y bloques del registry de shadcn/ui | https://ui.shadcn.com/docs/mcp |
-| `next-devtools` (`npx next-devtools-mcp`) | Errores de build/runtime, rutas y logs del `next dev` en vivo (Next 16+) | https://nextjs.org/docs/app/guides/mcp |
-| `gopls` (`gopls mcp`) | Definiciones, referencias, diagnósticos de Go (gopls ≥ 0.20; instalado v0.23) | https://go.dev/gopls/features/mcp |
+| `better-auth` (remote `https://mcp.better-auth.com/mcp`) | Search Better Auth docs and examples from the agent | https://better-auth.com/docs/ai-resources/mcp |
+| `shadcn` (`pnpm --dir beacon dlx shadcn@latest mcp`) | List/add components and blocks from the shadcn/ui registry | https://ui.shadcn.com/docs/mcp |
+| `next-devtools` (`npx next-devtools-mcp`) | Build/runtime errors, routes and logs from the live `next dev` (Next 16+) | https://nextjs.org/docs/app/guides/mcp |
+| `gopls` (`gopls mcp`) | Go definitions, references, diagnostics (gopls ≥ 0.20; v0.23 installed) | https://go.dev/gopls/features/mcp |
 
-Además, plugin oficial de Claude Code `gopls-lsp@claude-plugins-official` (instalado a nivel usuario) para LSP de Go.
-Tras clonar: `claude` en la raíz pide aprobar los MCP del proyecto; `/mcp` para verlos.
+Additionally, the official Claude Code plugin `gopls-lsp@claude-plugins-official` (installed at user level) for Go LSP.
+After cloning: `claude` at the root asks to approve the project MCPs; `/mcp` to view them.
 
 ## Skills (`.claude/skills/`)
-| Skill | Origen |
+| Skill | Origin |
 |---|---|
-| `better-auth-best-practices`, `better-auth-security-best-practices`, `email-and-password-best-practices` | `better-auth/skills` (oficiales) |
-| `vercel-react-best-practices`, `vercel-composition-patterns`, `web-design-guidelines` | `vercel-labs/agent-skills` (oficiales de Vercel) |
-| `shadcn` | plugin de Claude Code (usuario) |
+| `better-auth-best-practices`, `better-auth-security-best-practices`, `email-and-password-best-practices` | `better-auth/skills` (official) |
+| `vercel-react-best-practices`, `vercel-composition-patterns`, `web-design-guidelines` | `vercel-labs/agent-skills` (official Vercel) |
+| `shadcn` | Claude Code plugin (user) |
 
-Next.js: además de la skill de React, `create-next-app` generó `beacon/AGENTS.md` con las guías oficiales de Next 16 (Vercel recomienda AGENTS.md sobre skills para Next). Go: no hay skill oficial; se sigue https://go.dev/doc/effective_go y https://google.github.io/styleguide/go/ (ver `wardend/AGENTS.md`).
+Next.js: in addition to the React skill, `create-next-app` generated `beacon/AGENTS.md` with the official Next 16 guidelines (Vercel recommends AGENTS.md over skills for Next). Go: there is no official skill; we follow https://go.dev/doc/effective_go and https://google.github.io/styleguide/go/ (see `wardend/AGENTS.md`).
 
-Actualizar skills: `npx skills update -p`.
+Update skills: `npx skills update -p`.
 
-## Convenciones de calidad
-- **Beacon**: `pnpm lint` (eslint-config-next), `pnpm typecheck`, componentes shadcn en `components/ui`, imports de plugins de Better Auth por subpath (`better-auth/plugins/jwt`).
-- **wardend**: `gofmt`, `go vet`, `go test ./...`; stdlib `net/http` con patrones de método (Go 1.22+); errores tipados; contexto en todo I/O.
+## Quality conventions
+- **Beacon**: `pnpm lint` (eslint-config-next), `pnpm typecheck`, shadcn components in `components/ui`, Better Auth plugin imports by subpath (`better-auth/plugins/jwt`).
+- **wardend**: `gofmt`, `go vet`, `go test ./...`; stdlib `net/http` with method patterns (Go 1.22+); typed errors; context on all I/O.

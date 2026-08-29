@@ -18,7 +18,7 @@ export function UserMenu({ name, email, role }: { name: string; email: string; r
         size="sm"
         onClick={() => signOut({ fetchOptions: { onSuccess: () => router.push("/login") } })}
       >
-        Salir
+        Sign out
       </Button>
     </div>
   );

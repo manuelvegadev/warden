@@ -1,4 +1,4 @@
-// wardend es el daemon de warden: supervisa instancias de Minecraft y expone la API.
+// wardend is the warden daemon: it supervises Minecraft instances and exposes the API.
 package main
 
 import (
@@ -67,6 +67,6 @@ func main() {
 	slog.Info("shutting down")
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
-	mgr.StopAll(shutdownCtx) // apaga limpio (stop → SIGTERM → SIGKILL) cada instancia
+	mgr.StopAll(shutdownCtx) // clean shutdown (stop → SIGTERM → SIGKILL) of every instance
 	_ = srv.Shutdown(shutdownCtx)
 }

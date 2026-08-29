@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { wardendFetch } from "@/lib/wardend";
 
-// Proxy BFF: /api/wardend/<ruta> → wardend /api/v1/<ruta>. El navegador nunca recibe el JWT.
+// BFF proxy: /api/wardend/<path> → wardend /api/v1/<path>. The browser never receives the JWT.
 async function proxy(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
   const { path } = await ctx.params;
   const target = `/${path.join("/")}${req.nextUrl.search}`;

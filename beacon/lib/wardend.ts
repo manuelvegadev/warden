@@ -2,7 +2,7 @@ import "server-only";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 
-// Cliente servidor→servidor hacia wardend (BFF, ADR-008/009): JWT del usuario + clave del panel.
+// Server-to-server client for wardend (BFF, ADR-008/009): user JWT + panel key.
 export const WARDEND_URL = (process.env.WARDEND_URL ?? "http://localhost:8080").replace(/\/$/, "");
 
 export async function wardendFetch(path: string, init: RequestInit = {}): Promise<Response> {

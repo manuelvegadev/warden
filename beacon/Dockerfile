@@ -1,4 +1,4 @@
-# Beacon (Next.js 16, pnpm) para Dokploy — ADR-007/009. SQLite en el volumen /data.
+# Beacon (Next.js 16, pnpm) for Dokploy — ADR-007/009. SQLite on the /data volume.
 FROM node:22-bookworm-slim AS base
 ENV PNPM_HOME=/pnpm PATH=/pnpm:$PATH NEXT_TELEMETRY_DISABLED=1
 RUN corepack enable

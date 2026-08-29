@@ -1,4 +1,4 @@
-// Package config carga la configuración del daemon desde variables de entorno (y en el futuro un YAML).
+// Package config loads the daemon configuration from environment variables (and a YAML file in the future).
 package config
 
 import (
@@ -10,14 +10,14 @@ import (
 )
 
 type Config struct {
-	Listen         string   // WARDEND_LISTEN, p.ej. ":8080"
-	DataDir        string   // WARDEND_DATA_DIR, p.ej. /var/lib/warden
-	AllowedOrigins []string // WARDEND_ALLOWED_ORIGINS, coma-separado (origen del panel Next.js)
-	Contact        string   // WARDEND_CONTACT, email/URL para el User-Agent de Fill/Hangar/Modrinth
+	Listen         string   // WARDEND_LISTEN, e.g. ":8080"
+	DataDir        string   // WARDEND_DATA_DIR, e.g. /var/lib/warden
+	AllowedOrigins []string // WARDEND_ALLOWED_ORIGINS, comma-separated (Next.js panel origin)
+	Contact        string   // WARDEND_CONTACT, email/URL for the Fill/Hangar/Modrinth User-Agent
 	Level          string   // WARDEND_LOG_LEVEL: debug|info|warn|error
-	PanelJWKSURL   string   // WARDEND_PANEL_JWKS_URL, p.ej. https://beacon.example.com/api/auth/jwks
-	PanelIssuer    string   // WARDEND_PANEL_ISSUER, = BETTER_AUTH_URL del panel
-	PanelKey       string   // WARDEND_PANEL_KEY, secreto compartido (X-Panel-Key)
+	PanelJWKSURL   string   // WARDEND_PANEL_JWKS_URL, e.g. https://beacon.example.com/api/auth/jwks
+	PanelIssuer    string   // WARDEND_PANEL_ISSUER, = the panel's BETTER_AUTH_URL
+	PanelKey       string   // WARDEND_PANEL_KEY, shared secret (X-Panel-Key)
 }
 
 func Load() (*Config, error) {
@@ -31,7 +31,7 @@ func Load() (*Config, error) {
 		PanelKey:     os.Getenv("WARDEND_PANEL_KEY"),
 	}
 	if c.PanelJWKSURL != "" && c.PanelIssuer == "" {
-		return nil, errors.New("WARDEND_PANEL_ISSUER es obligatorio cuando se define WARDEND_PANEL_JWKS_URL")
+		return nil, errors.New("WARDEND_PANEL_ISSUER is required when WARDEND_PANEL_JWKS_URL is set")
 	}
 	if o := os.Getenv("WARDEND_ALLOWED_ORIGINS"); o != "" {
 		for _, s := range strings.Split(o, ",") {

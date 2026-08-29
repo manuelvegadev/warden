@@ -1,19 +1,19 @@
-# Administración de un servidor Minecraft Java / Paper — referencia
+# Administering a Minecraft Java / Paper server — reference
 
-Recopilación de documentación oficial y de la comunidad relevante para el panel.
+A collection of official and community documentation relevant to the panel.
 
-## Documentación oficial
+## Official documentation
 - Paper docs: https://docs.papermc.io/paper/ — [Getting started](https://docs.papermc.io/paper/getting-started/), [Aikar's flags](https://docs.papermc.io/paper/aikars-flags/), [Configuration](https://docs.papermc.io/paper/reference/configuration/), [Anti-Xray](https://docs.papermc.io/paper/anti-xray/), [Basic troubleshooting](https://docs.papermc.io/paper/basic-troubleshooting/), [Updating](https://docs.papermc.io/paper/updating/).
 - Minecraft Wiki: [server.properties](https://minecraft.wiki/w/Server.properties), [RCON](https://minecraft.wiki/w/RCON), [Query](https://minecraft.wiki/w/Query), [Server List Ping](https://minecraft.wiki/w/Java_Edition_protocol/Server_List_Ping), [Commands](https://minecraft.wiki/w/Commands), [Advancement](https://minecraft.wiki/w/Advancement), [Statistics](https://minecraft.wiki/w/Statistics), [Tutorials/Setting up a server](https://minecraft.wiki/w/Tutorial:Setting_up_a_server).
-- EULA: https://aka.ms/MinecraftEULA — hay que escribir `eula=true` en `eula.txt`; debe ser una acción explícita del usuario.
-- Comunidad: [PaperMC Discord/Forums](https://forums.papermc.io/), [itzg/docker-minecraft-server](https://docker-minecraft-server.readthedocs.io/) (excelente referencia de automatización: variables, descarga de Paper/Modrinth, RCON), [YouHaveTrouble/minecraft-optimization](https://github.com/YouHaveTrouble/minecraft-optimization) (guía de optimización de config), [Spigot/Paper timings → spark](https://spark.lucko.me/).
+- EULA: https://aka.ms/MinecraftEULA — `eula=true` must be written to `eula.txt`; this must be an explicit user action.
+- Community: [PaperMC Discord/Forums](https://forums.papermc.io/), [itzg/docker-minecraft-server](https://docker-minecraft-server.readthedocs.io/) (excellent automation reference: variables, Paper/Modrinth downloads, RCON), [YouHaveTrouble/minecraft-optimization](https://github.com/YouHaveTrouble/minecraft-optimization) (config optimization guide), [Spigot/Paper timings → spark](https://spark.lucko.me/).
 
-## Requisitos
-- Paper 1.20.5+ requiere **Java 21**; 1.17–1.20.4 Java 17; ≤1.16 Java 8/11. Recomendado: Temurin/Adoptium (`apt install temurin-21-jre` desde repo Adoptium) o `openjdk-21-jre-headless` de Ubuntu.
-- RAM: `Xmx` = RAM física disponible − 1–1.5 GB (el JVM usa memoria fuera del heap). `Xms` = `Xmx` con Aikar.
-- Usuario dedicado sin shell (`minecraft`), nunca root.
+## Requirements
+- Paper 1.20.5+ requires **Java 21**; 1.17–1.20.4 Java 17; ≤1.16 Java 8/11. Recommended: Temurin/Adoptium (`apt install temurin-21-jre` from the Adoptium repo) or Ubuntu's `openjdk-21-jre-headless`.
+- RAM: `Xmx` = available physical RAM − 1–1.5 GB (the JVM uses memory outside the heap). `Xms` = `Xmx` with Aikar.
+- Dedicated user without a shell (`minecraft`), never root.
 
-## Comando de arranque (Paper + Aikar's flags)
+## Startup command (Paper + Aikar's flags)
 ```
 java -Xms4G -Xmx4G -XX:+UseG1GC -XX:+ParallelRefProcEnabled -XX:MaxGCPauseMillis=200 \
  -XX:+UnlockExperimentalVMOptions -XX:+DisableExplicitGC -XX:+AlwaysPreTouch \
@@ -24,33 +24,33 @@ java -Xms4G -Xmx4G -XX:+UseG1GC -XX:+ParallelRefProcEnabled -XX:MaxGCPauseMillis
  -XX:MaxTenuringThreshold=1 -Dusing.aikars.flags=https://mcflags.emc.gs -Daikars.new.flags=true \
  -jar paper.jar --nogui
 ```
-Con `Xmx ≥ 12G` Aikar recomienda `G1NewSizePercent=40`, `G1MaxNewSizePercent=50`, `G1HeapRegionSize=16M`, `G1ReservePercent=15`, `InitiatingHeapOccupancyPercent=20`.
-El panel generará estos flags con una plantilla ("Aikar", "Básico", "Personalizado").
+With `Xmx ≥ 12G` Aikar recommends `G1NewSizePercent=40`, `G1MaxNewSizePercent=50`, `G1HeapRegionSize=16M`, `G1ReservePercent=15`, `InitiatingHeapOccupancyPercent=20`.
+The panel will generate these flags from a template ("Aikar", "Basic", "Custom").
 
-## Archivos que gestiona el panel
-| Archivo | Formato | Notas |
+## Files managed by the panel
+| File | Format | Notes |
 |---|---|---|
 | `eula.txt` | properties | `eula=true` |
-| `server.properties` | properties | Claves relevantes: `server-port`, `motd`, `max-players`, `online-mode`, `white-list`, `enforce-whitelist`, `difficulty`, `gamemode`, `pvp`, `view-distance`, `simulation-distance`, `level-name`, `level-seed`, `enable-rcon`, `rcon.port`, `rcon.password`, `enable-query`, `query.port`, `spawn-protection`, `allow-flight`, `enforce-secure-profile`. Ver esquema en `internal/mc/properties_schema.go`. |
-| `whitelist.json` | `[{"uuid","name"}]` | Recargar con `whitelist reload`. |
-| `ops.json` | `[{"uuid","name","level":1-4,"bypassesPlayerLimit"}]` | Preferir comandos `op/deop`. |
+| `server.properties` | properties | Relevant keys: `server-port`, `motd`, `max-players`, `online-mode`, `white-list`, `enforce-whitelist`, `difficulty`, `gamemode`, `pvp`, `view-distance`, `simulation-distance`, `level-name`, `level-seed`, `enable-rcon`, `rcon.port`, `rcon.password`, `enable-query`, `query.port`, `spawn-protection`, `allow-flight`, `enforce-secure-profile`. See schema in `internal/mc/properties_schema.go`. |
+| `whitelist.json` | `[{"uuid","name"}]` | Reload with `whitelist reload`. |
+| `ops.json` | `[{"uuid","name","level":1-4,"bypassesPlayerLimit"}]` | Prefer the `op/deop` commands. |
 | `banned-players.json` | `[{"uuid","name","created","source","expires","reason"}]` | |
 | `banned-ips.json` | `[{"ip","created","source","expires","reason"}]` | |
-| `usercache.json` | `[{"name","uuid","expiresOn"}]` | Mapeo nombre↔uuid. |
-| `bukkit.yml`, `spigot.yml` | YAML | Heredados. |
-| `config/paper-global.yml` | YAML | Config global de Paper (1.19+). |
-| `config/paper-world-defaults.yml`, `<world>/paper-world.yml` | YAML | Config por mundo. |
-| `plugins/*.jar`, `plugins/<Plugin>/config.yml` | | Los plugins se cargan al arrancar; la mayoría no soporta hot-reload (evitar `/reload`, Paper lo desaconseja). |
-| `logs/latest.log`, `logs/*.log.gz` | texto | Rotación diaria hecha por el servidor. |
-| `world/`, `world_nether/`, `world_the_end/` | Anvil/NBT | Backup con `save-off` → `save-all flush` → tar → `save-on`. |
+| `usercache.json` | `[{"name","uuid","expiresOn"}]` | Name↔uuid mapping. |
+| `bukkit.yml`, `spigot.yml` | YAML | Legacy. |
+| `config/paper-global.yml` | YAML | Paper global config (1.19+). |
+| `config/paper-world-defaults.yml`, `<world>/paper-world.yml` | YAML | Per-world config. |
+| `plugins/*.jar`, `plugins/<Plugin>/config.yml` | | Plugins load at startup; most do not support hot reload (avoid `/reload`, Paper discourages it). |
+| `logs/latest.log`, `logs/*.log.gz` | text | Daily rotation done by the server. |
+| `world/`, `world_nether/`, `world_the_end/` | Anvil/NBT | Backup with `save-off` → `save-all flush` → tar → `save-on`. |
 | `world/advancements/<uuid>.json` | JSON | `{"minecraft:story/mine_stone":{"criteria":{...},"done":true}, "DataVersion":N}` |
-| `world/stats/<uuid>.json` | JSON | `{"stats":{"minecraft:custom":{"minecraft:play_time":N,...},"minecraft:mined":{...}},"DataVersion":N}`. `play_time` en ticks (20/s). |
-| `world/playerdata/<uuid>.dat` | NBT gzip | Inventario, posición, vida. Fase posterior. |
+| `world/stats/<uuid>.json` | JSON | `{"stats":{"minecraft:custom":{"minecraft:play_time":N,...},"minecraft:mined":{...}},"DataVersion":N}`. `play_time` in ticks (20/s). |
+| `world/playerdata/<uuid>.dat` | NBT gzip | Inventory, position, health. Later phase. |
 
-## Comandos que usará el panel (por stdin o RCON)
-`stop`, `save-all [flush]`, `save-off`, `save-on`, `list`, `say <msg>`, `tell <p> <msg>`, `tellraw @a <json>`, `title @a title <json>`, `kick <p> [razón]`, `ban <p> [razón]`, `pardon <p>`, `ban-ip`, `op <p>`, `deop <p>`, `whitelist add|remove|list|reload|on|off`, `tps` (Paper), `gamemode`, `time set`, `weather`, `difficulty`, `plugins` (Bukkit), `version`, `paper reload` (solo config), `restart` (Paper, ejecuta `restart-script` de spigot.yml — no lo usaremos, el daemon reinicia).
+## Commands the panel will use (via stdin or RCON)
+`stop`, `save-all [flush]`, `save-off`, `save-on`, `list`, `say <msg>`, `tell <p> <msg>`, `tellraw @a <json>`, `title @a title <json>`, `kick <p> [reason]`, `ban <p> [reason]`, `pardon <p>`, `ban-ip`, `op <p>`, `deop <p>`, `whitelist add|remove|list|reload|on|off`, `tps` (Paper), `gamemode`, `time set`, `weather`, `difficulty`, `plugins` (Bukkit), `version`, `paper reload` (config only), `restart` (Paper, runs the `restart-script` from spigot.yml — we will not use it, the daemon restarts).
 
-## Líneas de log a parsear (Paper 1.21+)
+## Log lines to parse (Paper 1.21+)
 ```
 [12:00:01 INFO]: Starting minecraft server version 1.21.8
 [12:00:05 INFO]: Done (4.123s)! For help, type "help"
@@ -70,16 +70,16 @@ El panel generará estos flags con una plantilla ("Aikar", "Básico", "Personali
 [12:09:01 WARN]: Can't keep up! Is the server overloaded? Running 2500ms or 50 ticks behind
 [12:10:00 INFO]: There are 2 of a max of 20 players online: Steve, Alex
 ```
-Formato de prefijo Paper: `[HH:MM:SS LEVEL]:` (vanilla usa `[HH:MM:SS] [Server thread/INFO]:`); el parser debe aceptar ambos. Los nombres de logros vienen traducidos según idioma del servidor; el dato fiable es `world/advancements/<uuid>.json`.
+Paper prefix format: `[HH:MM:SS LEVEL]:` (vanilla uses `[HH:MM:SS] [Server thread/INFO]:`); the parser must accept both. Advancement names are translated according to the server language; the reliable source is `world/advancements/<uuid>.json`.
 
-## Apagado y reinicio seguros
-1. `say Servidor reiniciando en 30s` (aviso configurable).
-2. `stop` por stdin → Paper guarda mundos y jugadores.
-3. Esperar hasta 60 s la salida del proceso; si no, `SIGTERM`; tras 15 s más, `SIGKILL` (riesgo de corrupción: solo último recurso).
-4. Nunca `kill -9` como primera opción; nunca hacer backup con el servidor escribiendo (usar `save-off`).
+## Safe shutdown and restart
+1. `say Servidor reiniciando en 30s` (configurable warning).
+2. `stop` via stdin → Paper saves worlds and players.
+3. Wait up to 60 s for the process to exit; if not, `SIGTERM`; after 15 more seconds, `SIGKILL` (corruption risk: last resort only).
+4. Never `kill -9` as the first option; never back up while the server is writing (use `save-off`).
 
-## Seguridad
-- `online-mode=true` salvo proxy (Velocity) delante con `velocity-support`.
-- RCON solo en `127.0.0.1` con contraseña aleatoria generada por el panel.
-- Panel detrás de HTTPS (reverse proxy Caddy/nginx o TLS integrado); no exponer 25575 ni el panel sin auth a Internet.
-- Firewall: `ufw allow 25565/tcp` solo para los puertos de juego.
+## Security
+- `online-mode=true` unless a proxy (Velocity) is in front with `velocity-support`.
+- RCON only on `127.0.0.1` with a random password generated by the panel.
+- Panel behind HTTPS (Caddy/nginx reverse proxy or built-in TLS); never expose 25575 or the panel without auth to the Internet.
+- Firewall: `ufw allow 25565/tcp` only for game ports.

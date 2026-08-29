@@ -6,7 +6,7 @@ import Database from "better-sqlite3";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 
-// Beacon es la autoridad de identidad (ADR-009). wardend verifica los JWT con /api/auth/jwks.
+// Beacon is the identity authority (ADR-009). wardend verifies the JWTs with /api/auth/jwks.
 const DB_PATH = process.env.DATABASE_PATH ?? "./data/beacon.db";
 mkdirSync(dirname(DB_PATH), { recursive: true });
 const db = new Database(DB_PATH);
@@ -21,7 +21,7 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     minPasswordLength: 12,
-    // Sin servidor de correo en v1: no exigimos verificación. Activar cuando exista `sendVerificationEmail`.
+    // No mail server in v1: verification is not required. Enable once `sendVerificationEmail` exists.
     requireEmailVerification: false,
   },
   socialProviders: discordEnabled
@@ -43,17 +43,17 @@ export const auth = betterAuth({
   trustedOrigins: (process.env.BETTER_AUTH_TRUSTED_ORIGINS ?? "").split(",").map((s) => s.trim()).filter(Boolean),
   advanced: {
     useSecureCookies: baseURL.startsWith("https://"),
-    ipAddress: { ipAddressHeaders: ["x-forwarded-for", "x-real-ip"] }, // detrás de Traefik (Dokploy)
+    ipAddress: { ipAddressHeaders: ["x-forwarded-for", "x-real-ip"] }, // behind Traefik (Dokploy)
   },
   databaseHooks: {
     user: {
       create: {
-        // Panel self-hosted: el primer usuario es admin; después solo un admin puede crear usuarios (plugin admin).
+        // Self-hosted panel: the first user is admin; afterwards only an admin can create users (admin plugin).
         before: async (user) => {
           const { c } = db.prepare("SELECT COUNT(*) AS c FROM user").get() as { c: number };
           if (c === 0) return { data: { ...user, role: "admin" } };
           if (process.env.BEACON_OPEN_SIGNUP === "true") return { data: { ...user, role: "operator" } };
-          throw new Error("El registro está cerrado. Pide a un administrador que cree tu cuenta.");
+          throw new Error("Registration is closed. Ask an administrator to create your account.");
         },
       },
     },
@@ -69,8 +69,8 @@ export const auth = betterAuth({
         definePayload: ({ user }) => ({ sub: user.id, email: user.email, name: user.name, role: user.role ?? "operator" }),
       },
     }),
-    // apiKey: paquete aparte (@better-auth/api-key), pendiente en roadmap Fase 4
-    nextCookies(), // debe ir el último
+    // apiKey: separate package (@better-auth/api-key), pending in roadmap Phase 4
+    nextCookies(), // must be last
   ],
 });
 

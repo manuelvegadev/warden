@@ -1,9 +1,9 @@
-# wardend — guía para agentes
+# wardend — agent guide
 
-- Go 1.25, solo stdlib + dependencias listadas en `go.mod` (jwx para JWT/JWKS; próximos: gopsutil, modernc sqlite, gorilla/websocket).
-- Estilo: https://google.github.io/styleguide/go/ y Effective Go. `gofmt`, `go vet`, tests de tabla.
-- HTTP: `http.ServeMux` con patrones `METHOD /ruta/{param}`; handlers pequeños en `internal/api`; errores JSON `{"error":{"code","message"}}` (ver `docs/api.md`).
-- Auth: nunca añadir rutas fuera del middleware de `internal/auth` salvo `/api/v1/health` y `/api/v1/ws` (que autentica por primer mensaje).
-- Todo acceso a archivos de una instancia pasa por helpers que confinan la ruta a `servers/<id>/server/`.
-- Procesos hijo: siempre con `context`, stop escalonado `stop` → SIGTERM → SIGKILL.
-- Documentar decisiones no triviales en `docs/adr/`.
+- Go 1.25, stdlib only + the dependencies listed in `go.mod` (jwx for JWT/JWKS; upcoming: gopsutil, modernc sqlite, gorilla/websocket).
+- Style: https://google.github.io/styleguide/go/ and Effective Go. `gofmt`, `go vet`, table-driven tests.
+- HTTP: `http.ServeMux` with `METHOD /path/{param}` patterns; small handlers in `internal/api`; JSON errors `{"error":{"code","message"}}` (see `docs/api.md`).
+- Auth: never add routes outside the `internal/auth` middleware except `/api/v1/health` and `/api/v1/ws` (which authenticates via its first message).
+- All access to an instance's files goes through helpers that confine the path to `servers/<id>/server/`.
+- Child processes: always with `context`, escalating stop `stop` → SIGTERM → SIGKILL.
+- Document non-trivial decisions in `docs/adr/`.

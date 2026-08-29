@@ -12,9 +12,9 @@ export function InstanceList() {
     instances.list().then(setItems).catch((e) => setError(String(e.message ?? e)));
   }, []);
 
-  if (error) return <p className="mt-6 text-red-400">No se pudo conectar con el daemon: {error}</p>;
-  if (!items) return <p className="mt-6 text-zinc-400">Cargando…</p>;
-  if (items.length === 0) return <p className="mt-6 text-zinc-400">No hay instancias todavía.</p>;
+  if (error) return <p className="mt-6 text-red-400">Could not connect to the daemon: {error}</p>;
+  if (!items) return <p className="mt-6 text-zinc-400">Loading…</p>;
+  if (items.length === 0) return <p className="mt-6 text-zinc-400">No instances yet.</p>;
 
   return (
     <ul className="mt-6 divide-y divide-zinc-800 rounded-lg border border-zinc-800">

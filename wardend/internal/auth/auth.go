@@ -1,5 +1,5 @@
-// Package auth verifica los JWT emitidos por Beacon (Better Auth, plugin jwt) usando su JWKS,
-// y comprueba la clave compartida del panel. wardend no tiene usuarios propios (ADR-009).
+// Package auth verifies the JWTs issued by Beacon (Better Auth, jwt plugin) using its JWKS,
+// and checks the shared panel key. wardend has no users of its own (ADR-009).
 package auth
 
 import (
@@ -26,7 +26,7 @@ const (
 	RoleOperator Role = "operator"
 )
 
-// Principal es la identidad autenticada que viaja en el contexto de la petición.
+// Principal is the authenticated identity carried in the request context.
 type Principal struct {
 	UserID string `json:"userId"`
 	Email  string `json:"email"`
@@ -41,19 +41,19 @@ type Verifier struct {
 	panelKey string
 	cache    *jwk.Cache
 	jwksURL  string
-	devMode  bool // sin JWKS configurado: solo para desarrollo local, rechaza todo salvo /health
+	devMode  bool // no JWKS configured: local development only, rejects everything except /health
 }
 
 type Options struct {
 	JWKSURL  string // https://beacon.example.com/api/auth/jwks
 	Issuer   string // https://beacon.example.com (BETTER_AUTH_URL)
-	PanelKey string // secreto compartido X-Panel-Key; vacío = no exigir (solo dev)
+	PanelKey string // shared X-Panel-Key secret; empty = not required (dev only)
 }
 
 func NewVerifier(ctx context.Context, o Options) (*Verifier, error) {
 	v := &Verifier{issuer: o.Issuer, panelKey: o.PanelKey, jwksURL: o.JWKSURL}
 	if o.JWKSURL == "" {
-		slog.Warn("auth: WARDEND_PANEL_JWKS_URL vacío; toda la API queda protegida y sin acceso (modo dev)")
+		slog.Warn("auth: WARDEND_PANEL_JWKS_URL is empty; the whole API stays protected with no access (dev mode)")
 		v.devMode = true
 		return v, nil
 	}
@@ -61,7 +61,7 @@ func NewVerifier(ctx context.Context, o Options) (*Verifier, error) {
 	if err != nil {
 		return nil, err
 	}
-	// Refresco cada hora; ante un `kid` desconocido jwx refresca bajo demanda en Lookup.
+	// Refresh every hour; on an unknown `kid` jwx refreshes on demand in Lookup.
 	if err := c.Register(ctx, o.JWKSURL, jwk.WithMinInterval(time.Hour)); err != nil {
 		return nil, fmt.Errorf("register jwks %s: %w", o.JWKSURL, err)
 	}
@@ -71,7 +71,7 @@ func NewVerifier(ctx context.Context, o Options) (*Verifier, error) {
 
 var ErrUnauthorized = errors.New("unauthorized")
 
-// Verify valida firma (JWKS), iss, aud, exp y devuelve el Principal.
+// Verify validates the signature (JWKS), iss, aud, exp and returns the Principal.
 func (v *Verifier) Verify(ctx context.Context, raw string) (*Principal, error) {
 	if v.devMode {
 		return nil, ErrUnauthorized
@@ -107,7 +107,7 @@ func (v *Verifier) Verify(ctx context.Context, raw string) (*Principal, error) {
 	return p, nil
 }
 
-// CheckPanelKey compara X-Panel-Key en tiempo constante. Si no hay clave configurada, no se exige.
+// CheckPanelKey compares X-Panel-Key in constant time. If no key is configured, it is not required.
 func (v *Verifier) CheckPanelKey(r *http.Request) bool {
 	if v.panelKey == "" {
 		return true
@@ -116,7 +116,7 @@ func (v *Verifier) CheckPanelKey(r *http.Request) bool {
 	return subtle.ConstantTimeCompare([]byte(got), []byte(v.panelKey)) == 1
 }
 
-// BearerToken extrae el token de Authorization: Bearer <jwt>.
+// BearerToken extracts the token from Authorization: Bearer <jwt>.
 func BearerToken(r *http.Request) string {
 	h := r.Header.Get("Authorization")
 	if len(h) > 7 && strings.EqualFold(h[:7], "bearer ") {

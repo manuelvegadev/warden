@@ -9,14 +9,14 @@ Group=minecraft
 ExecStart=/usr/local/bin/wardend
 Environment=WARDEND_LISTEN=127.0.0.1:8080
 Environment=WARDEND_DATA_DIR=/var/lib/warden
-Environment=WARDEND_ALLOWED_ORIGINS=https://panel.midominio.com
-Environment=WARDEND_CONTACT=admin@midominio.com
-Environment=WARDEND_PANEL_JWKS_URL=https://panel.midominio.com/api/auth/jwks
-Environment=WARDEND_PANEL_ISSUER=https://panel.midominio.com
-Environment=WARDEND_PANEL_KEY=cambiar-por-openssl-rand-hex-32
+Environment=WARDEND_ALLOWED_ORIGINS=https://panel.example.com
+Environment=WARDEND_CONTACT=admin@example.com
+Environment=WARDEND_PANEL_JWKS_URL=https://panel.example.com/api/auth/jwks
+Environment=WARDEND_PANEL_ISSUER=https://panel.example.com
+Environment=WARDEND_PANEL_KEY=replace-with-openssl-rand-hex-32
 Restart=on-failure
 RestartSec=5
-# stop limpio de todas las instancias puede tardar
+# a clean stop of all instances may take a while
 TimeoutStopSec=120
 KillMode=mixed
 NoNewPrivileges=true

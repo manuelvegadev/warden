@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionCookie } from "better-auth/cookies";
 
-// Comprobación optimista (solo cookie) para redirigir; la validación real la hace cada página/route handler.
+// Optimistic check (cookie only) for redirects; the real validation happens in each page/route handler.
 export function proxy(req: NextRequest) {
   const hasSession = !!getSessionCookie(req);
   const { pathname } = req.nextUrl;

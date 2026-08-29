@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Imagen Docker mínima para Dokploy (ADR-007)
+  // Minimal Docker image for Dokploy (ADR-007)
   output: "standalone",
 };
 

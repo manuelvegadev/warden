@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-// EventKind son los eventos que el daemon extrae del stdout del servidor.
+// EventKind enumerates the events the daemon extracts from the server stdout.
 type EventKind string
 
 const (
@@ -24,7 +24,7 @@ type Event struct {
 	Text   string
 }
 
-// Prefijos: Paper "[12:00:01 INFO]: " y vanilla "[12:00:01] [Server thread/INFO]: ".
+// Prefixes: Paper "[12:00:01 INFO]: " and vanilla "[12:00:01] [Server thread/INFO]: ".
 var prefixRe = regexp.MustCompile(`^\[\d{2}:\d{2}:\d{2}(?: [A-Z]+)?\](?: \[[^\]]+\])?: `)
 
 var (
@@ -36,7 +36,7 @@ var (
 	overRe    = regexp.MustCompile(`^Can't keep up!`)
 )
 
-// Parse devuelve el evento contenido en una línea de log, o nil.
+// Parse returns the event contained in a log line, or nil.
 func Parse(line string) *Event {
 	body := prefixRe.ReplaceAllString(strings.TrimRight(line, "\r\n"), "")
 	switch {

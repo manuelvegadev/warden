@@ -1,4 +1,4 @@
-// Cliente del navegador. Todo pasa por el BFF /api/wardend (ADR-008): sin tokens en JS ni CORS.
+// Browser client. Everything goes through the BFF /api/wardend (ADR-008): no tokens in JS and no CORS.
 
 export type InstanceState = "stopped" | "starting" | "running" | "stopping" | "crashed" | "installing";
 
@@ -42,7 +42,7 @@ export const instances = {
     api<void>(`/instances/${id}/command`, { method: "POST", body: JSON.stringify({ command }) }),
 };
 
-/** URL del WebSocket de wardend. El JWT se envía como primer mensaje (ver useWardendSocket), nunca en la URL. */
+/** wardend WebSocket URL. The JWT is sent as the first message (see useWardendSocket), never in the URL. */
 export function wardendWsUrl(): string {
   const base = process.env.NEXT_PUBLIC_WARDEND_WS_URL ?? "ws://localhost:8080";
   return `${base.replace(/\/$/, "")}/api/v1/ws`;

@@ -1,2 +1,2 @@
-// Package tasks ejecuta operaciones largas (descargas, backups, upgrades) con progreso reportado por WS.
+// Package tasks runs long operations (downloads, backups, upgrades) with progress reported over WS.
 package tasks

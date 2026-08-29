@@ -1,6 +1,6 @@
 package instance
 
-// State es la máquina de estados de una instancia (docs/api.md).
+// State is the state machine of an instance (docs/api.md).
 type State string
 
 const (

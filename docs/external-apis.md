@@ -1,18 +1,18 @@
-# APIs externas usadas
+# External APIs used
 
-Verificadas con `curl` el 2026-08-28. Todas requieren `User-Agent` identificable:
-`warden/<version> (<email o URL>)`.
+Verified with `curl` on 2026-08-28. All require an identifiable `User-Agent`:
+`warden/<version> (<email or URL>)`.
 
-## PaperMC Fill v3 — descargas de Paper (y Velocity, Folia, Waterfall)
+## PaperMC Fill v3 — Paper downloads (plus Velocity, Folia, Waterfall)
 
 Docs: https://docs.papermc.io/misc/downloads-service/ · Swagger: https://fill.papermc.io/swagger-ui/index.html
-La API vieja `api.papermc.io/v2` dejó de recibir builds el 31-12-2025: **no usar**.
+The old `api.papermc.io/v2` API stopped receiving builds on 2025-12-31: **do not use**.
 
-| Endpoint | Devuelve |
+| Endpoint | Returns |
 |---|---|
-| `GET /v3/projects/paper` | `{"project":{"id","name"},"versions":{"1.21":["1.21.11","1.21.8",...],"26.2":[...]}}` — agrupadas por familia; incluye `-rc`/`-pre`. |
-| `GET /v3/projects/paper/versions/{mc}/builds` | Array de builds, el más nuevo primero. |
-| `GET /v3/projects/paper/versions/{mc}/builds/latest` | Último build. |
+| `GET /v3/projects/paper` | `{"project":{"id","name"},"versions":{"1.21":["1.21.11","1.21.8",...],"26.2":[...]}}` — grouped by family; includes `-rc`/`-pre`. |
+| `GET /v3/projects/paper/versions/{mc}/builds` | Array of builds, newest first. |
+| `GET /v3/projects/paper/versions/{mc}/builds/latest` | Latest build. |
 
 Build:
 ```json
@@ -29,42 +29,42 @@ Build:
   }
 }
 ```
-Canales: `ALPHA` < `BETA` < `STABLE` < `RECOMMENDED`. Por defecto la UI solo ofrece `STABLE`/`RECOMMENDED`.
-Nota: desde 2026 Mojang usa versionado `26.x`; Fill lo refleja (`26.1.2`, `26.2`).
+Channels: `ALPHA` < `BETA` < `STABLE` < `RECOMMENDED`. By default the UI only offers `STABLE`/`RECOMMENDED`.
+Note: since 2026 Mojang uses `26.x` versioning; Fill reflects it (`26.1.2`, `26.2`).
 
-## Hangar v1 — plugins oficiales de PaperMC
+## Hangar v1 — official PaperMC plugins
 
-Base: `https://hangar.papermc.io/api/v1` · Docs: https://hangar.papermc.io/api-docs · Sin auth para lectura.
+Base: `https://hangar.papermc.io/api/v1` · Docs: https://hangar.papermc.io/api-docs · No auth for reads.
 
-| Endpoint | Notas |
+| Endpoint | Notes |
 |---|---|
-| `GET /projects?q=<texto>&platform=PAPER&version=<mc>&limit=25&offset=0&sort=-stars` | Búsqueda. `result[].namespace.{owner,slug}`, `stats.downloads`, `supportedPlatforms.PAPER[]`, `category`, `avatarUrl`. |
-| `GET /projects/{slug}` | Detalle. |
+| `GET /projects?q=<text>&platform=PAPER&version=<mc>&limit=25&offset=0&sort=-stars` | Search. `result[].namespace.{owner,slug}`, `stats.downloads`, `supportedPlatforms.PAPER[]`, `category`, `avatarUrl`. |
+| `GET /projects/{slug}` | Details. |
 | `GET /projects/{slug}/versions?platform=PAPER&limit=25` | `result[].{name, channel.name, downloads.PAPER.{downloadUrl, fileInfo.{name,sizeBytes,sha256Hash}}, pluginDependencies.PAPER[], platformDependencies.PAPER[]}` |
-| `GET /projects/{slug}/versions/{name}` | Una versión. |
+| `GET /projects/{slug}/versions/{name}` | Single version. |
 
-Descarga: usar `downloads.PAPER.downloadUrl` (CDN `hangarcdn.papermc.io`). Si `externalUrl` no es null, el jar está fuera de Hangar (p.ej. GitHub) y no hay hash.
-Ojo: el `slug` es sensible a mayúsculas (`ViaVersion` ✔, `EssentialsX` ✘ — Essentials no está en Hangar).
+Download: use `downloads.PAPER.downloadUrl` (CDN `hangarcdn.papermc.io`). If `externalUrl` is not null, the jar is hosted outside Hangar (e.g. GitHub) and there is no hash.
+Note: the `slug` is case-sensitive (`ViaVersion` ✔, `EssentialsX` ✘ — Essentials is not on Hangar).
 
-## Modrinth v2 — plugins (y mods)
+## Modrinth v2 — plugins (and mods)
 
-Base: `https://api.modrinth.com/v2` · Docs: https://docs.modrinth.com/api/ · 300 req/min por IP. Auth opcional.
+Base: `https://api.modrinth.com/v2` · Docs: https://docs.modrinth.com/api/ · 300 req/min per IP. Auth optional.
 
-| Endpoint | Notas |
+| Endpoint | Notes |
 |---|---|
-| `GET /search?query=&limit=&offset=&index=relevance&facets=[["project_type:plugin"],["categories:paper"],["versions:1.21.8"]]` | `hits[].{project_id, slug, title, description, icon_url, downloads, categories, versions}`. `facets` va URL-encoded. |
-| `GET /project/{id|slug}` | Detalle. |
+| `GET /search?query=&limit=&offset=&index=relevance&facets=[["project_type:plugin"],["categories:paper"],["versions:1.21.8"]]` | `hits[].{project_id, slug, title, description, icon_url, downloads, categories, versions}`. `facets` must be URL-encoded. |
+| `GET /project/{id|slug}` | Details. |
 | `GET /project/{id|slug}/version?loaders=["paper"]&game_versions=["1.21.8"]` | `[{id, name, version_number, version_type (release/beta/alpha), game_versions, loaders, files[{url, filename, primary, size, hashes:{sha1,sha512}}], dependencies[]}]` |
-| `GET /version/{id}` | Una versión. |
+| `GET /version/{id}` | Single version. |
 
-Elegir el archivo con `primary: true`. Verificar `sha512`.
+Pick the file with `primary: true`. Verify `sha512`.
 
-## Mojang (para nombres/UUIDs y skins)
+## Mojang (for names/UUIDs and skins)
 
-| Endpoint | Notas |
+| Endpoint | Notes |
 |---|---|
-| `GET https://api.mojang.com/users/profiles/minecraft/{name}` | `{id, name}` (UUID sin guiones). |
-| `GET https://sessionserver.mojang.com/session/minecraft/profile/{uuid}` | Perfil + skin (base64). |
-| `https://mc-heads.net/avatar/{uuid}` o `https://crafatar.com/avatars/{uuid}` | Avatares para la UI (servicios de terceros). |
+| `GET https://api.mojang.com/users/profiles/minecraft/{name}` | `{id, name}` (UUID without dashes). |
+| `GET https://sessionserver.mojang.com/session/minecraft/profile/{uuid}` | Profile + skin (base64). |
+| `https://mc-heads.net/avatar/{uuid}` or `https://crafatar.com/avatars/{uuid}` | Avatars for the UI (third-party services). |
 
-El servidor mantiene `usercache.json` con `{name, uuid, expiresOn}`; usarlo primero y consultar Mojang solo si falta.
+The server maintains `usercache.json` with `{name, uuid, expiresOn}`; use it first and query Mojang only when missing.

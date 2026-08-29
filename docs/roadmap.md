@@ -1,37 +1,37 @@
 # Roadmap
 
-## Fase 0 — Diseño ✅
-- [x] Investigación de alternativas y APIs (Fill v3, Hangar, Modrinth verificadas)
+## Phase 0 — Design ✅
+- [x] Research on alternatives and APIs (Fill v3, Hangar, Modrinth verified)
 - [x] ADRs 001–007
-- [x] Especificación de API REST + WS (`docs/api.md`)
-- [x] Esqueleto: `wardend/` (Go, compila, parser de log con tests) y `beacon/` (Next.js + Dockerfile)
-- [x] Modelo de seguridad y auth (`docs/security.md`, ADR-008); propuestas de nombre (`docs/naming.md`)
-- [x] Nombre: Warden / `wardend`; Better Auth (ADR-009)
+- [x] REST + WS API specification (`docs/api.md`)
+- [x] Skeleton: `wardend/` (Go, compiles, log parser with tests) and `beacon/` (Next.js + Dockerfile)
+- [x] Security and auth model (`docs/security.md`, ADR-008); name proposals (`docs/naming.md`)
+- [x] Name: Warden / `wardend`; Better Auth (ADR-009)
 
-## Fase 1 — MVP daemon
-- [ ] `internal/store`: SQLite + migraciones (métricas, jugadores, eventos; ya no usuarios)
-- [x] `internal/auth`: verificación JWT vía JWKS de Beacon + `X-Panel-Key` + roles (ADR-009)
-- [x] Beacon: Better Auth (email+password, admin, jwt EdDSA), login, layout protegido, proxy BFF `/api/wardend`
-- [ ] `internal/catalog/paper`: Fill v3 (versiones, builds, descarga con sha256)
-- [ ] `internal/tasks`: tarea `install` (jar + eula + server.properties + rcon local)
-- [ ] `internal/instance`: proceso `java` con `os/exec`, ring buffer de consola, stop escalonado, restart policy
-- [ ] `internal/ws`: hub, streams console/state/events
-- [ ] `internal/metrics`: gopsutil cada 2 s, persistencia y endpoint `/metrics`
-- [ ] Panel: login, lista de instancias, wizard de creación, consola (xterm.js), tarjetas de recursos
+## Phase 1 — Daemon MVP
+- [ ] `internal/store`: SQLite + migrations (metrics, players, events; no longer users)
+- [x] `internal/auth`: JWT verification via Beacon's JWKS + `X-Panel-Key` + roles (ADR-009)
+- [x] Beacon: Better Auth (email+password, admin, jwt EdDSA), login, protected layout, BFF proxy `/api/wardend`
+- [ ] `internal/catalog/paper`: Fill v3 (versions, builds, download with sha256)
+- [ ] `internal/tasks`: `install` task (jar + eula + server.properties + local rcon)
+- [ ] `internal/instance`: `java` process via `os/exec`, console ring buffer, staged stop, restart policy
+- [ ] `internal/ws`: hub, console/state/events streams
+- [ ] `internal/metrics`: gopsutil every 2 s, persistence and `/metrics` endpoint
+- [ ] Panel: login, instance list, creation wizard, console (xterm.js), resource cards
 
-## Fase 2 — Configuración y plugins
-- [ ] Esquema de `server.properties`; whitelist/ops/bans; editor de archivos confinado
-- [ ] `catalog/hangar` + `catalog/modrinth`; instalar/actualizar/toggle plugins; leer `plugin.yml` de los jars
-- [ ] Upgrade de build/versión de Paper con backup previo
-- [ ] Panel: pantallas de config y navegador de plugins
+## Phase 2 — Configuration and plugins
+- [ ] `server.properties` schema; whitelist/ops/bans; confined file editor
+- [ ] `catalog/hangar` + `catalog/modrinth`; install/update/toggle plugins; read `plugin.yml` from jars
+- [ ] Paper build/version upgrade with prior backup
+- [ ] Panel: config screens and plugin browser
 
-## Fase 3 — Jugadores
-- [ ] Sesiones (join/leave) en SQLite, RCON `list`, ping
-- [ ] Logros y estadísticas desde `world/advancements` y `world/stats`
-- [ ] Mensajes, kick, ban, op desde la ficha del jugador
+## Phase 3 — Players
+- [ ] Sessions (join/leave) in SQLite, RCON `list`, ping
+- [ ] Advancements and statistics from `world/advancements` and `world/stats`
+- [ ] Messages, kick, ban, op from the player card
 
-## Fase 4 — Operación
-- [ ] Backups (save-off/save-all/tar.zst) y programador cron
-- [ ] TLS integrado en el daemon; Dockerfile opcional del daemon
-- [ ] Multi-nodo en el panel (varios daemons)
-- [ ] Otros proveedores: Purpur, Fabric, Vanilla
+## Phase 4 — Operations
+- [ ] Backups (save-off/save-all/tar.zst) and cron scheduler
+- [ ] TLS built into the daemon; optional daemon Dockerfile
+- [ ] Multi-node in the panel (several daemons)
+- [ ] Other providers: Purpur, Fabric, Vanilla

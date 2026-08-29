@@ -5,11 +5,11 @@
 # Node / web
 node_modules/
 web/dist/
-# Datos locales de instancias (nunca commitear mundos ni jars)
+# Local instance data (never commit worlds or jars)
 /data/
 /servers/
 *.jar
-# OS / editores
+# OS / editors
 .DS_Store
 .idea/
 .vscode/

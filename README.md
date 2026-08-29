@@ -1,46 +1,46 @@
 # Warden
 
-> Nombre elegido en `docs/naming.md`: proyecto **Warden**, daemon **`wardend`**, panel **beacon** (nombre "Beacon" aún en consideración para el panel).
+> Name chosen in `docs/naming.md`: project **Warden**, daemon **`wardend`**, panel **beacon** (the name "Beacon" is still under consideration for the panel).
 
-Panel sencillo y útil para crear y administrar **varias instancias** de servidores de Minecraft (Java Edition, empezando por **PaperMC**) en Ubuntu, al estilo de Pterodactyl / Crafty Controller pero mucho más ligero. Incluye instalación de plugins desde Hangar y Modrinth ("como Prism Launcher, pero para servidores").
+A simple, useful panel to create and manage **multiple instances** of Minecraft servers (Java Edition, starting with **PaperMC**) on Ubuntu, in the spirit of Pterodactyl / Crafty Controller but much lighter. Includes plugin installation from Hangar and Modrinth ("like Prism Launcher, but for servers").
 
-## Componentes
+## Components
 
-| | Dir | Tecnología | Corre en |
+| | Dir | Technology | Runs on |
 |---|---|---|---|
-| **wardend** (daemon) | [`wardend/`](wardend/) | Go, binario único, `systemd` | El Ubuntu de los servidores |
-| **Beacon** (panel) | [`beacon/`](beacon/) | Next.js 16 + React 19 + Tailwind 4 + shadcn/ui + Better Auth (pnpm) | Docker vía Dokploy |
+| **wardend** (daemon) | [`wardend/`](wardend/) | Go, single binary, `systemd` | The Ubuntu box hosting the servers |
+| **Beacon** (panel) | [`beacon/`](beacon/) | Next.js 16 + React 19 + Tailwind 4 + shadcn/ui + Better Auth (pnpm) | Docker via Dokploy |
 
-El navegador se conecta al daemon (REST + WebSocket con JWT); el panel solo sirve la UI. Ver [`docs/architecture.md`](docs/architecture.md).
+The browser connects to the daemon (REST + WebSocket with JWT); the panel only serves the UI. See [`docs/architecture.md`](docs/architecture.md).
 
-## Funcionalidades objetivo
-- Crear instancias: elegir versión y build de Paper (API Fill v3), memoria, flags JVM (Aikar), puerto, EULA.
-- Arrancar / detener / reiniciar / autostart / reinicio ante crash.
-- Consola en vivo y envío de comandos.
-- `server.properties` con esquema, whitelist, ops, bans, editor de archivos de config.
-- Plugins: buscar en Hangar y Modrinth, instalar, actualizar, activar/desactivar, subir jar.
-- Recursos por instancia: CPU, RAM, disco, red, TPS.
-- Jugadores: online, historial, logros, estadísticas, mensajes, kick/ban.
-- Backups y tareas programadas.
+## Target features
+- Create instances: pick Paper version and build (Fill v3 API), memory, JVM flags (Aikar), port, EULA.
+- Start / stop / restart / autostart / restart on crash.
+- Live console and command sending.
+- `server.properties` with schema, whitelist, ops, bans, config file editor.
+- Plugins: search Hangar and Modrinth, install, update, enable/disable, upload jar.
+- Per-instance resources: CPU, RAM, disk, network, TPS.
+- Players: online, history, advancements, statistics, messages, kick/ban.
+- Backups and scheduled tasks.
 
-## Documentación
-- [`docs/research.md`](docs/research.md) — investigación de alternativas y lenguajes.
-- [`docs/architecture.md`](docs/architecture.md) — arquitectura, layout del monorepo, flujos.
-- [`docs/api.md`](docs/api.md) — **especificación de la API REST + WebSocket** del daemon.
-- [`docs/external-apis.md`](docs/external-apis.md) — Fill v3 (Paper), Hangar, Modrinth, Mojang (verificadas).
-- [`docs/minecraft-admin.md`](docs/minecraft-admin.md) — referencia de administración de servidores Paper (archivos, comandos, flags, logs, seguridad).
-- [`docs/adr/`](docs/adr/) — decisiones: [001 Go](docs/adr/001-lenguaje-backend.md) · [002 Web](docs/adr/002-interfaz-web.md) · [003 Monolito](docs/adr/003-arquitectura-monolito.md) · [004 Integración MC](docs/adr/004-integracion-minecraft.md) · [005 Fuentes jars/plugins](docs/adr/005-fuentes-de-jars-y-plugins.md) · [006 Multi-instancia](docs/adr/006-multi-instancia.md) · [007 Panel Next.js separado](docs/adr/007-panel-nextjs-docker-separado.md)
-- [`docs/security.md`](docs/security.md) — autenticación y hardening panel ↔ daemon.
-- [`docs/naming.md`](docs/naming.md) — monorepo y propuestas de nombre.
-- [`docs/tooling.md`](docs/tooling.md) — MCP servers y skills instaladas para desarrollo asistido.
+## Documentation
+- [`docs/research.md`](docs/research.md) — research on alternatives and languages.
+- [`docs/architecture.md`](docs/architecture.md) — architecture, monorepo layout, flows.
+- [`docs/api.md`](docs/api.md) — **REST + WebSocket API specification** of the daemon.
+- [`docs/external-apis.md`](docs/external-apis.md) — Fill v3 (Paper), Hangar, Modrinth, Mojang (verified).
+- [`docs/minecraft-admin.md`](docs/minecraft-admin.md) — Paper server administration reference (files, commands, flags, logs, security).
+- [`docs/adr/`](docs/adr/) — decisions: [001 Go](docs/adr/001-backend-language.md) · [002 Web](docs/adr/002-web-interface.md) · [003 Monolith](docs/adr/003-single-binary-daemon.md) · [004 MC integration](docs/adr/004-minecraft-integration.md) · [005 Jar/plugin sources](docs/adr/005-jar-and-plugin-sources.md) · [006 Multi-instance](docs/adr/006-multi-instance.md) · [007 Separate Next.js panel](docs/adr/007-separate-nextjs-panel.md)
+- [`docs/security.md`](docs/security.md) — authentication and panel ↔ daemon hardening.
+- [`docs/naming.md`](docs/naming.md) — monorepo and name proposals.
+- [`docs/tooling.md`](docs/tooling.md) — MCP servers and skills installed for assisted development.
 - [`docs/roadmap.md`](docs/roadmap.md)
 
-## Desarrollo
+## Development
 ```bash
 # wardend (daemon)
 cd wardend && make run                      # http://localhost:8080/api/v1/health
 # Beacon (panel)
-cp beacon/.env.example beacon/.env.local     # rellenar BETTER_AUTH_SECRET y WARDEND_PANEL_KEY
+cp beacon/.env.example beacon/.env.local     # fill in BETTER_AUTH_SECRET and WARDEND_PANEL_KEY
 cd beacon && pnpm install && pnpm auth:migrate && pnpm dev   # http://localhost:3000
 ```
-Para que wardend acepte los JWT de Beacon en local: `WARDEND_PANEL_JWKS_URL=http://localhost:3000/api/auth/jwks WARDEND_PANEL_ISSUER=http://localhost:3000 make run`.
+For wardend to accept Beacon's JWTs locally: `WARDEND_PANEL_JWKS_URL=http://localhost:3000/api/auth/jwks WARDEND_PANEL_ISSUER=http://localhost:3000 make run`.

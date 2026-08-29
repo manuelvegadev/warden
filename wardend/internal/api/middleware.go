@@ -17,7 +17,7 @@ func logging(next http.Handler) http.Handler {
 	})
 }
 
-// cors permite solo los orígenes del panel (ADR-007). Sin orígenes configurados no se añade ninguna cabecera.
+// cors allows only the panel origins (ADR-007). With no origins configured no header is added.
 func cors(allowed []string, next http.Handler) http.Handler {
 	set := map[string]bool{}
 	for _, o := range allowed {

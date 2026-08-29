@@ -88,7 +88,7 @@ func (s *server) createInstance(w http.ResponseWriter, r *http.Request) {
 		Port: req.Port, RconPort: req.Port + 10, Autostart: req.Autostart, RestartPolicy: req.RestartPolicy,
 		StopTimeoutS: 60, Plugins: []instance.InstalledPlugin{}, CreatedAt: time.Now().UTC(),
 	}
-	// TODO: generar RconPassword aleatoria, validar puertos libres, resolver build "latest" vía catalog.
+	// TODO: generate a random RconPassword, validate free ports, resolve build "latest" via catalog.
 	inst, err := s.mgr.Create(man)
 	if err != nil {
 		if errors.Is(err, instance.ErrInvalidID) {
@@ -98,7 +98,7 @@ func (s *server) createInstance(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 409, "create_failed", err.Error())
 		return
 	}
-	// TODO: lanzar tarea de instalación (descarga jar Fill v3 + eula + server.properties) y devolver 202 {task}.
+	// TODO: launch the install task (Fill v3 jar download + eula + server.properties) and return 202 {task}.
 	writeJSON(w, 201, summary(inst))
 }
 
@@ -115,7 +115,7 @@ func (s *server) sendCommand(w http.ResponseWriter, r *http.Request) {
 		Command string `json:"command"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Command == "" {
-		writeError(w, 400, "bad_request", "command requerido")
+		writeError(w, 400, "bad_request", "command is required")
 		return
 	}
 	s.instanceAction(w, r, func(i *instance.Instance) error { return i.SendCommand(body.Command) })

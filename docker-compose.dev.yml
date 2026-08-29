@@ -1,0 +1,14 @@
+# Local development: Beacon in Docker, wardend running on the host (`make run` in wardend/).
+services:
+  beacon:
+    build:
+      context: ./beacon
+      args:
+        NEXT_PUBLIC_WARDEND_WS_URL: ws://localhost:8080
+    ports: ["3000:3000"]
+    volumes: ["beacon-data:/data"]
+    env_file: ./beacon/.env.local
+    environment:
+      WARDEND_URL: http://host.docker.internal:8080
+volumes:
+  beacon-data:

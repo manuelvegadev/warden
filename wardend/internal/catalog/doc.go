@@ -1,2 +1,2 @@
-// Package catalog implementa proveedores de descargas: Paper (Fill v3), Hangar y Modrinth, con caché en memoria. Ver docs/external-apis.md y ADR-005.
+// Package catalog implements download providers: Paper (Fill v3), Hangar and Modrinth, with an in-memory cache. See docs/external-apis.md and ADR-005.
 package catalog
