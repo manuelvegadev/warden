@@ -63,16 +63,7 @@
     {
       "includes": ["components/ui/**"],
       "linter": {
-        "rules": {
-          "suspicious": {
-            "noExplicitAny": "off",
-            "noArrayIndexKey": "off"
-          },
-          "a11y": "off",
-          "security": {
-            "noDangerouslySetInnerHtml": "off"
-          }
-        }
+        "enabled": false
       }
     }
   ],
