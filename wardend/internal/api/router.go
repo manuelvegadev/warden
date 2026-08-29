@@ -87,6 +87,12 @@ func NewRouter(d Deps) http.Handler {
 	// Configuration and access lists
 	mux.HandleFunc("GET /api/v1/instances/{id}/properties", s.getProperties)
 	mux.HandleFunc("PUT /api/v1/instances/{id}/properties", auth.RequireAdmin(s.putProperties))
+	mux.HandleFunc("GET /api/v1/instances/{id}/command", s.launchCommand)
+	mux.HandleFunc("GET /api/v1/instances/{id}/upgrade", s.checkUpgrade)
+	mux.HandleFunc("POST /api/v1/instances/{id}/upgrade", auth.RequireAdmin(s.startUpgrade))
+	mux.HandleFunc("GET /api/v1/instances/{id}/files", s.listConfigFiles)
+	mux.HandleFunc("GET /api/v1/instances/{id}/files/content", s.getConfigFile)
+	mux.HandleFunc("PUT /api/v1/instances/{id}/files/content", auth.RequireAdmin(s.putConfigFile))
 	mux.HandleFunc("GET /api/v1/instances/{id}/properties/raw", s.getPropertiesRaw)
 	mux.HandleFunc("PUT /api/v1/instances/{id}/properties/raw", auth.RequireAdmin(s.putPropertiesRaw))
 	mux.HandleFunc("GET /api/v1/instances/{id}/whitelist", s.getWhitelist)
@@ -110,7 +116,7 @@ func NewRouter(d Deps) http.Handler {
 	mux.HandleFunc("POST /api/v1/instances/{id}/plugins", auth.RequireAdmin(s.installPlugin))
 
 	// Files, backups (see docs/api.md) — later phases
-	for _, p := range []string{"files", "backups", "schedule"} {
+	for _, p := range []string{"backups", "schedule"} {
 		mux.HandleFunc("/api/v1/instances/{id}/"+p, notImplemented)
 		mux.HandleFunc("/api/v1/instances/{id}/"+p+"/", notImplemented)
 	}

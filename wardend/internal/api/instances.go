@@ -142,7 +142,7 @@ func (s *server) installInstance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if st := inst.State(); st != instance.StateInstalling && st != instance.StateStopped && st != instance.StateCrashed {
-		writeError(w, 409, "invalid_state", "instance must be stopped")
+		writeError(w, 409, "invalid_state", instance.ErrMustBeStopped.Error())
 		return
 	}
 	var opts instance.InstallOptions
@@ -302,7 +302,7 @@ func (s *server) instanceAction(w http.ResponseWriter, r *http.Request, fn func(
 	}
 	if err := fn(inst); err != nil {
 		switch {
-		case errors.Is(err, instance.ErrAlreadyRunning), errors.Is(err, instance.ErrNotRunning), errors.Is(err, instance.ErrNotInstalled):
+		case errors.Is(err, instance.ErrAlreadyRunning), errors.Is(err, instance.ErrNotRunning), errors.Is(err, instance.ErrNotInstalled), errors.Is(err, instance.ErrMustBeStopped):
 			writeError(w, 409, "invalid_state", err.Error())
 		case errors.Is(err, instance.ErrBadName), errors.Is(err, instance.ErrBadIP):
 			writeError(w, 400, "bad_request", err.Error())
@@ -312,4 +312,9 @@ func (s *server) instanceAction(w http.ResponseWriter, r *http.Request, fn func(
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// launchCommand shows the exact command Start runs for this instance.
+func (s *server) launchCommand(w http.ResponseWriter, r *http.Request) {
+	s.instanceJSON(w, r, func(i *instance.Instance) (any, error) { return i.LaunchCommand(), nil })
 }

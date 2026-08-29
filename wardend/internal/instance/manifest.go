@@ -27,7 +27,18 @@ type Manifest struct {
 	RestartPolicy string            `json:"restartPolicy"` // never|on-crash|always
 	StopTimeoutS  int               `json:"stopTimeoutSeconds"`
 	Plugins       []InstalledPlugin `json:"plugins"`
+	Upgrades      []UpgradeRecord   `json:"upgrades,omitempty"` // newest last
 	CreatedAt     time.Time         `json:"createdAt"`
+}
+
+// UpgradeRecord is one completed server upgrade (see Instance.Upgrade).
+type UpgradeRecord struct {
+	FromVersion string    `json:"fromVersion"`
+	FromBuild   int       `json:"fromBuild"`
+	ToVersion   string    `json:"toVersion"`
+	ToBuild     int       `json:"toBuild"`
+	Backup      string    `json:"backup"` // file name under <instance>/backups
+	At          time.Time `json:"at"`
 }
 
 type InstalledPlugin struct {

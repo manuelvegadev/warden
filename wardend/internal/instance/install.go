@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strconv"
 
 	"github.com/manuelvega/warden/wardend/internal/catalog"
@@ -27,44 +28,17 @@ func (i *Instance) Install(ctx context.Context, reg *catalog.Registry, opts Inst
 		return err
 	}
 	report(2, "Resolving builds for "+m.MCVersion)
-	builds, err := prov.Builds(ctx, m.MCVersion)
+	build, err := resolveBuild(ctx, prov, m.Software, m.MCVersion, m.Build)
 	if err != nil {
 		return err
 	}
-	var build catalog.Build
-	found := false
-	if m.Build == 0 {
-		build, found = catalog.LatestBuild(builds)
-	} else {
-		for _, b := range builds {
-			if b.ID == m.Build {
-				build, found = b, true
-				break
-			}
-		}
-	}
-	if !found {
-		return fmt.Errorf("no build %d for %s %s", m.Build, m.Software, m.MCVersion)
-	}
 	m.Build = build.ID
-
-	report(5, "Downloading "+build.Name)
-	dest := filepath.Join(i.ServerDir(), build.Name)
-	err = reg.Download(ctx, build.URL, catalog.Checksum{Algo: "sha256", Value: build.SHA256}, dest, func(done, total int64) {
-		if total > 0 {
-			report(5+int(done*85/total), fmt.Sprintf("Downloading %s (%d/%d MB)", build.Name, done>>20, total>>20))
-		}
-	})
-	if err != nil {
+	if err := downloadBuild(ctx, reg, build, filepath.Join(i.ServerDir(), build.Name), report, 5, 90); err != nil {
 		return err
 	}
 	m.Jar = build.Name
-
-	if i.java != nil && m.JavaPath == "" {
-		report(90, "Checking Java runtime")
-		if _, err := i.java.ResolveJava(ctx, m, true, func(p int, msg string) { report(90+p/20, msg) }); err != nil {
-			return fmt.Errorf("java runtime: %w", err)
-		}
+	if err := i.ensureJava(ctx, report, 90, 95); err != nil {
+		return err
 	}
 	report(96, "Writing configuration")
 	if err := i.AcceptEULA(opts.AcceptEULA); err != nil {
@@ -88,5 +62,43 @@ func (i *Instance) Install(ctx context.Context, reg *catalog.Registry, opts Inst
 	}
 	i.setState(StateStopped)
 	report(100, "Installed "+build.Name)
+	return nil
+}
+
+// resolveBuild picks build id for software/mcVersion, or the newest when id is 0.
+func resolveBuild(ctx context.Context, prov catalog.ServerProvider, software, mcVersion string, id int) (catalog.Build, error) {
+	builds, err := prov.Builds(ctx, mcVersion)
+	if err != nil {
+		return catalog.Build{}, err
+	}
+	if id == 0 {
+		if b, ok := catalog.LatestBuild(builds); ok {
+			return b, nil
+		}
+	} else if idx := slices.IndexFunc(builds, func(b catalog.Build) bool { return b.ID == id }); idx >= 0 {
+		return builds[idx], nil
+	}
+	return catalog.Build{}, fmt.Errorf("no build %d for %s %s", id, software, mcVersion)
+}
+
+// downloadBuild fetches a server jar with sha256 verification, mapping progress onto [from,to].
+func downloadBuild(ctx context.Context, reg *catalog.Registry, build catalog.Build, dest string, report tasks.Reporter, from, to int) error {
+	report(from, "Downloading "+build.Name)
+	return reg.Download(ctx, build.URL, catalog.Checksum{Algo: "sha256", Value: build.SHA256}, dest, func(done, total int64) {
+		if total > 0 {
+			report(from+int(done*int64(to-from)/total), fmt.Sprintf("Downloading %s (%d/%d MB)", build.Name, done>>20, total>>20))
+		}
+	})
+}
+
+// ensureJava resolves (downloading if needed) the runtime for the manifest's Minecraft version.
+func (i *Instance) ensureJava(ctx context.Context, report tasks.Reporter, from, to int) error {
+	if i.java == nil || i.Manifest.JavaPath != "" {
+		return nil
+	}
+	report(from, "Checking Java runtime")
+	if _, err := i.java.ResolveJava(ctx, i.Manifest, true, func(p int, msg string) { report(from+p*(to-from)/100, msg) }); err != nil {
+		return fmt.Errorf("java runtime: %w", err)
+	}
 	return nil
 }

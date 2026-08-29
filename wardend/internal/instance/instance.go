@@ -37,6 +37,9 @@ type Instance struct {
 
 	mu          sync.RWMutex
 	pluginMetas map[string]pluginMetaEntry // jar descriptors keyed by path, invalidated by size/mtime
+	rootOnce    sync.Once                  // realServerDir cache
+	rootReal    string
+	rootErr     error
 	state       State
 	cmd         *exec.Cmd
 	stdin       io.WriteCloser
@@ -179,7 +182,7 @@ func (i *Instance) Start(ctx context.Context) error {
 	i.mu.Unlock()
 
 	i.setState(StateStarting)
-	i.system(fmt.Sprintf("Starting %s %s (pid %d): %s %s", m.Software, m.MCVersion, cmd.Process.Pid, javaBin, strings.Join(m.JavaArgs(), " ")))
+	i.system(fmt.Sprintf("Starting %s %s (pid %d): %s", m.Software, m.MCVersion, cmd.Process.Pid, shellLine(javaBin, m.JavaArgs())))
 	slog.Info("instance started", "id", m.ID, "pid", cmd.Process.Pid)
 
 	go i.pump(stdout)
@@ -440,6 +443,57 @@ type JavaResolver interface {
 	// ResolveJava returns the binary for the manifest's JavaRuntime/JavaPath, or the best installed
 	// runtime for the instance's Minecraft version. install=true allows downloading a runtime.
 	ResolveJava(ctx context.Context, m *Manifest, install bool, report func(int, string)) (string, error)
+}
+
+// LaunchCommand is what Start would execute, resolved from the current manifest: the Java binary
+// (or an error message when none can be resolved yet), the arguments and the working directory.
+type LaunchCommand struct {
+	Java      string   `json:"java"`
+	JavaError string   `json:"javaError,omitempty"`
+	Args      []string `json:"args"`
+	Cwd       string   `json:"cwd"`
+	Shell     string   `json:"shell"` // java + args quoted for a POSIX shell
+}
+
+func (i *Instance) LaunchCommand() LaunchCommand {
+	i.mu.RLock()
+	out := LaunchCommand{Args: i.Manifest.JavaArgs(), Cwd: i.ServerDir()}
+	i.mu.RUnlock()
+	// Resolving Java may scan runtimes on disk: do it outside the instance lock.
+	java, err := i.resolveJava()
+	if err != nil {
+		out.JavaError = err.Error()
+		java = "java"
+	}
+	out.Java = java
+	out.Shell = shellLine(java, out.Args)
+	return out
+}
+
+// requireStopped is the precondition for operations that replace server files.
+func (i *Instance) requireStopped() error {
+	if st := i.State(); st != StateStopped && st != StateCrashed {
+		return ErrMustBeStopped
+	}
+	return nil
+}
+
+// shellLine renders argv as a POSIX shell command line, quoting only where needed.
+func shellLine(bin string, args []string) string {
+	parts := make([]string, 0, len(args)+1)
+	for _, a := range append([]string{bin}, args...) {
+		parts = append(parts, shellQuote(a))
+	}
+	return strings.Join(parts, " ")
+}
+
+var shellSafe = regexp.MustCompile(`^[A-Za-z0-9_+=:.,/%@-]+$`)
+
+func shellQuote(s string) string {
+	if shellSafe.MatchString(s) {
+		return s
+	}
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
 func (i *Instance) resolveJava() (string, error) {
