@@ -81,10 +81,10 @@ func resolveBuild(ctx context.Context, prov catalog.ServerProvider, software, mc
 	return catalog.Build{}, fmt.Errorf("no build %d for %s %s", id, software, mcVersion)
 }
 
-// downloadBuild fetches a server jar with sha256 verification, mapping progress onto [from,to].
+// downloadBuild fetches a server jar verified against build.Hash when the upstream publishes one, mapping progress onto [from,to].
 func downloadBuild(ctx context.Context, reg *catalog.Registry, build catalog.Build, dest string, report tasks.Reporter, from, to int) error {
 	report(from, "Downloading "+build.Name)
-	return reg.Download(ctx, build.URL, catalog.Checksum{Algo: "sha256", Value: build.SHA256}, dest, func(done, total int64) {
+	return reg.Download(ctx, build.URL, build.Hash, dest, func(done, total int64) {
 		if total > 0 {
 			report(from+int(done*int64(to-from)/total), fmt.Sprintf("Downloading %s (%d/%d MB)", build.Name, done>>20, total>>20))
 		}

@@ -94,7 +94,7 @@ func main() {
 	jm := java.NewManager(cfg.DataDir, reg, cfg.UserAgent(version))
 	mgr.SetJavaResolver(jm)
 	tm := tasks.NewManager(hub)
-	sampler := metrics.NewSampler(mgr, st, hub, cfg.DataDir)
+	sampler := metrics.NewSampler(mgr, st, hub, cfg.DataDir, reg.TraitsOf)
 	sk := skins.New(cfg.DataDir, mj)
 	var sched *instance.BackupScheduler
 	sched = instance.NewBackupScheduler(mgr, func(inst *instance.Instance) {
@@ -111,7 +111,7 @@ func main() {
 
 	srv := &http.Server{
 		Addr:              cfg.Listen,
-		Handler:           api.NewRouter(api.Deps{Config: cfg, Manager: mgr, Verifier: verifier, Catalog: reg, Tasks: tm, Java: jm, Metrics: sampler, Store: st, Skins: sk, WS: hub, Version: version}),
+		Handler:           api.NewRouter(api.Deps{Config: cfg, Manager: mgr, Verifier: verifier, Catalog: reg, Tasks: tm, Java: jm, Metrics: sampler, Store: st, Skins: sk, WS: hub, Version: version, StartedAt: time.Now().UTC()}),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 

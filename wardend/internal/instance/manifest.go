@@ -11,7 +11,7 @@ import (
 type Manifest struct {
 	ID            string            `json:"id"`
 	Name          string            `json:"name"`
-	Software      string            `json:"software"`  // "paper"
+	Software      string            `json:"software"`  // paper | purpur | fabric | vanilla
 	MCVersion     string            `json:"mcVersion"` // "1.21.8"
 	Build         int               `json:"build"`
 	Jar           string            `json:"jar"`                   // jar file name inside server/

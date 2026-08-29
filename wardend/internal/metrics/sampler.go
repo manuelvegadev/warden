@@ -6,16 +6,20 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/shirou/gopsutil/v4/disk"
+	"github.com/shirou/gopsutil/v4/host"
+	"github.com/shirou/gopsutil/v4/load"
 	"github.com/shirou/gopsutil/v4/mem"
 	gnet "github.com/shirou/gopsutil/v4/net"
 	"github.com/shirou/gopsutil/v4/process"
 
 	"github.com/manuelvega/warden/wardend/internal/bus"
+	"github.com/manuelvega/warden/wardend/internal/catalog"
 	"github.com/manuelvega/warden/wardend/internal/instance"
 	"github.com/manuelvega/warden/wardend/internal/store"
 )
@@ -39,6 +43,10 @@ type Sampler struct {
 	bc       bus.Broadcaster
 	interval time.Duration
 	dataDir  string
+	traits   func(software string) catalog.Traits
+
+	platformOnce     sync.Once
+	platform, kernel string
 
 	mu      sync.RWMutex
 	procs   map[string]*process.Process
@@ -59,8 +67,9 @@ type diskCache struct {
 	size int64
 }
 
-func NewSampler(mgr *instance.Manager, st *store.Store, bc bus.Broadcaster, dataDir string) *Sampler {
-	return &Sampler{mgr: mgr, st: st, bc: bc, interval: 2 * time.Second, dataDir: dataDir,
+// traits tells the sampler which software answers the `tps` command (catalog.Registry.TraitsOf).
+func NewSampler(mgr *instance.Manager, st *store.Store, bc bus.Broadcaster, dataDir string, traits func(string) catalog.Traits) *Sampler {
+	return &Sampler{mgr: mgr, st: st, bc: bc, interval: 2 * time.Second, dataDir: dataDir, traits: traits,
 		procs: map[string]*process.Process{}, latest: map[string]Sample{}, disk: map[string]diskCache{}, history: map[string][]Sample{}}
 }
 
@@ -129,7 +138,7 @@ func (s *Sampler) tick(ctx context.Context) {
 		}
 		s.mu.Unlock()
 
-		if pollTPS {
+		if pollTPS && s.traits(inst.Manifest.Software).TPSCommand {
 			inst.PollTPS()
 		}
 		sample := Sample{TS: time.Now().UTC(), MemMax: int64(inst.Manifest.MemoryMB) << 20, Players: len(st.Players),
@@ -223,18 +232,50 @@ func (s *Sampler) History(ctx context.Context, id string, since time.Time) []Sam
 	return out
 }
 
-// System returns host-level figures for GET /system.
-func (s *Sampler) System(ctx context.Context) map[string]any {
-	out := map[string]any{}
+// DiskUsage is the filesystem holding the data directory.
+type DiskUsage struct {
+	Path  string `json:"path"`
+	Total uint64 `json:"total"`
+	Used  uint64 `json:"used"`
+}
+
+// HostInfo is the host-level snapshot behind GET /system. Pointer fields are omitted when the
+// platform cannot report them.
+type HostInfo struct {
+	Platform   string      `json:"platform,omitempty"` // "ubuntu 26.04"
+	Kernel     string      `json:"kernel,omitempty"`
+	HostUptime uint64      `json:"hostUptime,omitempty"` // seconds
+	MemTotal   uint64      `json:"memTotal,omitempty"`
+	MemUsed    uint64      `json:"memUsed,omitempty"`
+	CPUPercent *float64    `json:"cpuPercent,omitempty"`
+	Load       *[3]float64 `json:"load,omitempty"` // 1m, 5m, 15m
+	Disk       *DiskUsage  `json:"disk,omitempty"`
+}
+
+// System returns the host snapshot. Platform and kernel never change for the process, so they are
+// resolved once; the rest is one proc/sysctl read each.
+func (s *Sampler) System(ctx context.Context) HostInfo {
+	s.platformOnce.Do(func() {
+		if info, err := host.InfoWithContext(ctx); err == nil {
+			s.platform = strings.TrimSpace(info.Platform + " " + info.PlatformVersion)
+			s.kernel = info.KernelVersion
+		}
+	})
+	out := HostInfo{Platform: s.platform, Kernel: s.kernel}
+	if up, err := host.UptimeWithContext(ctx); err == nil {
+		out.HostUptime = up
+	}
 	if v, err := mem.VirtualMemoryWithContext(ctx); err == nil {
-		out["memTotal"] = v.Total
-		out["memUsed"] = v.Used
+		out.MemTotal, out.MemUsed = v.Total, v.Used
+	}
+	if l, err := load.AvgWithContext(ctx); err == nil {
+		out.Load = &[3]float64{l.Load1, l.Load5, l.Load15}
 	}
 	if pct, err := cpu.PercentWithContext(ctx, 0, false); err == nil && len(pct) > 0 {
-		out["cpuPercent"] = pct[0]
+		out.CPUPercent = &pct[0]
 	}
 	if d, err := disk.UsageWithContext(ctx, s.dataDir); err == nil {
-		out["disk"] = map[string]any{"path": s.dataDir, "total": d.Total, "used": d.Used}
+		out.Disk = &DiskUsage{Path: s.dataDir, Total: d.Total, Used: d.Used}
 	}
 	return out
 }

@@ -10,10 +10,11 @@ func (s *server) catalogServers(w http.ResponseWriter, _ *http.Request) {
 	type p struct {
 		ID   string `json:"id"`
 		Name string `json:"name"`
+		catalog.Traits
 	}
 	var out []p
 	for _, prov := range s.Catalog.Providers() {
-		out = append(out, p{prov.ID(), prov.Name()})
+		out = append(out, p{prov.ID(), prov.Name(), prov.Traits()})
 	}
 	writeJSON(w, 200, out)
 }

@@ -4,6 +4,7 @@ package catalog
 
 import (
 	"context"
+	"crypto/md5"
 	"crypto/sha1"
 	"crypto/sha256"
 	"crypto/sha512"
@@ -29,7 +30,7 @@ type Build struct {
 	Time    time.Time `json:"time"`
 	Name    string    `json:"name"`
 	Size    int64     `json:"size"`
-	SHA256  string    `json:"sha256"`
+	Hash    Checksum  `json:"hash"` // empty Algo when the upstream publishes no digest
 	URL     string    `json:"url"`
 	Changes []string  `json:"changes"`
 }
@@ -40,10 +41,18 @@ type VersionList struct {
 	Latest   string   `json:"latest"`
 }
 
-// ServerProvider serves server jars (Paper, later Purpur/Fabric/Vanilla).
+// Traits are the per-software facts the rest of the daemon and the panel need; providers own them.
+type Traits struct {
+	Plugins     bool `json:"plugins"`     // loads Bukkit/Paper plugins from plugins/
+	TPSCommand  bool `json:"tpsCommand"`  // answers the Paper-style `tps` command
+	SingleBuild bool `json:"singleBuild"` // one build per Minecraft version (build id is meaningless)
+}
+
+// ServerProvider serves server jars: Paper, Purpur, Fabric and Vanilla.
 type ServerProvider interface {
 	ID() string
 	Name() string
+	Traits() Traits
 	Versions(ctx context.Context, includePre bool) (VersionList, error)
 	Builds(ctx context.Context, mcVersion string) ([]Build, error)
 }
@@ -62,7 +71,9 @@ func NewRegistry(userAgent string) *Registry {
 		userAgent: userAgent,
 		providers: map[string]ServerProvider{},
 	}
-	r.providers["paper"] = newPaper(r)
+	for _, p := range []ServerProvider{newPaper(r), newPurpur(r), newFabric(r), newVanilla(r)} {
+		r.providers[p.ID()] = p
+	}
 	r.plugins = map[string]PluginSource{"hangar": newHangar(r), "modrinth": newModrinth(r)}
 	return r
 }
@@ -77,6 +88,29 @@ func (r *Registry) Providers() []ServerProvider {
 }
 
 var ErrUnknownProvider = errors.New("unknown provider")
+
+// TraitsOf returns the traits for a software id; unknown ids get zero traits.
+func (r *Registry) TraitsOf(software string) Traits {
+	if p, ok := r.providers[software]; ok {
+		return p.Traits()
+	}
+	return Traits{}
+}
+
+// firstLine trims a commit message to its (non-empty) first line for change lists.
+func firstLine(msg string) string { return strings.TrimSpace(strings.SplitN(msg, "\n", 2)[0]) }
+
+// cached returns the entry under key, computing and storing it with fn on a miss.
+func cached[T any](c *cache, key string, fn func() (T, error)) (T, error) {
+	if v, ok := c.get(key); ok {
+		return v.(T), nil
+	}
+	v, err := fn()
+	if err == nil {
+		c.set(key, v)
+	}
+	return v, err
+}
 
 func (r *Registry) Provider(id string) (ServerProvider, error) {
 	p, ok := r.providers[id]
@@ -153,7 +187,7 @@ func (r *Registry) FetchImage(ctx context.Context, url string, max int64) ([]byt
 // Progress reports bytes downloaded so far and the total (-1 if unknown).
 type Progress func(done, total int64)
 
-// Checksum names a digest to verify a download against. Algo is "sha256", "sha512" or "sha1"; empty = skip.
+// Checksum names a digest to verify a download against. Algo is "sha256", "sha512", "sha1" or "md5"; empty = skip.
 type Checksum struct {
 	Algo  string `json:"algo"`
 	Value string `json:"value"`
@@ -167,6 +201,8 @@ func (c Checksum) hasher() hash.Hash {
 		return sha1.New()
 	case "sha256":
 		return sha256.New()
+	case "md5":
+		return md5.New()
 	}
 	return nil
 }

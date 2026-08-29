@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"runtime"
+	"time"
 
 	"github.com/manuelvega/warden/wardend/internal/auth"
 	"github.com/manuelvega/warden/wardend/internal/catalog"
@@ -31,6 +32,8 @@ type Deps struct {
 	Skins    *skins.Service
 	WS       http.Handler
 	Version  string
+	// StartedAt is when the daemon process came up; the panel derives the uptime from it.
+	StartedAt time.Time
 }
 
 type server struct{ Deps }
@@ -145,17 +148,21 @@ func (s *server) health(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, 200, map[string]any{"ok": true, "version": s.Version})
 }
 
+// SystemInfo is GET /system: daemon identity plus the host snapshot.
+type SystemInfo struct {
+	metrics.HostInfo
+	Hostname      string    `json:"hostname"`
+	OS            string    `json:"os"` // "linux/amd64"
+	CPUCores      int       `json:"cpuCores"`
+	DaemonVersion string    `json:"daemonVersion"`
+	GoVersion     string    `json:"goVersion"`
+	StartedAt     time.Time `json:"startedAt"`
+}
+
 func (s *server) system(w http.ResponseWriter, r *http.Request) {
 	host, _ := os.Hostname()
-	sys := s.Metrics.System(r.Context())
-	if rts, err := s.Java.List(); err == nil {
-		sys["java"] = rts
-	}
-	sys["hostname"] = host
-	sys["os"] = runtime.GOOS + "/" + runtime.GOARCH
-	sys["cpuCores"] = runtime.NumCPU()
-	sys["daemonVersion"] = s.Version
-	writeJSON(w, 200, sys)
+	writeJSON(w, 200, SystemInfo{HostInfo: s.Metrics.System(r.Context()), Hostname: host, OS: runtime.GOOS + "/" + runtime.GOARCH,
+		CPUCores: runtime.NumCPU(), DaemonVersion: s.Version, GoVersion: runtime.Version(), StartedAt: s.StartedAt})
 }
 
 func (s *server) me(w http.ResponseWriter, r *http.Request) {

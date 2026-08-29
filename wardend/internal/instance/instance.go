@@ -263,7 +263,8 @@ func (i *Instance) captureTPS(text string) bool {
 	return quiet
 }
 
-// PollTPS sends a quiet `tps` (no STDIN echo, reply hidden). Called by the metrics sampler.
+// PollTPS sends a quiet `tps` (no STDIN echo, reply hidden). Called by the metrics sampler for
+// software whose provider answers the command (catalog.Traits.TPSCommand).
 func (i *Instance) PollTPS() {
 	i.mu.Lock()
 	if i.state != StateRunning || i.stdin == nil || i.tpsQuiet {
