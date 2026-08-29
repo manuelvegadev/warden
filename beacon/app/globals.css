@@ -130,3 +130,36 @@
     @apply font-sans;
   }
 }
+
+/* Scrollbars follow the theme (Chrome paints them light unless color-scheme is set) and mimic
+   Safari's overlay bars: no track, a slim pill floating ~2px from the edge that thickens on hover. */
+:root {
+  color-scheme: light;
+}
+.dark {
+  color-scheme: dark;
+}
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklab, var(--muted-foreground) 35%, transparent) transparent;
+}
+*::-webkit-scrollbar {
+  width: 11px;
+  height: 11px;
+}
+*::-webkit-scrollbar-track,
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background-color: color-mix(in oklab, var(--muted-foreground) 35%, transparent);
+  border: 3px solid transparent; /* 11px − 2×3px = 5px pill, like Safari at rest */
+  border-radius: 9999px;
+  background-clip: padding-box;
+  min-height: 32px;
+}
+*::-webkit-scrollbar-thumb:hover,
+*::-webkit-scrollbar-thumb:active {
+  background-color: color-mix(in oklab, var(--muted-foreground) 55%, transparent);
+  border-width: 2px; /* grows to 7px while interacting */
+}
