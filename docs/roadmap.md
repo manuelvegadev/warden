@@ -4,13 +4,14 @@
 - [x] Investigación de alternativas y APIs (Fill v3, Hangar, Modrinth verificadas)
 - [x] ADRs 001–007
 - [x] Especificación de API REST + WS (`docs/api.md`)
-- [x] Esqueleto: `daemon/` (Go, compila, parser de log con tests) y `panel/` (Next.js + Dockerfile)
+- [x] Esqueleto: `wardend/` (Go, compila, parser de log con tests) y `beacon/` (Next.js + Dockerfile)
 - [x] Modelo de seguridad y auth (`docs/security.md`, ADR-008); propuestas de nombre (`docs/naming.md`)
 - [x] Nombre: Warden / `wardend`; Better Auth (ADR-009)
 
 ## Fase 1 — MVP daemon
-- [ ] `internal/store`: SQLite + migraciones
-- [ ] `internal/auth`: usuario inicial (`wardend admin`), login JWT, middleware
+- [ ] `internal/store`: SQLite + migraciones (métricas, jugadores, eventos; ya no usuarios)
+- [x] `internal/auth`: verificación JWT vía JWKS de Beacon + `X-Panel-Key` + roles (ADR-009)
+- [x] Beacon: Better Auth (email+password, admin, jwt EdDSA), login, layout protegido, proxy BFF `/api/wardend`
 - [ ] `internal/catalog/paper`: Fill v3 (versiones, builds, descarga con sha256)
 - [ ] `internal/tasks`: tarea `install` (jar + eula + server.properties + rcon local)
 - [ ] `internal/instance`: proceso `java` con `os/exec`, ring buffer de consola, stop escalonado, restart policy

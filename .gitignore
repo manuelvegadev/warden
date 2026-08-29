@@ -15,3 +15,9 @@ web/dist/
 .vscode/
 *.log
 .env
+
+# Beacon
+data/
+.env.local
+.next/
+next-env.d.ts

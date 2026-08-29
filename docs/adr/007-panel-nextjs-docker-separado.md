@@ -10,8 +10,8 @@ Dos componentes, dos directorios en el monorepo:
 
 | Componente | Dir | Tecnología | Dónde corre |
 |---|---|---|---|
-| **`wardend`** (daemon) | `daemon/` | Go, binario único, `systemd` | En el Ubuntu donde corren los servidores de Minecraft (acceso directo a procesos, disco, `/proc`). |
-| **`panel`** | `panel/` | **Next.js 15 (App Router) + React + TypeScript + Tailwind + shadcn/ui** | Contenedor Docker desplegado por Dokploy (mismo host u otro). |
+| **`wardend`** (daemon) | `wardend/` | Go, binario único, `systemd` | En el Ubuntu donde corren los servidores de Minecraft (acceso directo a procesos, disco, `/proc`). |
+| **`panel`** | `beacon/` | **Next.js 16 (App Router) + React + TypeScript + Tailwind + shadcn/ui** | Contenedor Docker desplegado por Dokploy (mismo host u otro). |
 
 ### Por qué Next.js y no Astro
 - El panel es una app interactiva de tiempo real (WebSocket, consola xterm, gráficas): territorio de React puro. Astro brilla en sitios de contenido; sus "islas" añadirían fricción sin beneficio aquí.
@@ -26,8 +26,8 @@ Dos componentes, dos directorios en el monorepo:
 - El daemon mantiene además un **modo dev**: sirve un `index.html` mínimo de diagnóstico en `/`, pero la UI real es el panel.
 
 ### Despliegue con Dokploy
-- `panel/Dockerfile` multi-stage (`node:22-alpine`, `output: standalone`).
-- Dokploy: aplicación tipo *Dockerfile* apuntando a `panel/` del repo, dominio con TLS automático, variable `NEXT_PUBLIC_WARDEND_URL`.
+- `beacon/Dockerfile` multi-stage (`node:22-alpine`, `output: standalone`).
+- Dokploy: aplicación tipo *Dockerfile* apuntando a `beacon/` del repo, dominio con TLS automático, variable `NEXT_PUBLIC_WARDEND_URL`.
 - El daemon **no** va en Docker por defecto (necesita `/proc`, Java, cgroups y acceso al disco de los mundos); se instala con `systemd`. Se documenta igualmente una imagen opcional con `pid: host` y volúmenes para quien quiera todo en contenedores.
 
 ## Consecuencias

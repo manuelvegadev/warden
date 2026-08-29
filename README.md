@@ -1,6 +1,6 @@
 # Warden
 
-> Nombre elegido en `docs/naming.md`: proyecto **Warden**, daemon **`wardend`**, panel **warden-panel** (nombre "Beacon" aún en consideración para el panel).
+> Nombre elegido en `docs/naming.md`: proyecto **Warden**, daemon **`wardend`**, panel **beacon** (nombre "Beacon" aún en consideración para el panel).
 
 Panel sencillo y útil para crear y administrar **varias instancias** de servidores de Minecraft (Java Edition, empezando por **PaperMC**) en Ubuntu, al estilo de Pterodactyl / Crafty Controller pero mucho más ligero. Incluye instalación de plugins desde Hangar y Modrinth ("como Prism Launcher, pero para servidores").
 
@@ -8,8 +8,8 @@ Panel sencillo y útil para crear y administrar **varias instancias** de servido
 
 | | Dir | Tecnología | Corre en |
 |---|---|---|---|
-| **Daemon `wardend`** | [`daemon/`](daemon/) | Go, binario único, `systemd` | El Ubuntu de los servidores |
-| **Panel** | [`panel/`](panel/) | Next.js 15 + React + Tailwind + shadcn/ui | Docker vía Dokploy |
+| **wardend** (daemon) | [`wardend/`](wardend/) | Go, binario único, `systemd` | El Ubuntu de los servidores |
+| **Beacon** (panel) | [`beacon/`](beacon/) | Next.js 16 + React 19 + Tailwind 4 + shadcn/ui + Better Auth (pnpm) | Docker vía Dokploy |
 
 El navegador se conecta al daemon (REST + WebSocket con JWT); el panel solo sirve la UI. Ver [`docs/architecture.md`](docs/architecture.md).
 
@@ -32,12 +32,15 @@ El navegador se conecta al daemon (REST + WebSocket con JWT); el panel solo sirv
 - [`docs/adr/`](docs/adr/) — decisiones: [001 Go](docs/adr/001-lenguaje-backend.md) · [002 Web](docs/adr/002-interfaz-web.md) · [003 Monolito](docs/adr/003-arquitectura-monolito.md) · [004 Integración MC](docs/adr/004-integracion-minecraft.md) · [005 Fuentes jars/plugins](docs/adr/005-fuentes-de-jars-y-plugins.md) · [006 Multi-instancia](docs/adr/006-multi-instancia.md) · [007 Panel Next.js separado](docs/adr/007-panel-nextjs-docker-separado.md)
 - [`docs/security.md`](docs/security.md) — autenticación y hardening panel ↔ daemon.
 - [`docs/naming.md`](docs/naming.md) — monorepo y propuestas de nombre.
+- [`docs/tooling.md`](docs/tooling.md) — MCP servers y skills instaladas para desarrollo asistido.
 - [`docs/roadmap.md`](docs/roadmap.md)
 
 ## Desarrollo
 ```bash
-# daemon
-cd daemon && make run          # http://localhost:8080/api/v1/health
-# panel
-cd panel && npm install && npm run dev   # http://localhost:3000
+# wardend (daemon)
+cd wardend && make run                      # http://localhost:8080/api/v1/health
+# Beacon (panel)
+cp beacon/.env.example beacon/.env.local     # rellenar BETTER_AUTH_SECRET y WARDEND_PANEL_KEY
+cd beacon && pnpm install && pnpm auth:migrate && pnpm dev   # http://localhost:3000
 ```
+Para que wardend acepte los JWT de Beacon en local: `WARDEND_PANEL_JWKS_URL=http://localhost:3000/api/auth/jwks WARDEND_PANEL_ISSUER=http://localhost:3000 make run`.

@@ -1,0 +1,27 @@
+[Unit]
+Description=Warden daemon (wardend)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=minecraft
+Group=minecraft
+ExecStart=/usr/local/bin/wardend
+Environment=WARDEND_LISTEN=127.0.0.1:8080
+Environment=WARDEND_DATA_DIR=/var/lib/warden
+Environment=WARDEND_ALLOWED_ORIGINS=https://panel.midominio.com
+Environment=WARDEND_CONTACT=admin@midominio.com
+Environment=WARDEND_PANEL_JWKS_URL=https://panel.midominio.com/api/auth/jwks
+Environment=WARDEND_PANEL_ISSUER=https://panel.midominio.com
+Environment=WARDEND_PANEL_KEY=cambiar-por-openssl-rand-hex-32
+Restart=on-failure
+RestartSec=5
+# stop limpio de todas las instancias puede tardar
+TimeoutStopSec=120
+KillMode=mixed
+NoNewPrivileges=true
+ProtectSystem=full
+ReadWritePaths=/var/lib/warden
+
+[Install]
+WantedBy=multi-user.target
