@@ -1,0 +1,35 @@
+# systemd unit for wardend. Install with deploy/install.sh (creates the `warden` user and dirs).
+[Unit]
+Description=Warden daemon (Minecraft server manager)
+Documentation=https://github.com/manuelvegadev/warden
+After=network.target
+
+[Service]
+Type=simple
+User=warden
+Group=warden
+EnvironmentFile=/etc/warden/wardend.env
+ExecStart=/usr/local/bin/wardend
+Restart=on-failure
+RestartSec=5s
+# wardend stops every server in stages (stop → SIGTERM → SIGKILL) before exiting.
+TimeoutStopSec=150
+KillMode=mixed
+LimitNOFILE=65536
+
+# Hardening. Servers, backups, Java runtimes and the SQLite DB all live under /var/lib/warden.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/warden
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+# Needed to bind :443/:80 when WARDEND_TLS=acme (or any port < 1024); harmless otherwise.
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+
+[Install]
+WantedBy=multi-user.target
