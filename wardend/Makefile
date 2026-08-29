@@ -19,5 +19,7 @@ lint:
 	go vet ./...
 test:
 	go test -race -count=1 ./...
+# make linux [GOARCH=arm64] [VERSION=v1.2.3]
+GOARCH ?= amd64
 linux:
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags '$(LDFLAGS)' -o bin/wardend-linux-amd64 ./cmd/wardend
+	CGO_ENABLED=0 GOOS=linux GOARCH=$(GOARCH) go build -ldflags '$(LDFLAGS)' -o bin/wardend-linux-$(GOARCH) ./cmd/wardend
