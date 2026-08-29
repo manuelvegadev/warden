@@ -1,0 +1,58 @@
+# Everything on one Docker host (LAN / homelab): wardend with a self-signed certificate and Beacon
+# over plain HTTP. For internet-facing setups prefer docs/deploy.md §1–2 (systemd + ACME, Dokploy).
+# The Beacon variables mirror deploy/beacon.env.example and what `wardend install` writes; keep the
+# three in sync when a variable changes (ADR-012).
+#
+#   cp deploy/compose.env.example deploy/.env   # edit HOST, PANEL_KEY, BETTER_AUTH_SECRET
+#   docker compose -f deploy/compose.yaml --env-file deploy/.env up -d --build
+#
+# The browser must trust wardend's certificate once: open https://<HOST>:8443/api/v1/health and
+# accept it (or import /data/tls/wardend.crt from the warden-data volume into the OS trust store).
+name: warden
+
+services:
+  wardend:
+    build:
+      context: ../wardend
+    restart: unless-stopped
+    ports:
+      - "8443:8443"
+      - "25565:25565"   # one game port per instance; add more as you create instances
+    volumes:
+      - warden-data:/data
+    environment:
+      WARDEND_LISTEN: ":8443"
+      WARDEND_CONTACT: ${CONTACT:-admin@example.com}
+      WARDEND_TLS: self-signed
+      # SANs: the service name (Beacon reaches it inside the compose network) plus the LAN names/IPs.
+      WARDEND_TLS_HOSTS: wardend,${HOST}
+      WARDEND_TLS_HTTP_ADDR: ""
+      WARDEND_PANEL_ISSUER: http://${HOST}:3000
+      WARDEND_PANEL_JWKS_URL: http://beacon:3000/api/auth/jwks   # container-to-container
+      WARDEND_PANEL_KEY: ${PANEL_KEY}
+      WARDEND_ALLOWED_ORIGINS: http://${HOST}:3000
+      WARDEND_LOG_LEVEL: ${LOG_LEVEL:-info}
+
+  beacon:
+    build:
+      context: ../beacon
+    restart: unless-stopped
+    depends_on: [wardend]
+    ports:
+      - "3000:3000"
+    volumes:
+      - beacon-data:/data
+      - warden-data:/warden:ro   # to trust wardend's self-signed certificate
+    environment:
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
+      BETTER_AUTH_URL: http://${HOST}:3000
+      DATABASE_PATH: /data/beacon.db
+      BEACON_OPEN_SIGNUP: "false"
+      WARDEND_URL: https://wardend:8443
+      WARDEND_PANEL_KEY: ${PANEL_KEY}
+      WARDEND_PUBLIC_WS_URL: wss://${HOST}:8443   # what the browser opens; read at runtime
+      NODE_EXTRA_CA_CERTS: /warden/tls/wardend.crt
+
+volumes:
+  warden-data:
+  beacon-data:
