@@ -62,7 +62,9 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        app: [wardend, beacon]
+        include:
+          - { app: wardend, context: wardend }
+          - { app: beacon, context: . } # the panel depends on packages/ui (ADR-014)
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-qemu-action@v3
@@ -82,7 +84,8 @@ jobs:
             type=raw,value=latest
       - uses: docker/build-push-action@v6
         with:
-          context: ${{ matrix.app }}
+          context: ${{ matrix.context }}
+          file: ${{ matrix.app }}/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}

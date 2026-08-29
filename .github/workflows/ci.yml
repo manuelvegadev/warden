@@ -38,30 +38,25 @@ jobs:
           path: wardend/bin/wardend-linux-amd64
           retention-days: 14
 
-  beacon:
-    name: Beacon (Next.js)
+  # pnpm workspace: beacon/, landing/ and packages/ui share one lockfile, one Biome config and one job.
+  web:
+    name: Web (Beacon, landing, packages/ui)
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: beacon
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
-        with:
-          package_json_file: beacon/package.json
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
-          cache-dependency-path: beacon/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
       - name: Biome (lint + format)
         run: pnpm lint
-      - name: Build (includes the TypeScript check)
+      - name: Build (Beacon's next build type-checks; the landing runs astro check + build)
         env:
           # The only build-time input; auth and the database are created at runtime (lib/auth.ts).
           NEXT_PUBLIC_WARDEND_WS_URL: ws://localhost:8080
-        run: pnpm build
+        run: pnpm typecheck && pnpm build
 
   # Images are built on every run and published to GHCR on pushes to main
   # (ghcr.io/<owner>/warden-wardend, ghcr.io/<owner>/warden-beacon; `wardend install` pulls the latter).
@@ -70,7 +65,9 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        app: [wardend, beacon]
+        include:
+          - { app: wardend, context: wardend }
+          - { app: beacon, context: . } # the panel depends on packages/ui (ADR-014)
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
@@ -89,7 +86,8 @@ jobs:
             type=sha
       - uses: docker/build-push-action@v6
         with:
-          context: ${{ matrix.app }}
+          context: ${{ matrix.context }}
+          file: ${{ matrix.app }}/Dockerfile
           push: ${{ github.event_name == 'push' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
