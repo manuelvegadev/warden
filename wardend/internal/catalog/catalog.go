@@ -197,6 +197,8 @@ func (r *Registry) Download(ctx context.Context, url string, sum Checksum, dest 
 
 	h := sum.hasher()
 	var done int64
+	// Progress is throttled: every callback becomes a task snapshot broadcast over the socket.
+	lastReport, lastPct := time.Now(), -1
 	buf := make([]byte, 256*1024)
 	for {
 		n, rerr := resp.Body.Read(buf)
@@ -210,7 +212,14 @@ func (r *Registry) Download(ctx context.Context, url string, sum Checksum, dest 
 			}
 			done += int64(n)
 			if progress != nil {
-				progress(done, resp.ContentLength)
+				pct := -1
+				if resp.ContentLength > 0 {
+					pct = int(done * 100 / resp.ContentLength)
+				}
+				if pct != lastPct && time.Since(lastReport) >= 250*time.Millisecond {
+					lastReport, lastPct = time.Now(), pct
+					progress(done, resp.ContentLength)
+				}
 			}
 		}
 		if rerr == io.EOF {
