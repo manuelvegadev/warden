@@ -1,5 +1,5 @@
 # Go
-/bin/
+bin/
 /dist/
 *.exe
 # Node / web
@@ -21,3 +21,4 @@ data/
 .env.local
 .next/
 next-env.d.ts
+tsconfig.tsbuildinfo
