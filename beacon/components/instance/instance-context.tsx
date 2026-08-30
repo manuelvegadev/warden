@@ -22,6 +22,8 @@ export interface InstanceState {
   status: InstanceStatus;
   metrics: MetricSample | null;
   history: MetricPoint[];
+  /** Last five minutes at full resolution (resource cards). */
+  recent: MetricPoint[];
   task: Task | null;
   connected: boolean;
   isAdmin: boolean;
@@ -137,7 +139,7 @@ export function InstanceProvider({
   );
 
   const { connected, send } = useWardendSocket([manifest.id], onMessage);
-  const history = useMetricsHistory(manifest.id, metrics);
+  const { history, recent } = useMetricsHistory(manifest.id, metrics);
 
   const sendCommand = useCallback(
     (command: string) => send({ type: "command", instance: manifest.id, data: { command } }),
@@ -154,8 +156,8 @@ export function InstanceProvider({
   }, [manifest.id]);
 
   const value = useMemo<InstanceState>(
-    () => ({ manifest, status, metrics, history, task, connected, isAdmin, sendCommand, retryInstall }),
-    [manifest, status, metrics, history, task, connected, isAdmin, sendCommand, retryInstall],
+    () => ({ manifest, status, metrics, history, recent, task, connected, isAdmin, sendCommand, retryInstall }),
+    [manifest, status, metrics, history, recent, task, connected, isAdmin, sendCommand, retryInstall],
   );
 
   return (

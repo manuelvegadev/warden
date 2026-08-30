@@ -16,6 +16,8 @@ export type MetricPoint = {
   txKb: number;
 };
 
+const WINDOW_MS = 3600_000;
+
 export const toPoint = (m: MetricSample): MetricPoint => ({
   ts: m.ts,
   t: new Date(m.ts).getTime(),
@@ -29,7 +31,13 @@ export const toPoint = (m: MetricSample): MetricPoint => ({
   txKb: Math.round(m.netTx / 1024),
 });
 
-/** One hour of samples: history from the daemon on mount, then live samples appended. Shared by the cards and the Metrics tab. */
+const RECENT_MS = 5 * 60_000;
+
+/**
+ * One hour of samples: history from the daemon on mount, then live samples appended. `history` is
+ * the hour downsampled for the Metrics tab; `recent` is the last five minutes at full resolution
+ * for the sparklines in the resource cards.
+ */
 export function useMetricsHistory(id: string, live: MetricSample | null, maxPoints = 180) {
   const [history, setHistory] = useState<MetricPoint[]>([]);
 
@@ -50,14 +58,25 @@ export function useMetricsHistory(id: string, live: MetricSample | null, maxPoin
     if (!live) return;
     setHistory((prev) => {
       if (prev.length && prev[prev.length - 1].ts === live.ts) return prev;
-      const cutoff = Date.now() - 3600_000;
+      const cutoff = Date.now() - WINDOW_MS;
       return [...prev.filter((p) => new Date(p.ts).getTime() >= cutoff), toPoint(live)];
     });
   }, [live]);
 
-  // Downsample so the SVGs stay light; tooltips still read real values.
+  // Downsample so the SVGs stay light; tooltips still read real values. Buckets are by time, not
+  // by index: with a full hour in the buffer every new sample drops one at the front, and an
+  // index-based pick would then shift phase each second and redraw a different curve.
   return useMemo(() => {
-    const step = Math.max(1, Math.floor(history.length / maxPoints));
-    return history.filter((_, i) => i % step === 0 || i === history.length - 1);
+    const newest = history[history.length - 1]?.t ?? 0;
+    const recent = history.filter((p) => p.t >= newest - RECENT_MS);
+    if (history.length <= maxPoints) return { history, recent };
+    const bucketMs = Math.ceil(WINDOW_MS / maxPoints);
+    const out: MetricPoint[] = [];
+    for (const p of history) {
+      const last = out[out.length - 1];
+      if (last && Math.floor(last.t / bucketMs) === Math.floor(p.t / bucketMs)) out[out.length - 1] = p;
+      else out.push(p);
+    }
+    return { history: out, recent };
   }, [history, maxPoints]);
 }

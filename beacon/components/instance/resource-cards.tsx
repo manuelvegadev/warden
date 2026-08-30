@@ -31,6 +31,7 @@ export function ResourceCards({
   memoryMb,
 }: {
   metrics: MetricSample | null;
+  /** Recent samples only (a few minutes): the cards show the trend, the Metrics tab the hour. */
   history: MetricPoint[];
   state: InstanceState;
   tps?: [number, number, number];

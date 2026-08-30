@@ -18,7 +18,7 @@ import { useServerAddress } from "@/components/wardend-config";
  * to the facts sidebar. Section navigation lives in the app sidebar.
  */
 export function InstanceShell({ children }: { children: React.ReactNode }) {
-  const { manifest, status, metrics, history, task, connected, retryInstall } = useInstance();
+  const { manifest, status, metrics, recent, task, connected, retryInstall } = useInstance();
   const router = useRouter();
   const onDeleted = useCallback(() => router.push("/"), [router]);
 
@@ -57,7 +57,7 @@ export function InstanceShell({ children }: { children: React.ReactNode }) {
         )}
         <ResourceCards
           metrics={metrics}
-          history={history}
+          history={recent}
           state={status.state}
           tps={status.tps}
           memoryMb={manifest.memoryMb}
