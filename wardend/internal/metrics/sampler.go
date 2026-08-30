@@ -103,11 +103,21 @@ func (s *Sampler) hostNet(ctx context.Context) {
 	if !s.netAt.IsZero() {
 		dt := now.Sub(s.netAt).Seconds()
 		if dt > 0 {
-			s.netRxRate = int64(float64(cs[0].BytesRecv-s.netRx) / dt)
-			s.netTxRate = int64(float64(cs[0].BytesSent-s.netTx) / dt)
+			s.netRxRate = rate(s.netRx, cs[0].BytesRecv, dt)
+			s.netTxRate = rate(s.netTx, cs[0].BytesSent, dt)
 		}
 	}
 	s.netAt, s.netRx, s.netTx = now, cs[0].BytesRecv, cs[0].BytesSent
+}
+
+// rate is bytes/s between two counter readings. The "all interfaces" total goes backwards when
+// an interface disappears (Docker networks come and go); an unsigned subtraction would then wrap
+// and the int64 conversion overflow to MinInt64, so a step back reads as 0 for that interval.
+func rate(prev, cur uint64, dt float64) int64 {
+	if cur < prev {
+		return 0
+	}
+	return int64(float64(cur-prev) / dt)
 }
 
 func (s *Sampler) tick(ctx context.Context) {
