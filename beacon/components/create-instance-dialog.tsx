@@ -33,16 +33,8 @@ import {
 
 const EMPTY: string[] = [];
 
+import { ID_PATTERN, JVM_PRESETS, slugify } from "@/lib/instance-form";
 import { mono } from "@/lib/utils";
-
-const slug = (s: string) =>
-  s
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 32);
-
-const JVM_PRESETS = { aikar: "Aikar (recommended)", basic: "Basic" };
 
 export function CreateInstanceDialog() {
   const router = useRouter();
@@ -202,7 +194,7 @@ export function CreateInstanceDialog() {
                 autoFocus
                 onChange={(e) => {
                   setName(e.target.value);
-                  if (!idTouched) setId(slug(e.target.value));
+                  if (!idTouched) setId(slugify(e.target.value));
                 }}
               />
             </SettingRow>
@@ -215,7 +207,7 @@ export function CreateInstanceDialog() {
                 id="new-id"
                 value={id}
                 required
-                pattern="[a-z0-9][a-z0-9-]{1,31}"
+                pattern={ID_PATTERN}
                 className={mono}
                 onChange={(e) => {
                   setIdTouched(true);

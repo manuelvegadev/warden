@@ -40,7 +40,7 @@ const pct = (used?: number, total?: number) => (used && total ? `${Math.round((u
 
 /** Home: daemon and host overview on top, the instance list below. Live via the socket + a 5 s poll. */
 export function Home() {
-  const { instances, setStatus, openCreate } = useInstances();
+  const { instances, setStatus, openCreate, openImport } = useInstances();
   const [sys, setSys] = useState<SystemInfo | null>(null);
 
   useEffect(() => {
@@ -118,7 +118,12 @@ export function Home() {
     <div className="grid gap-8">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Home</h1>
-        <Button onClick={openCreate}>New instance</Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={openImport}>
+            Import
+          </Button>
+          <Button onClick={openCreate}>New instance</Button>
+        </div>
       </div>
       <Tiles title="Wardend" tiles={wardend} />
       <Tiles title="Host" tiles={host} />

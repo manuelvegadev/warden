@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { AppSidebar } from "@/components/app-sidebar";
 import { CreateInstanceDialog } from "@/components/create-instance-dialog";
+import { ImportInstanceDialog } from "@/components/import-instance-dialog";
 import { InstancesProvider } from "@/components/instances-store";
 import { SiteHeader } from "@/components/site-header";
 import { WardendConfigProvider } from "@/components/wardend-config";
@@ -32,6 +33,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           </SidebarInset>
         </SidebarProvider>
         <CreateInstanceDialog />
+        <ImportInstanceDialog />
       </InstancesProvider>
     </WardendConfigProvider>
   );

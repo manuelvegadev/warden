@@ -10,6 +10,9 @@ interface InstancesState {
   openCreate: () => void;
   createOpen: boolean;
   setCreateOpen: (open: boolean) => void;
+  openImport: () => void;
+  importOpen: boolean;
+  setImportOpen: (open: boolean) => void;
 }
 
 const Ctx = createContext<InstancesState | null>(null);
@@ -18,6 +21,7 @@ const Ctx = createContext<InstancesState | null>(null);
 export function InstancesProvider({ initial, children }: { initial: InstanceSummary[]; children: React.ReactNode }) {
   const [instances, setInstances] = useState(initial);
   const [createOpen, setCreateOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -30,10 +34,21 @@ export function InstancesProvider({ initial, children }: { initial: InstanceSumm
     setInstances((prev) => prev.map((i) => (i.id === id ? { ...i, status } : i)));
   }, []);
   const openCreate = useCallback(() => setCreateOpen(true), []);
+  const openImport = useCallback(() => setImportOpen(true), []);
 
   const value = useMemo<InstancesState>(
-    () => ({ instances, refresh, setStatus, openCreate, createOpen, setCreateOpen }),
-    [instances, refresh, setStatus, openCreate, createOpen],
+    () => ({
+      instances,
+      refresh,
+      setStatus,
+      openCreate,
+      createOpen,
+      setCreateOpen,
+      openImport,
+      importOpen,
+      setImportOpen,
+    }),
+    [instances, refresh, setStatus, openCreate, createOpen, openImport, importOpen],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

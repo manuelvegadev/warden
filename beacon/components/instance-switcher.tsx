@@ -10,7 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@warden/ui/components/dropdown-menu";
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@warden/ui/components/sidebar";
-import { Check, ChevronsUpDown, Plus, Server } from "lucide-react";
+import { Check, ChevronsUpDown, Plus, Server, Upload } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { useInstances } from "@/components/instances-store";
@@ -20,7 +20,7 @@ import { instanceHref } from "@/lib/instance-routes";
 
 /** Sidebar header control: shows the open instance and switches between instances (sidebar-07 "team switcher" pattern). */
 export function InstanceSwitcher({ currentId }: { currentId?: string }) {
-  const { instances, refresh, openCreate } = useInstances();
+  const { instances, refresh, openCreate, openImport } = useInstances();
   const [open, setOpen] = useState(false);
   const current = instances.find((i) => i.id === currentId);
   const title = current?.name ?? currentId ?? "All instances";
@@ -73,6 +73,9 @@ export function InstanceSwitcher({ currentId }: { currentId?: string }) {
               <DropdownMenuItem render={<Link href="/" />}>All instances</DropdownMenuItem>
               <DropdownMenuItem onClick={openCreate}>
                 <Plus className="size-4" /> New instance
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={openImport}>
+                <Upload className="size-4" /> Import server
               </DropdownMenuItem>
             </DropdownMenuGroup>
           </DropdownMenuContent>
