@@ -134,6 +134,14 @@
   }
 }
 
+/* Page gutters: tighter on phones. */
+@utility page-pad {
+  padding: --spacing(4);
+  @media (width >= 40rem) {
+    padding: --spacing(5);
+  }
+}
+
 /* Console / log font (docs/design.md): Google Sans Code with the tighter line-height. */
 @utility font-console {
   font-family: var(--font-console);
