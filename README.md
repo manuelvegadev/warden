@@ -18,6 +18,7 @@ The browser connects to the daemon (REST + WebSocket with JWT); the panel only s
 
 ## Target features
 - Create instances: pick Paper version and build (Fill v3 API), memory, JVM flags (Aikar), port, EULA.
+- Import an existing server: upload a `.zip`/`.tar.gz` of its folder; software and version are detected from the jar.
 - Start / stop / restart / autostart / restart on crash.
 - Live console and command sending.
 - `server.properties` with schema, whitelist, ops, bans, config file editor.

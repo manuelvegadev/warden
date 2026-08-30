@@ -48,6 +48,8 @@ Instance create/patch accept `javaRuntime` (`"auto"` or a runtime id) and `javaP
 |---|---|---|
 | GET | `/instances` | List with summarized state `[{id,name,software,mcVersion,build,state,players:{online,max},port,autostart,cpu,mem}]` |
 | POST | `/instances` | Create. Body below. → `202` with `task` (downloads jar, writes base files). |
+| POST | `/instances/import` | Create from an existing server directory. `multipart/form-data`, text fields **before** the file: `id`, `name`, `memoryMb`, `port`, `jvmFlagsPreset`, `javaRuntime`, `acceptEula`, optional `software` + `mcVersion` (+ `build`); then `file` as the **last** part (`.zip`, `.tar`, `.tar.gz`/`.tgz`, `.tar.zst`; up to 16 GiB, `413` beyond). → `202` with `task` `import`. Admin only. See *Import* below. |
+| GET | `/tasks?instance={id}` | The instance's tasks, newest first — how a page learns about a task that started before its WebSocket subscription |
 | GET | `/instances/{id}` | Full manifest + state |
 | PATCH | `/instances/{id}` | Change name, jvm, autostart, restartPolicy, javaPath, memory, ports (when stopped) |
 | DELETE | `/instances/{id}?purge=false` | Stops and moves to trash (`purge=true` deletes) |
@@ -130,6 +132,12 @@ Creation body:
 | GET | `/instances/{id}/players` | `[{name,firstSeen,lastSeen,playTimeSeconds,online}]` from the store, plus players known only from `<world>/stats` + `usercache.json` (e.g. migrated servers); `online` reflects the live process |
 | GET | `/instances/{id}/players/{name}/sessions?limit=50` | `[{name,joinedAt,leftAt?}]` |
 | POST | `/instances/{id}/broadcast` | `{"text":"...","style":"say|title|actionbar"}` |
+
+## Import
+
+`POST /instances/import` streams the upload to `<data>/imports/` and answers as soon as it is on disk; the `import` task then unpacks it into `server/` (a single wrapper folder such as `myserver/…` is unwrapped; `__MACOSX`, `.DS_Store` and friends are dropped; entries are confined to `server/`, symlinks and special files are skipped, and the expansion is capped at 64 GiB / 2 M entries), works out what it is and finishes like an install (Java runtime, `eula.txt`, network properties). The archive is deleted afterwards.
+
+Detection looks at the jars in the server root: `paper-<mc>-<build>.jar`, `purpur-<mc>-<build>.jar`, `fabric-server-mc.<mc>-loader.<loader>-launcher.*.jar` and `minecraft_server.<mc>.jar` give software, version and build directly; the Fabric installer layout (`fabric-server-launch.jar` next to the vanilla `server.jar`) is Fabric with the version read from `server.jar`; a renamed jar is read for the `version.json` Mojang ships inside (→ vanilla, `id`), and `.paper/version_history.json` upgrades that to Paper with its build when its Minecraft version matches. `software` + `mcVersion` (+ `build`, default newest) are the user's answer: with no jar in the archive that build is downloaded; with a jar the daemon cannot identify they label it; a recognised jar wins over them. Without them a jar-less archive fails with `no server jar found`. The manifest's `port` overwrites `server-port`/`query.port` (the port was checked for collisions on create); an `eula.txt` already set to `true` is kept, otherwise `acceptEula` decides. A failed import leaves the instance in state `installing` for inspection (`POST …/install` is refused until it has a software and version); delete it to clean up — `DELETE` cancels a still-running import first, as it does any task of the instance.
 
 ## Backups
 
