@@ -27,8 +27,9 @@ export const toPoint = (m: MetricSample): MetricPoint => ({
   diskMb: Math.round(m.diskUsed / 1048576),
   players: m.players,
   tps: m.tps ? Math.round(m.tps[0] * 100) / 100 : null,
-  rxKb: Math.round(m.netRx / 1024),
-  txKb: Math.round(m.netTx / 1024),
+  // Rates already stored by daemons before v0.5.1 can be MinInt64 (counter wrap); never plot those.
+  rxKb: m.netRx > 0 ? Math.round(m.netRx / 1024) : 0,
+  txKb: m.netTx > 0 ? Math.round(m.netTx / 1024) : 0,
 });
 
 const RECENT_MS = 5 * 60_000;
