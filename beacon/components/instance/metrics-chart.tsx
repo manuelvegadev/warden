@@ -74,7 +74,10 @@ export function MetricsChart({ data, memoryMb }: { data: MetricPoint[]; memoryMb
         </ChartContainer>
       </Panel>
 
-      <Panel title="Memory" subtitle={`RSS · max ${formatBytes(memMax * 1048576)}`}>
+      <Panel
+        title="Memory"
+        subtitle={`Resident memory of the Java process · heap max ${formatBytes(memMax * 1048576)}`}
+      >
         <ChartContainer config={single("Memory", SERIES_1)} className="h-40 w-full">
           <AreaChart data={data} margin={{ left: 4, right: 4, top: 8 }}>
             <CartesianGrid vertical={false} strokeOpacity={0.25} />
@@ -92,7 +95,8 @@ export function MetricsChart({ data, memoryMb }: { data: MetricPoint[]; memoryMb
               width={44}
               tickLine={false}
               axisLine={false}
-              domain={[0, Math.max(memMax, 1)]}
+              // RSS regularly exceeds -Xmx (off-heap memory), so the axis grows with the data.
+              domain={[0, (max: number) => Math.max(memMax, max, 1)]}
               tickFormatter={(v) => (v >= 1024 ? `${(v / 1024).toFixed(1)} GB` : `${v} MB`)}
             />
             <ChartTooltip
