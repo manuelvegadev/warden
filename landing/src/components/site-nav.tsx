@@ -1,7 +1,7 @@
+import { WardenMark } from "@warden/ui/components/brand";
 import { Button } from "@warden/ui/components/button";
 import { cn } from "@warden/ui/lib/utils";
 import { BookOpen, Download, Sparkles } from "lucide-react";
-import { Logo } from "@/components/logo";
 import { CONTAINER } from "@/components/section";
 import { LINKS } from "@/lib/links";
 
@@ -26,7 +26,7 @@ export function SiteNav() {
     <header className="sticky top-0 z-40 border-b bg-background/80 backdrop-blur">
       <div className={cn(CONTAINER, "flex h-14 items-center justify-between")}>
         <a href="#top" className="flex items-center gap-2 text-base font-semibold">
-          <Logo />
+          <WardenMark />
           Warden
         </a>
         <nav className="flex items-center gap-1">

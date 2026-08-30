@@ -16,8 +16,14 @@ function ServerTower() {
     <g transform="translate(120 20)">
       <rect x="0" y="120" width="360" height="400" rx="20" fill="#353535" stroke="rgba(255,255,255,0.12)" />
       <g transform="translate(180 120)">
-        <circle className={styles.ring} r="40" fill="none" stroke="#5eead4" strokeWidth="1.5" />
-        <circle className={cn(styles.ring, styles.ring2)} r="40" fill="none" stroke="#5eead4" strokeWidth="1.5" />
+        <circle className={styles.ring} r="40" fill="none" stroke="var(--brand-core)" strokeWidth="1.5" />
+        <circle
+          className={cn(styles.ring, styles.ring2)}
+          r="40"
+          fill="none"
+          stroke="var(--brand-core)"
+          strokeWidth="1.5"
+        />
       </g>
       {/* Stylised voxel guardian (original artwork, not a game asset). */}
       <g className={styles.sniff}>
@@ -27,12 +33,12 @@ function ServerTower() {
           <rect x="98" y="-10" width="14" height="34" rx="3" fill="#0f766e" />
           <rect x="14" y="18" width="92" height="62" rx="8" fill="#0b2a2e" />
           <rect x="26" y="36" width="68" height="14" rx="4" fill="#062024" />
-          <rect x="34" y="40" width="10" height="6" rx="2" fill="#5eead4" className={styles.soul} />
-          <rect x="76" y="40" width="10" height="6" rx="2" fill="#5eead4" className={styles.soul} />
+          <rect x="34" y="40" width="10" height="6" rx="2" fill="var(--brand-core)" className={styles.soul} />
+          <rect x="76" y="40" width="10" height="6" rx="2" fill="var(--brand-core)" className={styles.soul} />
           <rect x="0" y="84" width="120" height="96" rx="10" fill="#0f3a3f" />
           <rect x="42" y="100" width="36" height="52" rx="6" fill="#062024" />
-          <rect x="52" y="112" width="16" height="10" rx="2" fill="#5eead4" className={styles.soul} />
-          <rect x="52" y="128" width="16" height="10" rx="2" fill="#5eead4" className={styles.soul} />
+          <rect x="52" y="112" width="16" height="10" rx="2" fill="var(--brand-core)" className={styles.soul} />
+          <rect x="52" y="128" width="16" height="10" rx="2" fill="var(--brand-core)" className={styles.soul} />
           <rect x="-30" y="88" width="26" height="110" rx="8" fill="#0b2a2e" />
           <rect x="124" y="88" width="26" height="110" rx="8" fill="#0b2a2e" />
           <rect x="-30" y="170" width="26" height="28" rx="6" fill="#a8b5a0" />
@@ -78,12 +84,13 @@ function Connection() {
       <g transform="translate(-22 -78)">
         <path
           d="M22 0 4 7v12c0 11 7.6 21 18 25 10.4-4 18-14 18-25V7L22 0z"
-          fill="rgba(94,234,212,0.12)"
-          stroke="#5eead4"
+          fill="var(--brand-core)"
+          fillOpacity="0.12"
+          stroke="var(--brand-core)"
           strokeWidth="1.5"
           strokeLinejoin="round"
         />
-        <path d="M24 10 14 25h8l-2 12 10-15h-8l2-12z" fill="#5eead4" />
+        <path d="M24 10 14 25h8l-2 12 10-15h-8l2-12z" fill="var(--brand-core)" />
       </g>
       <text y="-18" textAnchor="middle" fill="#fcfcfc" fontSize="15" fontWeight="600" className="font-sans">
         Real-time, secure connection
@@ -110,7 +117,7 @@ function Connection() {
 const BROWSER_LOG = [
   { y: 0, text: "[12:07:12 INFO]: Steve joined the game", fill: "#d4d4d4" },
   { y: 13, text: "[12:06:41 WARN]: Can't keep up! Running 2314ms behind", fill: "#f59e0b" },
-  { y: 26, text: "> tps", fill: "#22d3ee" },
+  { y: 26, text: "> tps", fill: "#22d3ee" /* STDIN log colour, not brand */ },
   { y: 39, text: "[12:08:00 INFO]: TPS from last 1m, 5m, 15m: 19.97, 19.98, 20.0", fill: "#d4d4d4" },
 ];
 
@@ -129,10 +136,10 @@ function BrowserWindow() {
       <g transform="translate(180 96)">
         <path d="M-26 -14 L26 -14 L70 -190 L-70 -190 Z" fill="url(#hiw-beam)" className={styles.beam} />
         <g className={styles.hover}>
-          <polygon points="0,-40 34,-21 0,-2 -34,-21" fill="#1f4d4a" stroke="#5eead4" strokeWidth="1.5" />
-          <polygon points="-34,-21 0,-2 0,36 -34,17" fill="#0f2f2e" stroke="#5eead4" strokeWidth="1.5" />
-          <polygon points="34,-21 0,-2 0,36 34,17" fill="#163d3b" stroke="#5eead4" strokeWidth="1.5" />
-          <polygon points="0,-27 18,-17 0,-7 -18,-17" fill="#5eead4" className={styles.soul} />
+          <polygon points="0,-40 34,-21 0,-2 -34,-21" fill="#1f4d4a" stroke="var(--brand-core)" strokeWidth="1.5" />
+          <polygon points="-34,-21 0,-2 0,36 -34,17" fill="#0f2f2e" stroke="var(--brand-core)" strokeWidth="1.5" />
+          <polygon points="34,-21 0,-2 0,36 34,17" fill="#163d3b" stroke="var(--brand-core)" strokeWidth="1.5" />
+          <polygon points="0,-27 18,-17 0,-7 -18,-17" fill="var(--brand-core)" className={styles.soul} />
         </g>
       </g>
       {/* window chrome */}
@@ -226,14 +233,14 @@ export function HowItWorks() {
         </title>
         <defs>
           <radialGradient id="hiw-soul" cx="50%" cy="50%" r="50%">
-            <stop offset="0" stopColor="#5eead4" stopOpacity="0.9" />
-            <stop offset="1" stopColor="#5eead4" stopOpacity="0" />
+            <stop offset="0" stopColor="var(--brand-core)" stopOpacity="0.9" />
+            <stop offset="1" stopColor="var(--brand-core)" stopOpacity="0" />
           </radialGradient>
           <radialGradient id="hiw-beam" cx="50%" cy="100%" r="95%">
-            <stop offset="0" stopColor="#5eead4" stopOpacity="0.9" />
-            <stop offset="0.35" stopColor="#5eead4" stopOpacity="0.35" />
-            <stop offset="0.7" stopColor="#5eead4" stopOpacity="0.08" />
-            <stop offset="1" stopColor="#5eead4" stopOpacity="0" />
+            <stop offset="0" stopColor="var(--brand-core)" stopOpacity="0.9" />
+            <stop offset="0.35" stopColor="var(--brand-core)" stopOpacity="0.35" />
+            <stop offset="0.7" stopColor="var(--brand-core)" stopOpacity="0.08" />
+            <stop offset="1" stopColor="var(--brand-core)" stopOpacity="0" />
           </radialGradient>
           <marker
             id="hiw-ah"

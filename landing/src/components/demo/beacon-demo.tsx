@@ -1,9 +1,9 @@
 import { Badge } from "@warden/ui/components/badge";
+import { BeaconMark } from "@warden/ui/components/brand";
 import { Button } from "@warden/ui/components/button";
 import { Card, CardContent } from "@warden/ui/components/card";
 import { cn } from "@warden/ui/lib/utils";
 import { ArrowDownUp, ChevronsUpDown, Coffee, Cpu, Gauge, MemoryStick, PanelLeft } from "lucide-react";
-import { Logo } from "@/components/logo";
 import { type SectionId, tone } from "./data";
 import { AccessSection } from "./sections/access";
 import { BackupsSection } from "./sections/backups";
@@ -30,7 +30,7 @@ export function BeaconDemo() {
       {/* Sidebar (inset variant, as in Beacon) */}
       <div className="flex flex-col gap-0.5 p-2">
         <div className="mb-1.5 flex h-9 items-center gap-2 px-2 font-semibold">
-          <Logo className="shrink-0" />
+          <BeaconMark />
           <span className="hidden lg:inline">Beacon</span>
         </div>
         <button
