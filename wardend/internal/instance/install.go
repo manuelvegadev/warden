@@ -37,11 +37,23 @@ func (i *Instance) Install(ctx context.Context, reg *catalog.Registry, opts Inst
 		return err
 	}
 	m.Jar = build.Name
-	if err := i.ensureJava(ctx, report, 90, 95); err != nil {
+	if err := i.finishInstall(ctx, opts.AcceptEULA, opts.Properties, report, 90); err != nil {
+		return err
+	}
+	report(100, "Installed "+build.Name)
+	return nil
+}
+
+// finishInstall is the tail shared by install and import once server/<jar> exists: the Java
+// runtime, eula.txt, the network properties the manifest owns, the manifest itself, and the
+// stopped state. Progress runs from `from` to 99.
+func (i *Instance) finishInstall(ctx context.Context, acceptEULA bool, extra map[string]string, report tasks.Reporter, from int) error {
+	m := i.Manifest
+	if err := i.ensureJava(ctx, report, from, 95); err != nil {
 		return err
 	}
 	report(96, "Writing configuration")
-	if err := i.AcceptEULA(opts.AcceptEULA); err != nil {
+	if err := i.AcceptEULA(acceptEULA); err != nil {
 		return err
 	}
 	props := map[string]string{
@@ -51,7 +63,7 @@ func (i *Instance) Install(ctx context.Context, reg *catalog.Registry, opts Inst
 		"enable-rcon": "false",
 		"rcon.port":   strconv.Itoa(m.RconPort),
 	}
-	for k, v := range opts.Properties {
+	for k, v := range extra {
 		props[k] = v
 	}
 	if err := mc.WriteProperties(filepath.Join(i.ServerDir(), "server.properties"), props); err != nil {
@@ -61,7 +73,6 @@ func (i *Instance) Install(ctx context.Context, reg *catalog.Registry, opts Inst
 		return err
 	}
 	i.setState(StateStopped)
-	report(100, "Installed "+build.Name)
 	return nil
 }
 

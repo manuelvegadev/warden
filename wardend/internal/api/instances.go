@@ -6,10 +6,14 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"net/http"
+	"os"
 	"strconv"
 	"time"
 
+	"github.com/manuelvega/warden/wardend/internal/backup"
 	"github.com/manuelvega/warden/wardend/internal/instance"
 	"github.com/manuelvega/warden/wardend/internal/tasks"
 )
@@ -68,6 +72,61 @@ type createInstanceReq struct {
 	Properties    map[string]string `json:"properties"`
 }
 
+// applyDefaults fills what create and import share when the client leaves it out.
+func (r *createInstanceReq) applyDefaults() {
+	if r.Name == "" {
+		r.Name = r.ID
+	}
+	if r.MemoryMB == 0 {
+		r.MemoryMB = 2048
+	}
+	if r.Port == 0 {
+		r.Port = 25565
+	}
+	if r.JVMPreset == "" {
+		r.JVMPreset = "aikar"
+	}
+	if r.RestartPolicy == "" {
+		r.RestartPolicy = "on-crash"
+	}
+	if r.JavaRuntime == "auto" {
+		r.JavaRuntime = ""
+	}
+}
+
+// newManifest is the manifest for a fresh instance: a random RCON password, RCON on port+10.
+func newManifest(req createInstanceReq) *instance.Manifest {
+	rcon := make([]byte, 16)
+	_, _ = rand.Read(rcon)
+	return &instance.Manifest{
+		ID: req.ID, Name: req.Name, Software: req.Software, MCVersion: req.MCVersion, Build: req.Build,
+		MemoryMB: req.MemoryMB, JVMPreset: req.JVMPreset, JVMFlags: req.JVMFlags, JavaRuntime: req.JavaRuntime, JavaPath: req.JavaPath,
+		Port: req.Port, RconPort: req.Port + 10, RconPassword: hex.EncodeToString(rcon),
+		Autostart: req.Autostart, RestartPolicy: req.RestartPolicy,
+		StopTimeoutS: 60, Plugins: []instance.InstalledPlugin{}, CreatedAt: time.Now().UTC(),
+	}
+}
+
+func createErrStatus(err error) int {
+	switch {
+	case errors.Is(err, instance.ErrInvalidID):
+		return 400
+	case errors.Is(err, instance.ErrExists), errors.Is(err, instance.ErrPortInUse):
+		return 409
+	}
+	return 500
+}
+
+func createErrCode(err error) string {
+	switch {
+	case errors.Is(err, instance.ErrInvalidID):
+		return "invalid_id"
+	case errors.Is(err, instance.ErrExists), errors.Is(err, instance.ErrPortInUse):
+		return "conflict"
+	}
+	return "create_failed"
+}
+
 func (s *server) createInstance(w http.ResponseWriter, r *http.Request) {
 	var req createInstanceReq
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -78,54 +137,157 @@ func (s *server) createInstance(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 400, "bad_request", "mcVersion is required")
 		return
 	}
-	if req.Name == "" {
-		req.Name = req.ID
-	}
 	if req.Software == "" {
 		req.Software = "paper"
-	}
-	if req.MemoryMB == 0 {
-		req.MemoryMB = 2048
-	}
-	if req.Port == 0 {
-		req.Port = 25565
-	}
-	if req.JVMPreset == "" {
-		req.JVMPreset = "aikar"
-	}
-	if req.RestartPolicy == "" {
-		req.RestartPolicy = "on-crash"
 	}
 	if _, err := s.Catalog.Provider(req.Software); err != nil {
 		writeError(w, 400, "unknown_provider", err.Error())
 		return
 	}
-	if req.JavaRuntime == "auto" {
-		req.JavaRuntime = ""
-	}
-	rcon := make([]byte, 16)
-	_, _ = rand.Read(rcon)
-	man := &instance.Manifest{
-		ID: req.ID, Name: req.Name, Software: req.Software, MCVersion: req.MCVersion, Build: req.Build,
-		MemoryMB: req.MemoryMB, JVMPreset: req.JVMPreset, JVMFlags: req.JVMFlags, JavaRuntime: req.JavaRuntime, JavaPath: req.JavaPath,
-		Port: req.Port, RconPort: req.Port + 10, RconPassword: hex.EncodeToString(rcon),
-		Autostart: req.Autostart, RestartPolicy: req.RestartPolicy,
-		StopTimeoutS: 60, Plugins: []instance.InstalledPlugin{}, CreatedAt: time.Now().UTC(),
-	}
-	inst, err := s.Manager.Create(man)
+	req.applyDefaults()
+	inst, err := s.Manager.Create(newManifest(req))
 	if err != nil {
-		switch {
-		case errors.Is(err, instance.ErrInvalidID):
-			writeError(w, 400, "invalid_id", err.Error())
-		case errors.Is(err, instance.ErrExists), errors.Is(err, instance.ErrPortInUse):
-			writeError(w, 409, "conflict", err.Error())
-		default:
-			writeError(w, 500, "create_failed", err.Error())
-		}
+		writeError(w, createErrStatus(err), createErrCode(err), err.Error())
 		return
 	}
 	task := s.runInstall(r.Context(), inst, instance.InstallOptions{AcceptEULA: req.AcceptEULA, Properties: req.Properties})
 	writeJSON(w, 202, map[string]any{"instance": summary(inst), "task": task})
+}
+
+// importInstance creates an instance from an uploaded server directory (multipart/form-data: the
+// text fields first, then exactly one "file" — a .zip, .tar, .tar.gz or .tar.zst). The archive
+// streams to disk under <data>/imports and an "import" task unpacks it. Responds like createInstance.
+func (s *server) importInstance(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, instance.MaxImportBytes)
+	mr, err := r.MultipartReader()
+	if err != nil {
+		writeError(w, 400, "bad_request", "multipart/form-data expected: "+err.Error())
+		return
+	}
+	fields := map[string]string{}
+	var inst *instance.Instance
+	var opts instance.ImportOptions
+	fail := func(status int, code, msg string) {
+		if inst != nil {
+			_ = s.Manager.Delete(r.Context(), inst.Manifest.ID, true)
+		}
+		if opts.Archive != "" {
+			os.Remove(opts.Archive)
+		}
+		writeError(w, status, code, msg)
+	}
+	for {
+		part, err := mr.NextPart()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			var tooBig *http.MaxBytesError
+			if errors.As(err, &tooBig) {
+				fail(413, "too_large", fmt.Sprintf("upload exceeds %d GB", instance.MaxImportBytes>>30))
+				return
+			}
+			fail(400, "bad_request", err.Error())
+			return
+		}
+		if inst != nil {
+			// Everything the instance needs must come before the archive: a second file or a
+			// trailing field would be ignored (or worse, act on the wrong instance).
+			fail(400, "bad_request", "\"file\" must be the last part of the form")
+			return
+		}
+		if part.FormName() != "file" {
+			b, err := io.ReadAll(io.LimitReader(part, 4096))
+			if err != nil {
+				fail(400, "bad_request", err.Error())
+				return
+			}
+			fields[part.FormName()] = string(b)
+			continue
+		}
+		format, err := backup.DetectFormat(part.FileName())
+		if err != nil {
+			fail(400, "bad_request", err.Error())
+			return
+		}
+		req, err := importFields(fields)
+		if err != nil {
+			fail(400, "bad_request", err.Error())
+			return
+		}
+		opts = instance.ImportOptions{
+			Format: format, AcceptEULA: req.AcceptEULA,
+			Software: req.Software, MCVersion: req.MCVersion, Build: req.Build,
+		}
+		if opts.Software != "" {
+			if _, err := s.Catalog.Provider(opts.Software); err != nil {
+				fail(400, "unknown_provider", err.Error())
+				return
+			}
+			if opts.MCVersion == "" {
+				fail(400, "bad_request", "mcVersion is required with software")
+				return
+			}
+		}
+		// Software and version are filled in by the task once it has looked at the archive.
+		req.Software, req.MCVersion, req.Build = "", "", 0
+		if inst, err = s.Manager.Create(newManifest(req)); err != nil {
+			fail(createErrStatus(err), createErrCode(err), err.Error())
+			return
+		}
+		if err := os.MkdirAll(s.Config.ImportsDir(), 0o750); err != nil {
+			fail(500, "import_failed", err.Error())
+			return
+		}
+		f, err := os.CreateTemp(s.Config.ImportsDir(), inst.Manifest.ID+"-*."+string(format))
+		if err != nil {
+			fail(500, "import_failed", err.Error())
+			return
+		}
+		opts.Archive = f.Name()
+		_, err = io.Copy(f, part)
+		f.Close()
+		if err != nil {
+			var tooBig *http.MaxBytesError
+			if errors.As(err, &tooBig) {
+				fail(413, "too_large", fmt.Sprintf("upload exceeds %d GB", instance.MaxImportBytes>>30))
+				return
+			}
+			fail(400, "upload_failed", err.Error())
+			return
+		}
+	}
+	if inst == nil {
+		fail(400, "bad_request", "multipart field \"file\" is required")
+		return
+	}
+	task := s.Tasks.Run(r.Context(), "import", inst.Manifest.ID, func(ctx context.Context, report tasks.Reporter) error {
+		return inst.Import(ctx, s.Catalog, opts, report)
+	})
+	writeJSON(w, 202, map[string]any{"instance": summary(inst), "task": task})
+}
+
+// importFields turns the multipart text fields into a create request; numbers must parse.
+func importFields(fields map[string]string) (createInstanceReq, error) {
+	req := createInstanceReq{
+		ID: fields["id"], Name: fields["name"], JVMPreset: fields["jvmFlagsPreset"], JavaRuntime: fields["javaRuntime"],
+		RestartPolicy: fields["restartPolicy"], Software: fields["software"], MCVersion: fields["mcVersion"],
+		Autostart: fields["autostart"] == "true", AcceptEULA: fields["acceptEula"] == "true",
+	}
+	for _, f := range []struct {
+		key string
+		dst *int
+	}{{"memoryMb", &req.MemoryMB}, {"port", &req.Port}, {"build", &req.Build}} {
+		if v := fields[f.key]; v != "" {
+			n, err := strconv.Atoi(v)
+			if err != nil {
+				return req, fmt.Errorf("%s: not a number", f.key)
+			}
+			*f.dst = n
+		}
+	}
+	req.applyDefaults()
+	return req, nil
 }
 
 func (s *server) runInstall(ctx context.Context, inst *instance.Instance, opts instance.InstallOptions) *tasks.Task {
@@ -143,6 +305,14 @@ func (s *server) installInstance(w http.ResponseWriter, r *http.Request) {
 	}
 	if st := inst.State(); st != instance.StateInstalling && st != instance.StateStopped && st != instance.StateCrashed {
 		writeError(w, 409, "invalid_state", instance.ErrMustBeStopped.Error())
+		return
+	}
+	if s.Tasks.Active(inst.Manifest.ID) {
+		writeError(w, 409, "task_running", "another task is still running for this instance")
+		return
+	}
+	if inst.Manifest.Software == "" || inst.Manifest.MCVersion == "" {
+		writeError(w, 409, "invalid_state", "nothing to install: the import did not identify the server; delete it and import again")
 		return
 	}
 	var opts instance.InstallOptions
@@ -218,6 +388,8 @@ func (s *server) patchInstance(w http.ResponseWriter, r *http.Request) {
 
 func (s *server) deleteInstance(w http.ResponseWriter, r *http.Request) {
 	purge := r.URL.Query().Get("purge") == "true"
+	// A running import/install would recreate the directory after it is removed.
+	s.Tasks.CancelInstance(r.PathValue("id"))
 	if err := s.Manager.Delete(r.Context(), r.PathValue("id"), purge); err != nil {
 		if errors.Is(err, instance.ErrNotFound) {
 			writeError(w, 404, "instance_not_found", err.Error())

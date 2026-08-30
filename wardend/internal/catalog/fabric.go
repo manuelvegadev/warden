@@ -49,8 +49,10 @@ func (f *fabric) Versions(ctx context.Context, includePre bool) (VersionList, er
 	})
 }
 
-// loaderID turns a loader version like 0.16.14 into a monotonic build number (16014), so newer
+// LoaderBuildID turns a loader version like 0.16.14 into a monotonic build number (16014), so newer
 // loaders compare greater and the manifest's integer Build keeps working.
+func LoaderBuildID(version string) int { return loaderID(version) }
+
 func loaderID(version string) int {
 	parts := strings.Split(strings.SplitN(version, "-", 2)[0], ".")
 	id := 0

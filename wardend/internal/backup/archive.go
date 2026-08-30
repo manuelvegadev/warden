@@ -10,11 +10,9 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"io/fs"
 	"os"
-	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -182,9 +180,12 @@ func Extract(ctx context.Context, archive, root string, progress func(pct int)) 
 		if err != nil {
 			return err
 		}
-		rel := path.Clean(strings.TrimPrefix(hdr.Name, "/"))
-		if rel == "." || rel == ".." || strings.HasPrefix(rel, "../") {
-			return fmt.Errorf("%w: %s", ErrUnsafePath, hdr.Name)
+		if hdr.Typeflag != tar.TypeDir && hdr.Typeflag != tar.TypeReg {
+			continue
+		}
+		rel, err := safeRel(hdr.Name)
+		if err != nil {
+			return err
 		}
 		top := strings.SplitN(rel, "/", 2)[0]
 		if !replaced[top] {
@@ -193,25 +194,9 @@ func Extract(ctx context.Context, archive, root string, progress func(pct int)) 
 				return err
 			}
 		}
-		target := filepath.Join(root, filepath.FromSlash(rel))
-		switch hdr.Typeflag {
-		case tar.TypeDir:
-			if err := os.MkdirAll(target, 0o750); err != nil {
-				return err
-			}
-		case tar.TypeReg:
-			if err := os.MkdirAll(filepath.Dir(target), 0o750); err != nil {
-				return err
-			}
-			w, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, fs.FileMode(hdr.Mode)&0o777|0o600)
-			if err != nil {
-				return err
-			}
-			_, err = io.Copy(w, tr)
-			w.Close()
-			if err != nil {
-				return err
-			}
+		var stats UnpackStats
+		if err := writeEntry(root, rel, hdr.Typeflag == tar.TypeDir, fs.FileMode(hdr.Mode), tr, UnpackLimits{}, &stats); err != nil {
+			return err
 		}
 	}
 	if progress != nil {

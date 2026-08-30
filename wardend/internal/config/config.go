@@ -67,6 +67,9 @@ func Load() (*Config, error) {
 }
 
 func (c *Config) ServersDir() string { return filepath.Join(c.DataDir, "servers") }
+
+// ImportsDir holds uploaded server archives while an import task runs.
+func (c *Config) ImportsDir() string { return filepath.Join(c.DataDir, "imports") }
 func (c *Config) DBPath() string     { return filepath.Join(c.DataDir, "wardend.db") }
 func (c *Config) UserAgent(version string) string {
 	return "warden/" + version + " (" + c.Contact + ")"
