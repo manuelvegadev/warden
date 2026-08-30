@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useOptionalInstances } from "@/components/instances-store";
 import { type MetricPoint, useMetricsHistory } from "@/hooks/use-metrics-history";
@@ -14,6 +14,7 @@ import {
   type MetricSample,
   type Task,
   taskLabel,
+  tasks,
 } from "@/lib/api";
 
 export interface InstanceState {
@@ -60,6 +61,18 @@ export function InstanceProvider({
   const [metrics, setMetrics] = useState<MetricSample | null>(initial.metrics);
   const [lines, setLines] = useState<ConsoleLine[]>([]);
   const [task, setTask] = useState<Task | null>(null);
+  // A task that started (or finished) before this page subscribed — an import that failed in
+  // milliseconds, an install still running after a reload — is only known through REST.
+  useEffect(() => {
+    let live = true;
+    tasks.ofInstance(manifest.id).then(
+      (list) => live && list[0] && setTask((t) => t ?? list[0]),
+      () => {},
+    );
+    return () => {
+      live = false;
+    };
+  }, [manifest.id]);
 
   // Incoming lines are buffered and flushed once per frame: one state update per burst, not per line.
   const pendingLines = useRef<ConsoleLine[]>([]);

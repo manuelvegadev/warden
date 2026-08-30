@@ -43,7 +43,8 @@ export function InstanceShell({ children }: { children: React.ReactNode }) {
           <Controls id={manifest.id} state={status.state} onDeleted={onDeleted} />
         </div>
         <TaskBanner task={task} onRetryInstall={retryInstall} />
-        {status.state === "installing" && !task && (
+        {/* Only when there is a build to fetch: an unfinished import has no software yet and no task to retry. */}
+        {status.state === "installing" && !task && manifest.software && manifest.mcVersion && (
           <Alert>
             <AlertTitle>Not installed</AlertTitle>
             <AlertDescription className="grid gap-2">

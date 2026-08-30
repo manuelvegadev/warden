@@ -302,10 +302,11 @@ export interface LogFile {
   modTime: string;
 }
 
-export type TaskType = "install" | "upgrade" | "backup" | "restore" | "plugin.install" | "java.install";
+export type TaskType = "install" | "import" | "upgrade" | "backup" | "restore" | "plugin.install" | "java.install";
 
 export const TASK_LABELS: Record<TaskType, string> = {
   install: "Server install",
+  import: "Server import",
   upgrade: "Server upgrade",
   backup: "Backup",
   restore: "Restore",
@@ -353,6 +354,19 @@ export interface JavaRuntime {
 export interface JavaRelease {
   major: number;
   lts: boolean;
+}
+
+/** Form fields of `instances.import`; software/mcVersion only matter when the archive has no server jar. */
+export interface ImportInstanceInput {
+  id: string;
+  name: string;
+  memoryMb: number;
+  port: number;
+  jvmFlagsPreset: "aikar" | "basic";
+  javaRuntime?: string;
+  acceptEula: boolean;
+  software?: string;
+  mcVersion?: string;
 }
 
 export interface CreateInstanceInput {
@@ -407,6 +421,35 @@ export const instances = {
   list: () => api<InstanceSummary[]>("/instances"),
   get: (id: string) => api<InstanceDetail>(`/instances/${id}`),
   create: (input: CreateInstanceInput) => post<{ instance: InstanceSummary; task: Task }>("/instances", input),
+  /**
+   * Creates an instance from an uploaded server directory archive. XHR rather than fetch so the
+   * upload progress (bytes sent) can be shown; the daemon answers 202 with the import task.
+   */
+  import: (input: ImportInstanceInput, file: File, onProgress?: (sent: number, total: number) => void) =>
+    new Promise<{ instance: InstanceSummary; task: Task }>((resolve, reject) => {
+      const body = new FormData();
+      // Text fields go first: the daemon needs them before it starts streaming the file to disk.
+      for (const [k, v] of Object.entries(input)) if (v !== undefined && v !== "") body.append(k, String(v));
+      body.append("file", file, file.name);
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", "/api/wardend/instances/import");
+      xhr.upload.onprogress = (e) => onProgress?.(e.loaded, e.lengthComputable ? e.total : file.size);
+      xhr.onerror = () => reject(new ApiError(0, "network", "Upload failed"));
+      xhr.onload = () => {
+        let json: { instance?: InstanceSummary; task?: Task; error?: { code: string; message: string } } = {};
+        try {
+          json = JSON.parse(xhr.responseText);
+        } catch {
+          /* non-JSON error page */
+        }
+        if (xhr.status >= 200 && xhr.status < 300 && json.instance && json.task) {
+          resolve({ instance: json.instance, task: json.task });
+        } else {
+          reject(new ApiError(xhr.status, json.error?.code ?? "unknown", json.error?.message ?? xhr.statusText));
+        }
+      };
+      xhr.send(body);
+    }),
   install: (id: string, acceptEula: boolean) =>
     post<{ task: Task }>(`/instances/${id}/install`, { AcceptEULA: acceptEula }),
   remove: (id: string) => api<void>(`/instances/${id}`, { method: "DELETE" }),
@@ -573,6 +616,8 @@ export const java = {
 
 export const tasks = {
   get: (id: string) => api<Task>(`/tasks/${id}`),
+  /** Tasks of one instance, newest first (the WebSocket only streams tasks started after subscribing). */
+  ofInstance: (instanceId: string) => api<Task[]>(`/tasks?instance=${encodeURIComponent(instanceId)}`),
 };
 
 /** 1234 → "1K", 2_800_000 → "2.8M". */
