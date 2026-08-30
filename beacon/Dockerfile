@@ -18,7 +18,9 @@ COPY --from=deps /repo ./
 COPY packages/ui packages/ui
 COPY beacon beacon
 ARG NEXT_PUBLIC_WARDEND_WS_URL
-ENV NEXT_PUBLIC_WARDEND_WS_URL=$NEXT_PUBLIC_WARDEND_WS_URL
+# Release tag or commit sha, shown in the sidebar (CI passes it as VERSION).
+ARG VERSION=dev
+ENV NEXT_PUBLIC_WARDEND_WS_URL=$NEXT_PUBLIC_WARDEND_WS_URL NEXT_PUBLIC_BEACON_VERSION=$VERSION
 RUN pnpm --filter beacon build
 
 FROM node:22-bookworm-slim AS runner

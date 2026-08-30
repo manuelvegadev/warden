@@ -79,4 +79,7 @@ Rules:
 `app/manifest.ts`, `public/sw.js` (registered from `app/layout.tsx` in production) and the Apple
 web-app metadata make Beacon installable; the worker caches nothing on purpose (live server state).
 `proxy.ts` treats any path with a file extension as public, which covers the manifest, the worker and
-the icons. Chrome/Android show the install prompt; iOS never prompts — Share → Add to Home Screen.
+the icons. Chrome/Android show their own banner only after engagement heuristics, so the user menu offers
+**Install app** (`hooks/use-install-prompt.ts`) as soon as the page is installable; iOS never
+prompts — Share → Add to Home Screen. The sidebar footer shows `wardend <version> · beacon <version>`
+(`NEXT_PUBLIC_BEACON_VERSION`, set by the Docker build from the release tag or commit).

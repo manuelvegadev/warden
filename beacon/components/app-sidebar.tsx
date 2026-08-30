@@ -23,12 +23,14 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@warden/ui/components/sidebar";
-import { Coffee, House, KeyRound, LogOut, UserRound } from "lucide-react";
+import { Coffee, Download, House, KeyRound, LogOut, UserRound } from "lucide-react";
 import Link from "next/link";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import { sectionsFor } from "@/components/instance/sections";
 import { InstanceSwitcher } from "@/components/instance-switcher";
 import { useInstances } from "@/components/instances-store";
+import { Versions } from "@/components/versions";
+import { useInstallPrompt } from "@/hooks/use-install-prompt";
 import { DEFAULT_SOFTWARE } from "@/lib/api";
 import { signOut } from "@/lib/auth-client";
 import { HOME, instanceHref } from "@/lib/instance-routes";
@@ -53,6 +55,7 @@ function NavItems({ items }: { items: Item[] }) {
 export function AppSidebar({ user }: { user: { name: string; email: string; role: string } }) {
   const pathname = usePathname();
   const router = useRouter();
+  const install = useInstallPrompt();
   const { id: instanceId } = useParams<{ id?: string }>();
   const { instances } = useInstances();
   const software = instances.find((i) => i.id === instanceId)?.software ?? DEFAULT_SOFTWARE;
@@ -98,7 +101,8 @@ export function AppSidebar({ user }: { user: { name: string; email: string; role
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="mt-3">
+      <SidebarFooter className="mt-3 gap-2">
+        <Versions />
         <SidebarMenu>
           <SidebarMenuItem>
             <DropdownMenu>
@@ -130,6 +134,11 @@ export function AppSidebar({ user }: { user: { name: string; email: string; role
                   <DropdownMenuItem render={<Link href="/settings/account#password" />}>
                     <KeyRound /> Change password
                   </DropdownMenuItem>
+                  {install && (
+                    <DropdownMenuItem onClick={install}>
+                      <Download /> Install app
+                    </DropdownMenuItem>
+                  )}
                 </DropdownMenuGroup>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => signOut({ fetchOptions: { onSuccess: () => router.push("/login") } })}>
