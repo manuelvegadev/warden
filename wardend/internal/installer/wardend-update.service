@@ -1,0 +1,8 @@
+[Unit]
+Description=Install a wardend update staged by the daemon
+Documentation=https://github.com/manuelvegadev/warden
+
+[Service]
+Type=oneshot
+# Re-verifies {{DATA_DIR}}/update/wardend against the release's SHA256SUMS before installing it.
+ExecStart=/usr/local/bin/wardend update-apply {{DATA_DIR}}/update

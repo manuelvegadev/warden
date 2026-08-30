@@ -36,16 +36,27 @@ const (
 	envDir      = "/etc/warden"
 	envPath     = "/etc/warden/wardend.env"
 	unitPath    = "/etc/systemd/system/wardend.service"
-	logDir      = "/var/log/warden"
+	// Root-side half of the self-update (internal/selfupdate).
+	updateUnitPath = "/etc/systemd/system/wardend-update.service"
+	updatePathPath = "/etc/systemd/system/wardend-update.path"
+	logDir         = "/var/log/warden"
 )
 
 //go:embed wardend.service
 var unitTemplate string
 
+//go:embed wardend-update.service
+var updateUnitTemplate string
+
+//go:embed wardend-update.path
+var updatePathTemplate string
+
 // Settings is everything the installer asks for; it becomes /etc/warden/wardend.env.
 type Settings struct {
-	DataDir        string
-	Port           int
+	DataDir string
+	Port    int
+	Listen  string // WARDEND_LISTEN as found in an existing env; kept verbatim unless the port is re-asked
+
 	Contact        string
 	PanelIssuer    string
 	PanelKey       string
@@ -87,6 +98,14 @@ func (s Settings) publicHost(fallback string) string {
 		return hosts[0]
 	}
 	return fallback
+}
+
+// probeAddr is where the health poll reaches the daemon: the bound address when it is a specific one.
+func (s Settings) probeAddr() string {
+	if host, _, ok := strings.Cut(s.Listen, ":"); ok && host != "" {
+		return s.Listen
+	}
+	return "127.0.0.1:" + strconv.Itoa(s.Port)
 }
 
 func defaults() Settings {
@@ -183,14 +202,23 @@ func Run(version string, args []string) error {
 		{"Create directories", func() error { return ensureDirs(s.DataDir) }},
 		{"Install binary to " + binPath, installBinary},
 		{"Write " + envPath, func() error { return writeEnvFile(envPath, s.envLines(existing)) }},
-		{"Write systemd unit", func() error {
-			return os.WriteFile(unitPath, []byte(strings.ReplaceAll(unitTemplate, "{{DATA_DIR}}", s.DataDir)), 0o644)
+		{"Write systemd units", func() error {
+			for path, tpl := range map[string]string{unitPath: unitTemplate, updateUnitPath: updateUnitTemplate, updatePathPath: updatePathTemplate} {
+				if err := os.WriteFile(path, []byte(strings.ReplaceAll(tpl, "{{DATA_DIR}}", s.DataDir)), 0o644); err != nil {
+					return err
+				}
+			}
+			return nil
 		}},
-		{"Reload systemd and enable the service", func() error {
+		{"Reload systemd and enable the services", func() error {
 			if err := run.cmd("systemctl", "daemon-reload"); err != nil {
 				return err
 			}
-			return run.cmd("systemctl", "enable", "wardend")
+			if err := run.cmd("systemctl", "enable", "wardend"); err != nil {
+				return err
+			}
+			// Watches <data>/update/tag so "Update wardend" in Beacon can install as root.
+			return run.cmd("systemctl", "enable", "--now", "wardend-update.path")
 		}},
 		{"Start wardend", func() error { return run.cmd("systemctl", "restart", "wardend") }},
 	})
@@ -199,7 +227,7 @@ func Run(version string, args []string) error {
 		return err
 	}
 	if err := ui.Progress("Waiting for the daemon to answer", 30*time.Second, func() (bool, string) {
-		return probe(fmt.Sprintf("%s://127.0.0.1:%d/api/v1/health", s.scheme(), s.Port))
+		return probe(fmt.Sprintf("%s://%s/api/v1/health", s.scheme(), s.probeAddr()))
 	}); err != nil {
 		ui.Dim("journalctl -u wardend -n 50")
 		return err
@@ -267,6 +295,7 @@ func fileExists(p string) error {
 // ask runs the interactive form, editing s in place.
 func ask(s *Settings) error {
 	port := strconv.Itoa(s.Port)
+	s.Listen = "" // answering the port question means listening on every interface again
 	form := huh.NewForm(
 		huh.NewGroup(
 			huh.NewInput().Title("Data directory").Description("Servers, backups, Java runtimes and the database.").
@@ -404,8 +433,12 @@ func installBinary() error {
 // envLines renders the daemon environment. Keys the installer does not manage (hand-added
 // overrides such as WARDEND_PANEL_JWKS_URL or WARDEND_LOG_LEVEL) are carried over from existing.
 func (s Settings) envLines(existing map[string]string) []string {
+	listen := s.Listen
+	if listen == "" {
+		listen = ":" + strconv.Itoa(s.Port)
+	}
 	managed := map[string]string{
-		"WARDEND_LISTEN":        ":" + strconv.Itoa(s.Port),
+		"WARDEND_LISTEN":        listen,
 		"WARDEND_TLS_HTTP_ADDR": "",
 	}
 	if s.TLSMode == tlsconf.ModeACME {
@@ -431,8 +464,12 @@ func (s Settings) envLines(existing map[string]string) []string {
 
 // fromEnv loads the operator's values from a previous run.
 func (s *Settings) fromEnv(e map[string]string) {
-	if p, err := strconv.Atoi(strings.TrimPrefix(e["WARDEND_LISTEN"], ":")); err == nil {
-		s.Port = p
+	// "172.17.0.1:8080" (behind a reverse proxy) stays as is; only the port is exposed to the prompts.
+	s.Listen = e["WARDEND_LISTEN"]
+	if _, port, ok := strings.Cut(s.Listen, ":"); ok {
+		if p, err := strconv.Atoi(port); err == nil {
+			s.Port = p
+		}
 	}
 	for _, v := range s.envVars() {
 		if val, ok := e[v.key]; ok && val != "" {
