@@ -1,6 +1,7 @@
 "use client";
 
 import { Avatar, AvatarFallback } from "@warden/ui/components/avatar";
+import { BeaconMark } from "@warden/ui/components/brand";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,7 +23,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@warden/ui/components/sidebar";
-import { Coffee, House, KeyRound, LogOut, Server, UserRound } from "lucide-react";
+import { Coffee, House, KeyRound, LogOut, UserRound } from "lucide-react";
 import Link from "next/link";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import { sectionsFor } from "@/components/instance/sections";
@@ -74,7 +75,7 @@ export function AppSidebar({ user }: { user: { name: string; email: string; role
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton className="data-[slot=sidebar-menu-button]:!p-1.5" render={<Link href="/" />}>
-              <Server className="!size-5" />
+              <BeaconMark className="!size-5" />
               <span className="text-base font-semibold">Beacon</span>
             </SidebarMenuButton>
           </SidebarMenuItem>

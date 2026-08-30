@@ -1,5 +1,6 @@
 "use client";
 
+import { BeaconMark } from "@warden/ui/components/brand";
 import { Button } from "@warden/ui/components/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@warden/ui/components/card";
 import { Input } from "@warden/ui/components/input";
@@ -36,7 +37,10 @@ export function LoginForm({ next = "/" }: { next?: string }) {
   return (
     <Card className="w-full max-w-sm">
       <CardHeader>
-        <CardTitle>Beacon</CardTitle>
+        <CardTitle className="flex items-center gap-2">
+          <BeaconMark />
+          Beacon
+        </CardTitle>
         <CardDescription>
           {mode === "login" ? "Sign in to manage your servers." : "Create the administrator account."}
         </CardDescription>

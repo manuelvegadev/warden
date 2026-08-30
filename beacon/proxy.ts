@@ -16,5 +16,7 @@ export function proxy(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!api/auth|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|ico)).*)"],
+  // Public: the auth API, Next assets and any file path (favicons, PWA manifest, service worker, icons).
+  // Page routes never contain a dot (instance ids are [a-z0-9-]).
+  matcher: ["/((?!api/auth|_next/static|_next/image|.*..*).*)"],
 };
