@@ -13,3 +13,12 @@ export function WardendConfigProvider({ wsUrl, children }: { wsUrl: string; chil
 export function useWardendWsUrl() {
   return `${useContext(WardendConfig).wsUrl}/api/v1/ws`;
 }
+
+/**
+ * What players type in the Minecraft client: the daemon's public host plus the instance port
+ * (dropped when it is the default 25565, which the client assumes).
+ */
+export function useServerAddress(port: number) {
+  const host = new URL(useContext(WardendConfig).wsUrl).hostname;
+  return port === 25565 ? host : `${host}:${port}`;
+}

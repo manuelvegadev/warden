@@ -7,9 +7,11 @@ import { useCallback } from "react";
 import { Controls } from "@/components/instance/controls";
 import { useInstance } from "@/components/instance/instance-context";
 import { ResourceCards } from "@/components/instance/resource-cards";
+import { CopyButton } from "@/components/instance/section-card";
 import { InstanceSidebar } from "@/components/instance/sidebar";
 import { TaskBanner } from "@/components/instance/task-banner";
 import { StateBadge } from "@/components/state-badge";
+import { useServerAddress } from "@/components/wardend-config";
 
 /**
  * Instance page chrome: a header (name, controls, stat tiles) and below it the section content next
@@ -20,14 +22,24 @@ export function InstanceShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const onDeleted = useCallback(() => router.push("/"), [router]);
 
+  const address = useServerAddress(manifest.port);
+
   return (
     <div className="grid min-w-0 grid-rows-[auto_minmax(0,1fr)]">
       <header className="page-pad grid gap-4 border-b">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h1 className="flex items-center gap-3 text-2xl font-semibold">
-            {manifest.name} <StateBadge state={status.state} />
-            {!connected && <span className="text-xs font-normal text-muted-foreground">(reconnecting…)</span>}
-          </h1>
+          <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+            <h1 className="flex items-center gap-3 text-2xl font-semibold">
+              {manifest.name} <StateBadge state={status.state} />
+              {!connected && <span className="text-xs font-normal text-muted-foreground">(reconnecting…)</span>}
+            </h1>
+            <CopyButton
+              value={address}
+              label={address}
+              showLabel
+              className="font-mono text-muted-foreground hover:text-foreground"
+            />
+          </div>
           <Controls id={manifest.id} state={status.state} onDeleted={onDeleted} />
         </div>
         <TaskBanner task={task} onRetryInstall={retryInstall} />
