@@ -12,7 +12,8 @@
   },
   "scripts": {
     "lint": "biome check .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "brand:build": "node brand/build.ts"
   },
   "peerDependencies": {
     "react": "^19",

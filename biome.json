@@ -17,7 +17,8 @@
       "!**/data",
       "!**/next-env.d.ts",
       "!**/*.astro",
-      "!docs/design"
+      "!docs/design",
+      "!**/*.svg"
     ]
   },
   "formatter": {
