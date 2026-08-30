@@ -114,7 +114,7 @@ export function WardendUpdate({ current, isAdmin }: { current?: string; isAdmin:
       <ConfirmDialog
         open={confirm}
         title={`Update wardend to ${info.latest}?`}
-        description="The daemon downloads and verifies the release, installs it and restarts. Running servers keep running; Beacon reconnects in a few seconds."
+        description="The daemon downloads and verifies the release, installs it and restarts. Running servers are stopped for the restart and started again right after (expect a couple of minutes of downtime); Beacon reconnects by itself."
         confirmLabel="Update"
         onConfirm={apply}
         onClose={() => setConfirm(false)}

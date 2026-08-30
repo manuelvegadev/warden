@@ -34,4 +34,8 @@ report an update. Beacon follows the task, then polls `/system` until the new ve
   `install.sh`.
 - Hosts installed before this ADR need one more `wardend install --yes` (or the install script) to
   get the units; until then the button explains that.
+- A daemon restart stops the Minecraft servers (they are its child processes). On the way out the
+  daemon writes `<data>/resume.json` with the running ids and the next daemon starts them again
+  (`Manager.ResumeAll`, marker consumed so a crash loop cannot keep restarting servers). Expect a
+  couple of minutes of downtime per update: Paper waits up to 60 s for its worker pools twice.
 - Downgrades and pinned versions are out of scope: the daemon only moves to the newest release.
