@@ -144,17 +144,17 @@ export function InstallPluginsDialog({
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={search} className="flex gap-2">
+          <form onSubmit={search} className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_9rem_auto]">
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search plugins…"
-              className="flex-1"
+              className="min-w-0"
               type="search"
               autoFocus
             />
             <Select items={SOURCE_FILTERS} value={source} onValueChange={(v) => v && setSource(v)}>
-              <SelectTrigger className="w-36">
+              <SelectTrigger className="w-full">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

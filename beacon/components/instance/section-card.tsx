@@ -77,8 +77,8 @@ export function SectionCard({
   }
 
   return (
-    <div id={id} className="grid gap-3">
-      <div className="flex items-end justify-between gap-4">
+    <div id={id} className="grid grid-cols-1 gap-3">
+      <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
         {heading}
         {action}
       </div>
@@ -148,7 +148,7 @@ export function SettingRow({
 }) {
   return (
     <div
-      className={`group flex items-center gap-4 px-5 py-3 ${dirty ? "bg-primary/5 shadow-[inset_2px_0_0_0_var(--primary)]" : ""}`}
+      className={`group flex flex-col gap-2 px-5 py-3 sm:flex-row sm:items-center sm:gap-4 ${dirty ? "bg-primary/5 shadow-[inset_2px_0_0_0_var(--primary)]" : ""}`}
     >
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
@@ -159,7 +159,7 @@ export function SettingRow({
         </div>
         {description && <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>}
       </div>
-      <div className={wide ? "w-full max-w-md shrink-0" : "w-56 shrink-0"}>{children}</div>
+      <div className={`w-full shrink-0 ${wide ? "sm:max-w-md" : "sm:w-56"}`}>{children}</div>
       {trailing}
     </div>
   );

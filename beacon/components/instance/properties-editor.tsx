@@ -90,7 +90,7 @@ export function PropertiesEditor({ id, running }: { id: string; running: boolean
 
   return (
     <div className="grid gap-8">
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-2">
         <ModeToggle mode={mode} onChange={setMode} />
         {mode === "form" ? (
           <>
@@ -98,10 +98,10 @@ export function PropertiesEditor({ id, running }: { id: string; running: boolean
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search properties (key, description or value)…"
-              className="max-w-md"
+              className="min-w-0 flex-1 basis-full sm:max-w-md sm:basis-auto"
               type="search"
             />
-            <span className="text-xs text-muted-foreground">
+            <span className="whitespace-nowrap text-xs text-muted-foreground">
               {visible} of {props.length}
             </span>
           </>

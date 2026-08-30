@@ -66,7 +66,7 @@ export function JavaRuntimes() {
   const running = Object.values(tasks).filter((t) => t.status === "running" || t.status === "pending");
 
   return (
-    <div className="mt-6 grid gap-8">
+    <div className="mt-6 grid grid-cols-1 gap-8">
       {running.map((t) => (
         <div key={t.id} className="grid gap-2 rounded-md border p-4 text-sm">
           <span>{t.message || "Starting…"}</span>

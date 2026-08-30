@@ -87,7 +87,7 @@ export function BackupsTab({
   const act = useAction(refresh);
 
   return (
-    <div className="grid gap-8">
+    <div className="grid grid-cols-1 gap-8">
       <SectionCard
         title="Backups"
         subtitle="tar.zst archives in the instance's backups folder. With the server running, worlds are flushed and auto-save paused while archiving."

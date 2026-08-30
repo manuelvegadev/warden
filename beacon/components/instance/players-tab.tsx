@@ -37,7 +37,7 @@ export function PlayersTab({ id, online, isAdmin }: { id: string; online: string
   const player = players?.find((p) => p.name === selected) ?? null;
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
       <SectionCard title="Players" subtitle="Everyone who has joined. Click a player for statistics and actions.">
         <Table>
           <TableHeader>

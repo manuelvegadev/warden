@@ -343,7 +343,7 @@ export function CreateInstanceDialog() {
             </SettingRow>
           </SectionCard>
         </form>
-        <DialogFooter className="mx-0 mb-0 items-center bg-muted px-6 py-4 sm:justify-between">
+        <DialogFooter className="mx-0 mb-0 flex-col gap-3 bg-muted px-6 py-4 sm:items-center sm:justify-between">
           <div className="flex items-center gap-2 text-sm">
             <Checkbox id="eula" checked={eula} onCheckedChange={(v) => setEula(v === true)} />
             <Label htmlFor="eula" className="font-normal">
@@ -353,7 +353,7 @@ export function CreateInstanceDialog() {
               </a>
             </Label>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 *:flex-1 sm:*:flex-none">
             <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
               Cancel
             </Button>

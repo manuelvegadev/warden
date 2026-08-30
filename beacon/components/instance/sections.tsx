@@ -97,7 +97,7 @@ export const SECTIONS: Section[] = [
     label: "Settings",
     icon: Settings,
     render: (s) => (
-      <div className="grid gap-8">
+      <div className="grid grid-cols-1 gap-8">
         <UpgradeCard manifest={s.manifest} state={s.status.state} isAdmin={s.isAdmin} task={s.task} />
         <LaunchCommandCard manifest={s.manifest} />
         <SettingsForm manifest={s.manifest} running={!isStopped(s.status.state)} />
