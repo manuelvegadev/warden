@@ -41,6 +41,7 @@ type Tile = {
   detail?: string;
   keys?: (keyof MetricPoint)[];
   max?: number;
+  headroom?: number;
 };
 
 export function ResourceCards({
@@ -76,6 +77,7 @@ export function ResourceCards({
       value: m ? compact(m.memRss) : "—",
       detail: `heap max ${compact(memoryMb * 1048576)}`,
       keys: ["memMb"],
+      headroom: 2.5,
     },
     {
       label: "Network",
@@ -95,6 +97,7 @@ export function ResourceCards({
               data={history}
               keys={c.keys}
               max={c.max}
+              headroom={c.headroom}
               className="pointer-events-none absolute inset-x-0 bottom-0 h-14"
             />
           )}

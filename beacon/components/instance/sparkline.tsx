@@ -11,15 +11,18 @@ export function Sparkline({
   data,
   keys,
   max,
+  headroom = 1,
   className,
 }: {
   data: MetricPoint[];
   keys: (keyof MetricPoint)[];
   max?: number;
+  /** Multiplies the top of the scale: a steady series (RSS) then sits low, out of the tile's text scrim. */
+  headroom?: number;
   className?: string;
 }) {
   if (data.length < 2) return null;
-  const domain: [number, number | "auto"] = [0, max ?? "auto"];
+  const domain: [number, number | ((dataMax: number) => number)] = [0, (dataMax) => (max ?? dataMax) * headroom];
   const single = keys.length === 1;
   return (
     <div className={className} aria-hidden>
