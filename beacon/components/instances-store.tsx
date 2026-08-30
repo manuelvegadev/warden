@@ -38,6 +38,11 @@ export function InstancesProvider({ initial, children }: { initial: InstanceSumm
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
+/** The store when one is mounted; pages outside the dashboard shell (the console pop-out) have none. */
+export function useOptionalInstances(): InstancesState | null {
+  return useContext(Ctx);
+}
+
 export function useInstances(): InstancesState {
   const v = useContext(Ctx);
   if (!v) throw new Error("useInstances must be used inside InstancesProvider");

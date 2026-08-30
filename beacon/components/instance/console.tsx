@@ -9,11 +9,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@warden/ui/components/dialog";
-import { Input } from "@warden/ui/components/input";
-import { type FormEvent, type KeyboardEvent, useEffect, useRef, useState } from "react";
+import { cn } from "@warden/ui/lib/utils";
+import { AlignLeft, ExternalLink, Maximize2, Minimize2, Sparkles } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { CommandInput } from "@/components/instance/command-input";
+import { CommandTemplates } from "@/components/instance/command-templates";
+import { PrettyConsole } from "@/components/instance/console-pretty";
+import { useConsoleLines, useInstance } from "@/components/instance/instance-context";
 import { Logs } from "@/components/instance/logs";
+import { useKnownPlayers } from "@/hooks/use-known-players";
 import type { ConsoleLine } from "@/lib/api";
-import { mono } from "@/lib/utils";
 import "@xterm/xterm/css/xterm.css";
 
 const colors: Record<ConsoleLine["level"], string> = {
@@ -33,17 +38,11 @@ function writeLine(term: import("@xterm/xterm").Terminal, l: ConsoleLine) {
   term.write(`${prefix}${colors[l.level] ?? ""}${l.text}\x1b[0m`);
 }
 
-export function Console({
-  instanceId,
-  lines,
-  onCommand,
-  disabled,
-}: {
-  instanceId: string;
-  lines: ConsoleLine[];
-  onCommand: (cmd: string) => void;
-  disabled: boolean;
-}) {
+type ConsoleMode = "pretty" | "raw";
+const MODE_KEY = "beacon.console.mode";
+
+/** The xterm view: mounted only in raw mode, replays the buffer on mount. */
+function RawConsole({ lines, className }: { lines: ConsoleLine[]; className?: string }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<import("@xterm/xterm").Terminal | null>(null);
@@ -52,9 +51,6 @@ export function Console({
   useEffect(() => {
     linesRef.current = lines;
   }, [lines]);
-  const [history, setHistory] = useState<string[]>([]);
-  const [hIdx, setHIdx] = useState(-1);
-  const [value, setValue] = useState("");
 
   useEffect(() => {
     let disposed = false;
@@ -128,67 +124,170 @@ export function Console({
     writtenRef.current = lines.length;
   }, [lines]);
 
-  function submit(e: FormEvent) {
-    e.preventDefault();
-    const cmd = value.trim();
-    if (!cmd) return;
-    onCommand(cmd);
+  return (
+    <div
+      ref={frameRef}
+      className={cn("flex flex-col justify-center overflow-hidden rounded-md border bg-[#0a0a0a] p-2", className)}
+    >
+      <div ref={hostRef} className="h-full" />
+    </div>
+  );
+}
+
+/**
+ * Live console of the current instance (reads the instance context). `popout` is the pop-out
+ * window variant: fills its container and has no pop-out button of its own.
+ */
+export function Console({ popout }: { popout?: boolean }) {
+  const { manifest, status, sendCommand } = useInstance();
+  const lines = useConsoleLines();
+  const instanceId = manifest.id;
+  const disabled = status.state !== "running" && status.state !== "starting";
+  const [history, setHistory] = useState<string[]>([]);
+  const [value, setValue] = useState("");
+  // Remaining commands of a multi-command template: each one is put in the input after the previous is sent.
+  const [queue, setQueue] = useState<string[]>([]);
+  const inputRef = useRef<HTMLInputElement>(null);
+  // Everyone who ever joined, for name completion when they are offline.
+  const knownPlayers = useKnownPlayers(instanceId, status.players);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [fullscreen, setFullscreen] = useState(false);
+  useEffect(() => {
+    const onChange = () => setFullscreen(document.fullscreenElement === rootRef.current);
+    document.addEventListener("fullscreenchange", onChange);
+    return () => document.removeEventListener("fullscreenchange", onChange);
+  }, []);
+  const toggleFullscreen = () => {
+    if (document.fullscreenElement) document.exitFullscreen();
+    else rootRef.current?.requestFullscreen?.();
+  };
+  const openPopout = () =>
+    window.open(`/console/${instanceId}`, `beacon-console-${instanceId}`, "popup,width=1100,height=720");
+  const fillHeight = popout || fullscreen;
+  const viewClass = fillHeight ? "min-h-0 flex-1" : "h-[min(60vh,640px)]";
+
+  const [mode, setMode] = useState<ConsoleMode>("pretty");
+  useEffect(() => {
+    try {
+      const m = localStorage.getItem(MODE_KEY);
+      if (m === "raw" || m === "pretty") setMode(m);
+    } catch {
+      /* private mode */
+    }
+  }, []);
+  const pickMode = (m: ConsoleMode) => {
+    setMode(m);
+    try {
+      localStorage.setItem(MODE_KEY, m);
+    } catch {
+      /* private mode */
+    }
+  };
+
+  function submit(command: string) {
+    const cmd = command.trim();
+    if (!cmd || disabled) return;
+    sendCommand(cmd);
     setHistory((h) => [cmd, ...h.filter((x) => x !== cmd)].slice(0, 50));
-    setHIdx(-1);
-    setValue("");
+    setValue(queue[0] ?? "");
+    setQueue((q) => q.slice(1));
   }
 
-  function onKey(e: KeyboardEvent<HTMLInputElement>) {
-    if (e.key === "ArrowUp" && history.length) {
-      e.preventDefault();
-      const i = Math.min(hIdx + 1, history.length - 1);
-      setHIdx(i);
-      setValue(history[i]);
-    } else if (e.key === "ArrowDown") {
-      e.preventDefault();
-      const i = Math.max(hIdx - 1, -1);
-      setHIdx(i);
-      setValue(i === -1 ? "" : history[i]);
-    }
+  /** A template puts its first command in the input to confirm; the rest wait their turn. */
+  function pickTemplate(cmds: string[]) {
+    setValue(cmds[0]);
+    setQueue(cmds.slice(1));
+    inputRef.current?.focus();
   }
 
   return (
-    <div className="grid gap-2">
-      <div className="flex items-center justify-between">
-        <span className="text-xs text-muted-foreground">Live output · last {lines.length} lines in memory</span>
-        <Dialog>
-          <DialogTrigger render={<Button variant="outline" size="sm" />}>Log files</DialogTrigger>
-          <DialogContent className="sm:max-w-5xl">
-            <DialogHeader>
-              <DialogTitle>Log files</DialogTitle>
-              <DialogDescription>
-                Server logs on disk: tail the latest file or download rotated archives.
-              </DialogDescription>
-            </DialogHeader>
-            <Logs id={instanceId} />
-          </DialogContent>
-        </Dialog>
+    <div ref={rootRef} className={cn("flex flex-col gap-2", fillHeight && "h-full", fullscreen && "bg-background p-3")}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-3">
+          <div className="flex rounded-md border p-0.5">
+            {(
+              [
+                ["pretty", Sparkles, "Pretty"],
+                ["raw", AlignLeft, "Raw"],
+              ] as const
+            ).map(([m, Icon, label]) => (
+              <Button
+                key={m}
+                size="sm"
+                variant={mode === m ? "secondary" : "ghost"}
+                className="h-7 gap-1.5 px-2"
+                aria-pressed={mode === m}
+                onClick={() => pickMode(m)}
+              >
+                <Icon className="size-3.5" /> {label}
+              </Button>
+            ))}
+          </div>
+          <span className="text-xs text-muted-foreground">Live output · last {lines.length} lines in memory</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <Dialog>
+            <DialogTrigger render={<Button variant="outline" size="sm" />}>Log files</DialogTrigger>
+            <DialogContent className="sm:max-w-5xl">
+              <DialogHeader>
+                <DialogTitle>Log files</DialogTitle>
+                <DialogDescription>
+                  Server logs on disk: tail the latest file or download rotated archives.
+                </DialogDescription>
+              </DialogHeader>
+              <Logs id={instanceId} />
+            </DialogContent>
+          </Dialog>
+          {!popout && !fullscreen && (
+            <Button variant="ghost" size="icon-sm" title="Open in a new window" onClick={openPopout}>
+              <ExternalLink />
+              <span className="sr-only">Open in a new window</span>
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            title={fullscreen ? "Exit full screen" : "Full screen"}
+            onClick={toggleFullscreen}
+          >
+            {fullscreen ? <Minimize2 /> : <Maximize2 />}
+            <span className="sr-only">{fullscreen ? "Exit full screen" : "Full screen"}</span>
+          </Button>
+        </div>
       </div>
-      <div
-        ref={frameRef}
-        className="flex h-[min(60vh,640px)] flex-col justify-center overflow-hidden rounded-md border bg-[#0a0a0a] p-2"
-      >
-        <div ref={hostRef} className="h-full" />
-      </div>
-      <form onSubmit={submit} className="flex gap-2">
-        <Input
+      {mode === "pretty" ? (
+        <PrettyConsole lines={lines} className={viewClass} />
+      ) : (
+        <RawConsole lines={lines} className={viewClass} />
+      )}
+      <div className="flex gap-2">
+        <CommandInput
+          inputRef={inputRef}
           value={value}
-          onChange={(e) => setValue(e.target.value)}
-          onKeyDown={onKey}
-          placeholder={disabled ? "Server is not running" : "Type a command (e.g. list, say hello)…"}
-          disabled={disabled}
-          className={mono}
-          autoComplete="off"
+          onChange={(v) => {
+            setValue(v);
+            // Clearing the input abandons the rest of a template.
+            if (!v) setQueue([]);
+          }}
+          onSubmit={submit}
+          history={history}
+          players={status.players}
+          knownPlayers={knownPlayers}
+          software={manifest.software}
+          placeholder={disabled ? "Server is not running" : "Type a command (e.g. list, say hello)… Tab completes"}
+          className="min-w-0 flex-1"
         />
-        <Button type="submit" disabled={disabled || !value.trim()}>
+        <CommandTemplates software={manifest.software} onPick={pickTemplate} />
+        <Button type="button" onClick={() => submit(value)} disabled={disabled || !value.trim()}>
           Send
         </Button>
-      </form>
+      </div>
+      {queue.length > 0 && (
+        <p className="text-xs text-muted-foreground">
+          {queue.length} more command{queue.length > 1 ? "s" : ""} from the template will follow after you send this
+          one.
+        </p>
+      )}
     </div>
   );
 }

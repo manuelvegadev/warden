@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { useInstances } from "@/components/instances-store";
+import { useOptionalInstances } from "@/components/instances-store";
 import { type MetricPoint, useMetricsHistory } from "@/hooks/use-metrics-history";
 import { useWardendSocket, type WsMessage } from "@/hooks/use-wardend-socket";
 import {
@@ -55,7 +55,7 @@ export function InstanceProvider({
   children: React.ReactNode;
 }) {
   const { manifest } = initial;
-  const { setStatus: setListStatus } = useInstances();
+  const setListStatus = useOptionalInstances()?.setStatus;
   const [status, setStatusState] = useState<InstanceStatus>(initial.status);
   const [metrics, setMetrics] = useState<MetricSample | null>(initial.metrics);
   const [lines, setLines] = useState<ConsoleLine[]>([]);
@@ -84,7 +84,7 @@ export function InstanceProvider({
   const setStatus = useCallback(
     (next: InstanceStatus) => {
       setStatusState(next);
-      setListStatus(manifest.id, next);
+      setListStatus?.(manifest.id, next);
     },
     [manifest.id, setListStatus],
   );

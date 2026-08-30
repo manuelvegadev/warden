@@ -8,7 +8,7 @@ import { SiteHeader } from "@/components/site-header";
 import { WardendConfigProvider } from "@/components/wardend-config";
 import type { InstanceSummary } from "@/lib/api";
 import { getSession } from "@/lib/session";
-import { wardendFetch } from "@/lib/wardend";
+import { publicWsUrl, wardendFetch } from "@/lib/wardend";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [session, cookieStore] = await Promise.all([getSession(), cookies()]);
@@ -21,14 +21,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const sidebarOpen = cookieStore.get("sidebar_state")?.value !== "false";
 
   return (
-    <WardendConfigProvider
-      // Read per request (this layout is dynamic): one image serves every deployment.
-      wsUrl={(
-        process.env.WARDEND_PUBLIC_WS_URL ??
-        process.env.NEXT_PUBLIC_WARDEND_WS_URL ??
-        "ws://localhost:8080"
-      ).replace(/\/$/, "")}
-    >
+    <WardendConfigProvider wsUrl={publicWsUrl()}>
       <InstancesProvider initial={instances}>
         {/* The viewport never scrolls: the inset (the bordered "island") is the scroll container. */}
         <SidebarProvider defaultOpen={sidebarOpen} className="h-svh overflow-hidden">

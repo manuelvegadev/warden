@@ -15,7 +15,7 @@ import { AccessLists } from "@/components/instance/access-lists";
 import { BackupsTab } from "@/components/instance/backups-tab";
 import { Console } from "@/components/instance/console";
 import { FilesEditor } from "@/components/instance/files-editor";
-import { type InstanceState, useConsoleLines } from "@/components/instance/instance-context";
+import type { InstanceState } from "@/components/instance/instance-context";
 import { LaunchCommandCard } from "@/components/instance/launch-command-card";
 import { MetricsChart } from "@/components/instance/metrics-chart";
 import { PlayersTab } from "@/components/instance/players-tab";
@@ -34,21 +34,9 @@ export interface Section {
   hidden?: (software: string) => boolean;
 }
 
-function ConsoleSection({ s }: { s: InstanceState }) {
-  const lines = useConsoleLines();
-  return (
-    <Console
-      instanceId={s.manifest.id}
-      lines={lines}
-      onCommand={s.sendCommand}
-      disabled={s.status.state !== "running" && s.status.state !== "starting"}
-    />
-  );
-}
-
 /** Single source of truth for instance sections: sidebar items, breadcrumb labels and the [section] route. */
 export const SECTIONS: Section[] = [
-  { slug: "console", label: "Console", icon: Terminal, render: (s) => <ConsoleSection s={s} /> },
+  { slug: "console", label: "Console", icon: Terminal, render: () => <Console /> },
   {
     slug: "metrics",
     label: "Metrics",
