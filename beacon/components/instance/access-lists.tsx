@@ -6,6 +6,7 @@ import { Input } from "@warden/ui/components/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@warden/ui/components/select";
 import { type FormEvent, useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { PlayerPicker } from "@/components/instance/player-picker";
 import { SectionCard, StatusHint } from "@/components/instance/section-card";
 import { type BanEntry, instances, type OpEntry, type WhitelistEntry } from "@/lib/api";
 import { mono } from "@/lib/utils";
@@ -107,7 +108,7 @@ export function AccessLists({ id, isAdmin }: { id: string; isAdmin: boolean }) {
               )}
               className="flex gap-2 bg-muted/30 px-5 py-3"
             >
-              <NameInput />
+              <PlayerPicker id={id} name="name" />
               <Button type="submit" variant="outline">
                 Add
               </Button>
@@ -139,7 +140,7 @@ export function AccessLists({ id, isAdmin }: { id: string; isAdmin: boolean }) {
               )}
               className="flex gap-2 bg-muted/30 px-5 py-3"
             >
-              <NameInput />
+              <PlayerPicker id={id} name="name" />
               <Select name="level" defaultValue="4">
                 <SelectTrigger className="w-28">
                   <SelectValue />
@@ -195,7 +196,7 @@ export function AccessLists({ id, isAdmin }: { id: string; isAdmin: boolean }) {
               )}
               className="flex flex-wrap gap-2 bg-muted/30 px-5 py-3"
             >
-              <Input name="target" placeholder="Player name or IP" required autoFocus className={`max-w-xs ${mono}`} />
+              <PlayerPicker id={id} name="target" allowIp />
               <Input name="reason" placeholder="Reason (optional)" className="max-w-sm flex-1" />
               <Button type="submit" variant="destructive">
                 Ban
@@ -229,19 +230,6 @@ export function AccessLists({ id, isAdmin }: { id: string; isAdmin: boolean }) {
 }
 
 const banHint = (b: BanEntry) => `${b.reason} · by ${b.source} · ${b.created}`;
-
-function NameInput() {
-  return (
-    <Input
-      name="name"
-      placeholder="Player name"
-      required
-      autoFocus
-      pattern="[A-Za-z0-9_]{1,16}"
-      className={`max-w-xs ${mono}`}
-    />
-  );
-}
 
 function List({
   items,
