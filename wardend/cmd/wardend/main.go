@@ -157,12 +157,17 @@ func main() {
 	}()
 
 	mgr.AutostartAll(ctx)
+	mgr.ResumeAll(ctx) // servers the previous daemon stopped on its way out (update, reboot)
 
 	<-ctx.Done()
 	slog.Info("shutting down")
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer cancel()
-	mgr.StopAll(shutdownCtx) // staged stop (stop → SIGTERM → SIGKILL) for every instance
+	// Record what was running before the staged stop (stop → SIGTERM → SIGKILL), so the next daemon brings it back.
+	if err := mgr.SaveResume(mgr.RunningIDs()); err != nil {
+		slog.Warn("resume marker", "err", err)
+	}
+	mgr.StopAll(shutdownCtx)
 	_ = srv.Shutdown(shutdownCtx)
 	if acmeSrv != nil {
 		_ = acmeSrv.Shutdown(shutdownCtx)

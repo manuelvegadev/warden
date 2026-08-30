@@ -2,6 +2,7 @@ package instance
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"os"
@@ -204,4 +205,57 @@ func (m *Manager) StopAll(ctx context.Context) {
 		}(i)
 	}
 	wg.Wait()
+}
+
+// RunningIDs lists the instances that are up or starting.
+func (m *Manager) RunningIDs() []string {
+	var ids []string
+	for _, i := range m.List() {
+		if st := i.State(); st == StateRunning || st == StateStarting {
+			ids = append(ids, i.Manifest.ID)
+		}
+	}
+	return ids
+}
+
+// resumeFile remembers, across a daemon restart, which instances were running when it stopped.
+func resumeFile(root string) string { return filepath.Join(filepath.Dir(root), "resume.json") }
+
+// SaveResume records ids for ResumeAll; an empty list removes the marker.
+func (m *Manager) SaveResume(ids []string) error {
+	path := resumeFile(m.root)
+	if len(ids) == 0 {
+		err := os.Remove(path)
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	b, _ := json.Marshal(ids)
+	return os.WriteFile(path, b, 0o640)
+}
+
+// ResumeAll starts the instances the previous daemon stopped on its way out (in addition to the
+// autostart ones) and forgets the marker, so a crash loop cannot restart servers forever.
+func (m *Manager) ResumeAll(ctx context.Context) {
+	path := resumeFile(m.root)
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return
+	}
+	os.Remove(path)
+	var ids []string
+	if json.Unmarshal(b, &ids) != nil {
+		return
+	}
+	for _, id := range ids {
+		inst, err := m.Get(id)
+		if err != nil || inst.State() != StateStopped {
+			continue
+		}
+		slog.Info("resuming instance after daemon restart", "id", id)
+		if err := inst.Start(ctx); err != nil {
+			slog.Warn("resume failed", "id", id, "err", err)
+		}
+	}
 }
