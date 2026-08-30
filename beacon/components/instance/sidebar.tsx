@@ -2,6 +2,7 @@
 
 import { Card, CardContent } from "@warden/ui/components/card";
 import { Clock, Coffee, Cpu, HardDrive, Hash, MemoryStick, Network, Package, Users } from "lucide-react";
+import { PlayerFace } from "@/components/instance/player-face";
 import { StateBadge } from "@/components/state-badge";
 import { useUptime } from "@/hooks/use-uptime";
 import {
@@ -73,7 +74,10 @@ export function InstanceSidebar({
           {live && status.players.length > 0 ? (
             <ul className={`grid gap-0.5 text-sm ${monoNum}`}>
               {status.players.map((p) => (
-                <li key={p}>{p}</li>
+                <li key={p} className="flex items-center gap-2">
+                  <PlayerFace name={p} className="size-5" />
+                  {p}
+                </li>
               ))}
             </ul>
           ) : (
