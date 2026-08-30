@@ -302,11 +302,20 @@ export interface LogFile {
   modTime: string;
 }
 
-export type TaskType = "install" | "import" | "upgrade" | "backup" | "restore" | "plugin.install" | "java.install";
+export type TaskType =
+  | "install"
+  | "import"
+  | "daemon.update"
+  | "upgrade"
+  | "backup"
+  | "restore"
+  | "plugin.install"
+  | "java.install";
 
 export const TASK_LABELS: Record<TaskType, string> = {
   install: "Server install",
   import: "Server import",
+  "daemon.update": "wardend update",
   upgrade: "Server upgrade",
   backup: "Backup",
   restore: "Restore",
@@ -600,8 +609,22 @@ export interface SystemInfo {
   startedAt: string;
 }
 
+/** GET /system/update: newest GitHub release vs the running daemon. */
+export interface UpdateInfo {
+  current: string;
+  latest?: string;
+  publishedAt?: string;
+  url?: string;
+  available: boolean;
+  canApply: boolean;
+  error?: string;
+}
+
 export const system = {
   get: () => api<SystemInfo>("/system"),
+  update: () => api<UpdateInfo>("/system/update"),
+  /** Stages the newest release; the daemon's root helper installs it and restarts wardend. */
+  applyUpdate: () => post<{ task: Task }>("/system/update"),
 };
 
 export const java = {

@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import { InstanceList } from "@/components/instance-list";
 import { useInstances } from "@/components/instances-store";
 import { StatTile } from "@/components/stat-tile";
+import { WardendUpdate } from "@/components/wardend-update";
 import { Uptime } from "@/hooks/use-uptime";
 import { useWardendSocket, type WsMessage } from "@/hooks/use-wardend-socket";
 import { formatBytes, type InstanceStatus, type SystemInfo, system } from "@/lib/api";
@@ -39,7 +40,7 @@ const dots = (...parts: (string | false | undefined | 0)[]) => parts.filter(Bool
 const pct = (used?: number, total?: number) => (used && total ? `${Math.round((used / total) * 100)} %` : "—");
 
 /** Home: daemon and host overview on top, the instance list below. Live via the socket + a 5 s poll. */
-export function Home() {
+export function Home({ isAdmin }: { isAdmin: boolean }) {
   const { instances, setStatus, openCreate, openImport } = useInstances();
   const [sys, setSys] = useState<SystemInfo | null>(null);
 
@@ -125,6 +126,7 @@ export function Home() {
           <Button onClick={openCreate}>New instance</Button>
         </div>
       </div>
+      <WardendUpdate current={sys?.daemonVersion} isAdmin={isAdmin} />
       <Tiles title="Wardend" tiles={wardend} />
       <Tiles title="Host" tiles={host} />
       <section className="grid gap-3">
