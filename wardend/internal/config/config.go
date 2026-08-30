@@ -68,6 +68,9 @@ func Load() (*Config, error) {
 
 func (c *Config) ServersDir() string { return filepath.Join(c.DataDir, "servers") }
 
+// UpdateDir is where the daemon stages a verified new binary for the root installer unit.
+func (c *Config) UpdateDir() string { return filepath.Join(c.DataDir, "update") }
+
 // ImportsDir holds uploaded server archives while an import task runs.
 func (c *Config) ImportsDir() string { return filepath.Join(c.DataDir, "imports") }
 func (c *Config) DBPath() string     { return filepath.Join(c.DataDir, "wardend.db") }

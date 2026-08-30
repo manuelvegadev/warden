@@ -20,6 +20,7 @@ import (
 	"github.com/manuelvega/warden/wardend/internal/java"
 	"github.com/manuelvega/warden/wardend/internal/metrics"
 	"github.com/manuelvega/warden/wardend/internal/mojang"
+	"github.com/manuelvega/warden/wardend/internal/selfupdate"
 	"github.com/manuelvega/warden/wardend/internal/skins"
 	"github.com/manuelvega/warden/wardend/internal/store"
 	"github.com/manuelvega/warden/wardend/internal/tasks"
@@ -37,11 +38,21 @@ func main() {
 				os.Exit(1)
 			}
 			return
+		case "update-apply": // root half of the self-update; run by wardend-update.service
+			dir := ""
+			if len(os.Args) > 2 {
+				dir = os.Args[2]
+			}
+			if err := selfupdate.Apply(context.Background(), dir, os.Stdout); err != nil {
+				fmt.Fprintln(os.Stderr, "update-apply:", err)
+				os.Exit(1)
+			}
+			return
 		case "version", "--version", "-v":
 			fmt.Println("wardend", version)
 			return
 		case "help", "--help", "-h":
-			fmt.Println("usage: wardend            run the daemon (configuration from WARDEND_* env)\n       wardend install    interactive setup as a systemd service (root); --yes, --beacon-image\n       wardend version")
+			fmt.Println("usage: wardend            run the daemon (configuration from WARDEND_* env)\n       wardend install    interactive setup as a systemd service (root); --yes, --beacon-image\n       wardend version\n       wardend update-apply <dir>   install a staged update (root; used by wardend-update.service)")
 			return
 		}
 	}

@@ -50,6 +50,8 @@ func NewRouter(d Deps) http.Handler {
 
 	// System
 	mux.HandleFunc("GET /api/v1/system", s.system)
+	mux.HandleFunc("GET /api/v1/system/update", s.getUpdate)
+	mux.HandleFunc("POST /api/v1/system/update", auth.RequireAdmin(s.applyUpdate))
 	mux.HandleFunc("GET /api/v1/auth/me", s.me)
 	mux.HandleFunc("GET /api/v1/tasks", s.listTasks)
 	mux.HandleFunc("GET /api/v1/tasks/{id}", s.getTask)
