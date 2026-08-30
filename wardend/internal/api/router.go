@@ -71,6 +71,7 @@ func NewRouter(d Deps) http.Handler {
 	// Instances
 	mux.HandleFunc("GET /api/v1/instances", s.listInstances)
 	mux.HandleFunc("POST /api/v1/instances", auth.RequireAdmin(s.createInstance))
+	mux.HandleFunc("POST /api/v1/instances/import", auth.RequireAdmin(s.importInstance))
 	mux.HandleFunc("GET /api/v1/instances/{id}", s.getInstance)
 	mux.HandleFunc("PATCH /api/v1/instances/{id}", auth.RequireAdmin(s.patchInstance))
 	mux.HandleFunc("DELETE /api/v1/instances/{id}", auth.RequireAdmin(s.deleteInstance))
@@ -170,7 +171,13 @@ func (s *server) me(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, p)
 }
 
-func (s *server) listTasks(w http.ResponseWriter, _ *http.Request) { writeJSON(w, 200, s.Tasks.List()) }
+func (s *server) listTasks(w http.ResponseWriter, r *http.Request) {
+	if id := r.URL.Query().Get("instance"); id != "" {
+		writeJSON(w, 200, s.Tasks.ListInstance(id))
+		return
+	}
+	writeJSON(w, 200, s.Tasks.List())
+}
 
 func (s *server) getTask(w http.ResponseWriter, r *http.Request) {
 	t, ok := s.Tasks.Get(r.PathValue("id"))

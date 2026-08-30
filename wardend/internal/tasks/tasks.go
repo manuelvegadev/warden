@@ -36,29 +36,46 @@ type Task struct {
 // Reporter lets a task publish progress (0-100) and a human-readable message.
 type Reporter func(progress int, message string)
 
+type running struct {
+	cancel context.CancelFunc
+	done   chan struct{}
+}
+
 type Manager struct {
-	mu    sync.RWMutex
-	tasks map[string]*Task
-	bc    bus.Broadcaster
+	mu      sync.RWMutex
+	tasks   map[string]*Task
+	running map[string]running // by task id, while the goroutine is alive
+	bc      bus.Broadcaster
 }
 
 func NewManager(bc bus.Broadcaster) *Manager {
-	return &Manager{tasks: map[string]*Task{}, bc: bc}
+	return &Manager{tasks: map[string]*Task{}, running: map[string]running{}, bc: bc}
 }
 
-// Run starts fn in a goroutine and returns the task immediately.
+// Run starts fn in a goroutine and returns the task immediately. The task outlives the HTTP
+// request that started it; CancelInstance is the only way to stop it early.
 func (m *Manager) Run(ctx context.Context, typ, instanceID string, fn func(ctx context.Context, report Reporter) error) *Task {
 	t := &Task{ID: uuid.NewString(), Type: typ, InstanceID: instanceID, Status: StatusPending, CreatedAt: time.Now().UTC()}
+	tctx, cancel := context.WithCancel(context.WithoutCancel(ctx))
+	done := make(chan struct{})
 	m.mu.Lock()
 	m.tasks[t.ID] = t
+	m.running[t.ID] = running{cancel: cancel, done: done}
 	m.mu.Unlock()
 
 	go func() {
+		defer func() {
+			m.mu.Lock()
+			delete(m.running, t.ID)
+			m.mu.Unlock()
+			cancel()
+			close(done)
+		}()
 		m.update(t, func() { t.Status = StatusRunning })
 		report := func(p int, msg string) {
 			m.update(t, func() { t.Progress = p; t.Message = msg })
 		}
-		err := fn(context.WithoutCancel(ctx), report)
+		err := fn(tctx, report)
 		now := time.Now().UTC()
 		m.update(t, func() {
 			t.FinishedAt = &now
@@ -73,6 +90,47 @@ func (m *Manager) Run(ctx context.Context, typ, instanceID string, fn func(ctx c
 		})
 	}()
 	return t
+}
+
+// CancelInstance stops every running task of an instance and waits for them to return, so the
+// caller can remove the instance's files without a task recreating them.
+func (m *Manager) CancelInstance(instanceID string) {
+	m.mu.RLock()
+	var waits []chan struct{}
+	for id, r := range m.running {
+		if m.tasks[id].InstanceID == instanceID {
+			r.cancel()
+			waits = append(waits, r.done)
+		}
+	}
+	m.mu.RUnlock()
+	for _, w := range waits {
+		<-w
+	}
+}
+
+// Active reports whether a task of the instance is still running.
+func (m *Manager) Active(instanceID string) bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	for id := range m.running {
+		if m.tasks[id].InstanceID == instanceID {
+			return true
+		}
+	}
+	return false
+}
+
+// ListInstance returns the instance's tasks, newest first.
+func (m *Manager) ListInstance(instanceID string) []Task {
+	all := m.List()
+	out := make([]Task, 0, len(all))
+	for _, t := range all {
+		if t.InstanceID == instanceID {
+			out = append(out, t)
+		}
+	}
+	return out
 }
 
 func (m *Manager) update(t *Task, mutate func()) {
