@@ -16,6 +16,9 @@ import { formatBytes } from "@/lib/api";
 
 const timeFmt = (v: number | string) => new Date(v).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 const timeFmtFull = (v: number | string) => new Date(v).toLocaleTimeString();
+// The tooltip label is the formatted tick text ("02:20 AM"), not the epoch; read the time off the point.
+const tooltipTime = (_label: unknown, payload: readonly { payload?: { t?: number } }[]) =>
+  timeFmtFull(payload[0]?.payload?.t ?? NaN);
 
 /** One hour of samples: history from the daemon on mount, then live samples appended. */
 export function MetricsChart({ data, memoryMb }: { data: MetricPoint[]; memoryMb: number }) {
@@ -53,12 +56,7 @@ export function MetricsChart({ data, memoryMb }: { data: MetricPoint[]; memoryMb
               domain={[0, (max: number) => Math.max(100, Math.ceil(max / 100) * 100)]}
             />
             <ChartTooltip
-              content={
-                <ChartTooltipContent
-                  labelFormatter={(l) => timeFmtFull(Number(l))}
-                  formatter={(v) => [`${v} %`, "CPU"]}
-                />
-              }
+              content={<ChartTooltipContent labelFormatter={tooltipTime} formatter={(v) => [`${v} %`, "CPU"]} />}
             />
             <Area
               dataKey="cpu"
@@ -100,12 +98,7 @@ export function MetricsChart({ data, memoryMb }: { data: MetricPoint[]; memoryMb
               tickFormatter={(v) => (v >= 1024 ? `${(v / 1024).toFixed(1)} GB` : `${v} MB`)}
             />
             <ChartTooltip
-              content={
-                <ChartTooltipContent
-                  labelFormatter={(l) => timeFmtFull(Number(l))}
-                  formatter={(v) => [`${v} MB`, "RSS"]}
-                />
-              }
+              content={<ChartTooltipContent labelFormatter={tooltipTime} formatter={(v) => [`${v} MB`, "RSS"]} />}
             />
             <Area
               dataKey="memMb"
@@ -137,12 +130,7 @@ export function MetricsChart({ data, memoryMb }: { data: MetricPoint[]; memoryMb
             />
             <YAxis width={36} tickLine={false} axisLine={false} domain={[0, 20]} ticks={[0, 10, 20]} />
             <ChartTooltip
-              content={
-                <ChartTooltipContent
-                  labelFormatter={(l) => timeFmtFull(Number(l))}
-                  formatter={(v) => [String(v), "TPS"]}
-                />
-              }
+              content={<ChartTooltipContent labelFormatter={tooltipTime} formatter={(v) => [String(v), "TPS"]} />}
             />
             <Line
               dataKey="tps"
@@ -174,8 +162,15 @@ export function MetricsChart({ data, memoryMb }: { data: MetricPoint[]; memoryMb
               tickLine={false}
               axisLine={false}
             />
-            <YAxis width={44} tickLine={false} axisLine={false} />
-            <ChartTooltip content={<ChartTooltipContent labelFormatter={(l) => timeFmtFull(Number(l))} />} />
+            {/* Explicit domain: left to itself the axis picks up the epoch `t` column and prints nonsense. */}
+            <YAxis
+              width={44}
+              tickLine={false}
+              axisLine={false}
+              domain={[0, (max: number) => Math.max(8, Math.ceil(max * 1.1))]}
+              tickFormatter={(v) => (v >= 1024 ? `${(v / 1024).toFixed(1)} MB` : `${v} KB`)}
+            />
+            <ChartTooltip content={<ChartTooltipContent labelFormatter={tooltipTime} />} />
             <ChartLegend content={<ChartLegendContent />} />
             <Line
               dataKey="rxKb"
