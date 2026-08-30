@@ -11,7 +11,9 @@
     "auth:generate": "auth generate --config lib/auth.ts",
     "auth:migrate": "auth migrate --config lib/auth.ts -y",
     "lint:fix": "biome check --write .",
-    "format": "biome format --write ."
+    "format": "biome format --write .",
+    "mc:data": "node scripts/mc-data.mjs",
+    "test": "node --import ./scripts/test-resolve.mjs --test \"lib/**/*.test.ts\""
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
