@@ -26,6 +26,7 @@ The browser connects to the daemon (REST + WebSocket with JWT); the panel only s
 - Per-instance resources: CPU, RAM, disk, network, TPS.
 - Players: online, history, advancements, statistics, messages, kick/ban.
 - Backups and scheduled tasks.
+- Update wardend itself from the panel (verified against the GitHub release checksums).
 
 ## Install (Ubuntu with systemd)
 ```bash

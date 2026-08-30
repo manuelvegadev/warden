@@ -49,6 +49,8 @@ Instance create/patch accept `javaRuntime` (`"auto"` or a runtime id) and `javaP
 | GET | `/instances` | List with summarized state `[{id,name,software,mcVersion,build,state,players:{online,max},port,autostart,cpu,mem}]` |
 | POST | `/instances` | Create. Body below. → `202` with `task` (downloads jar, writes base files). |
 | POST | `/instances/import` | Create from an existing server directory. `multipart/form-data`, text fields **before** the file: `id`, `name`, `memoryMb`, `port`, `jvmFlagsPreset`, `javaRuntime`, `acceptEula`, optional `software` + `mcVersion` (+ `build`); then `file` as the **last** part (`.zip`, `.tar`, `.tar.gz`/`.tgz`, `.tar.zst`; up to 16 GiB, `413` beyond). → `202` with `task` `import`. Admin only. See *Import* below. |
+| GET | `/system/update` | `{current, latest, publishedAt, url, available, canApply, error?}` — newest GitHub release vs the running daemon (cached 10 min) |
+| POST | `/system/update` | Admin. `202` task `daemon.update`: downloads the release binary for this platform into `<data>/update/`, verifies it against `SHA256SUMS`, writes `<data>/update/tag`; `wardend-update.path` (root, installed by `wardend install`) then runs `wardend update-apply`, which re-verifies against GitHub, replaces `/usr/local/bin/wardend` and restarts the service. `409 up_to_date` / `not_supported` (no installer units, unsupported platform) / `task_running`. |
 | GET | `/tasks?instance={id}` | The instance's tasks, newest first — how a page learns about a task that started before its WebSocket subscription |
 | GET | `/instances/{id}` | Full manifest + state |
 | PATCH | `/instances/{id}` | Change name, jvm, autostart, restartPolicy, javaPath, memory, ports (when stopped) |
