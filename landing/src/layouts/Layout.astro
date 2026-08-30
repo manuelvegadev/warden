@@ -30,7 +30,8 @@ const url = Astro.site?.toString() ?? "/";
     <meta property="og:site_name" content="Warden" />
     <meta property="og:type" content="website" />
     <meta name="theme-color" content="#252525" />
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <!-- Bump ?v= when the mark changes: browsers and the CDN cache favicons for hours. -->
+    <link rel="icon" href="/favicon.svg?v=2" type="image/svg+xml" />
   </head>
   <body class="min-h-screen bg-background font-sans text-foreground antialiased">
     <slot />
