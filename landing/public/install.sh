@@ -44,7 +44,7 @@ say "$("${TMP}/wardend" version 2>/dev/null || echo 'wardend (version unknown)')
 # the installer the terminal instead. It copies itself to /usr/local/bin/wardend.
 if [ -t 0 ]; then
   exec "${TMP}/wardend" install "$@"
-elif [ -r /dev/tty ]; then
+elif ( : < /dev/tty ) 2>/dev/null; then # readable only when a terminal is attached (not under plain ssh host 'cmd')
   exec "${TMP}/wardend" install "$@" < /dev/tty
 else
   exec "${TMP}/wardend" install --yes "$@"
