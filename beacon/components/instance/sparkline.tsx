@@ -1,7 +1,6 @@
 "use client";
 
 import { Area, AreaChart, Line, LineChart, ResponsiveContainer, YAxis } from "recharts";
-import type { MetricPoint } from "@/hooks/use-metrics-history";
 
 export const SERIES_1 = "#3987e5"; // categorical slot 1 (docs/design.md), validated for the dark surface
 export const SERIES_2 = "#d95926"; // slot 2
@@ -10,26 +9,23 @@ export const SERIES_2 = "#d95926"; // slot 2
 export function Sparkline({
   data,
   keys,
-  max,
-  headroom = 1,
+  domain,
   className,
 }: {
-  data: MetricPoint[];
-  keys: (keyof MetricPoint)[];
-  max?: number;
-  /** Multiplies the top of the scale: a steady series (RSS) then sits low, out of the tile's text scrim. */
-  headroom?: number;
+  data: Record<string, number | string | null>[];
+  keys: string[];
+  /** The same range the full Metrics chart uses (lib/metrics-axis.ts), so the shapes agree. */
+  domain: readonly [number, number];
   className?: string;
 }) {
   if (data.length < 2) return null;
-  const domain: [number, number | ((dataMax: number) => number)] = [0, (dataMax) => (max ?? dataMax) * headroom];
   const single = keys.length === 1;
   return (
     <div className={className} aria-hidden>
       <ResponsiveContainer width="100%" height="100%">
         {single ? (
           <AreaChart data={data} margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>
-            <YAxis hide domain={domain} />
+            <YAxis hide domain={domain as [number, number]} />
             <Area
               dataKey={keys[0]}
               type="monotone"
@@ -44,7 +40,7 @@ export function Sparkline({
           </AreaChart>
         ) : (
           <LineChart data={data} margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>
-            <YAxis hide domain={domain} />
+            <YAxis hide domain={domain as [number, number]} />
             {keys.map((k, i) => (
               <Line
                 key={k}

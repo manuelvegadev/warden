@@ -10,14 +10,17 @@ import {
   DialogTrigger,
 } from "@warden/ui/components/dialog";
 import { cn } from "@warden/ui/lib/utils";
-import { AlignLeft, ExternalLink, Maximize2, Minimize2, Sparkles } from "lucide-react";
+import { AlignLeft, Sparkles } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { CommandInput } from "@/components/instance/command-input";
 import { CommandTemplates } from "@/components/instance/command-templates";
 import { PrettyConsole } from "@/components/instance/console-pretty";
+import { DetachControls } from "@/components/instance/detach-controls";
 import { useConsoleLines, useInstance } from "@/components/instance/instance-context";
 import { Logs } from "@/components/instance/logs";
+import { useDetachable } from "@/hooks/use-detachable";
 import { useKnownPlayers } from "@/hooks/use-known-players";
+import { useStoredPreference } from "@/hooks/use-stored-preference";
 import { useWakeLock } from "@/hooks/use-wake-lock";
 import type { ConsoleLine } from "@/lib/api";
 import "@xterm/xterm/css/xterm.css";
@@ -39,7 +42,8 @@ function writeLine(term: import("@xterm/xterm").Terminal, l: ConsoleLine) {
   term.write(`${prefix}${colors[l.level] ?? ""}${l.text}\x1b[0m`);
 }
 
-type ConsoleMode = "pretty" | "raw";
+const CONSOLE_MODES = ["pretty", "raw"] as const;
+type ConsoleMode = (typeof CONSOLE_MODES)[number];
 const MODE_KEY = "beacon.console.mode";
 
 /** The xterm view: mounted only in raw mode, replays the buffer on mount. */
@@ -155,39 +159,14 @@ export function Console({ popout }: { popout?: boolean }) {
   const inputRef = useRef<HTMLInputElement>(null);
   // Everyone who ever joined, for name completion when they are offline.
   const knownPlayers = useKnownPlayers(instanceId, status.players);
-  const rootRef = useRef<HTMLDivElement>(null);
-  const [fullscreen, setFullscreen] = useState(false);
-  useEffect(() => {
-    const onChange = () => setFullscreen(document.fullscreenElement === rootRef.current);
-    document.addEventListener("fullscreenchange", onChange);
-    return () => document.removeEventListener("fullscreenchange", onChange);
-  }, []);
-  const toggleFullscreen = () => {
-    if (document.fullscreenElement) document.exitFullscreen();
-    else rootRef.current?.requestFullscreen?.();
-  };
-  const openPopout = () =>
-    window.open(`/console/${instanceId}`, `beacon-console-${instanceId}`, "popup,width=1100,height=720");
-  const fillHeight = popout || fullscreen;
+  const { rootRef, fullscreen, toggleFullscreen, openPopout, fillHeight, showPopout } = useDetachable(
+    `/console/${instanceId}`,
+    `beacon-console-${instanceId}`,
+    popout,
+  );
   const viewClass = fillHeight ? "min-h-0 flex-1" : "h-[min(60vh,640px)]";
 
-  const [mode, setMode] = useState<ConsoleMode>("pretty");
-  useEffect(() => {
-    try {
-      const m = localStorage.getItem(MODE_KEY);
-      if (m === "raw" || m === "pretty") setMode(m);
-    } catch {
-      /* private mode */
-    }
-  }, []);
-  const pickMode = (m: ConsoleMode) => {
-    setMode(m);
-    try {
-      localStorage.setItem(MODE_KEY, m);
-    } catch {
-      /* private mode */
-    }
-  };
+  const [mode, pickMode] = useStoredPreference<ConsoleMode>(MODE_KEY, "pretty", CONSOLE_MODES);
 
   function submit(command: string) {
     const cmd = command.trim();
@@ -243,21 +222,13 @@ export function Console({ popout }: { popout?: boolean }) {
               <Logs id={instanceId} />
             </DialogContent>
           </Dialog>
-          {!popout && !fullscreen && (
-            <Button variant="ghost" size="icon-sm" title="Open in a new window" onClick={openPopout}>
-              <ExternalLink />
-              <span className="sr-only">Open in a new window</span>
-            </Button>
-          )}
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            title={fullscreen ? "Exit full screen" : "Full screen"}
-            onClick={toggleFullscreen}
-          >
-            {fullscreen ? <Minimize2 /> : <Maximize2 />}
-            <span className="sr-only">{fullscreen ? "Exit full screen" : "Full screen"}</span>
-          </Button>
+          <DetachControls
+            label="console"
+            fullscreen={fullscreen}
+            showPopout={showPopout}
+            onPopout={openPopout}
+            onToggleFullscreen={toggleFullscreen}
+          />
         </div>
       </div>
       {mode === "pretty" ? (

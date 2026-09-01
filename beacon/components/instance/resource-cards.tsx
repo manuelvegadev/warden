@@ -1,29 +1,13 @@
 "use client";
 
 import { ArrowDownUp, Cpu, Gauge, MemoryStick } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useMemo } from "react";
 import { Sparkline } from "@/components/instance/sparkline";
 import { StatTile } from "@/components/stat-tile";
+import { useHostCores } from "@/hooks/use-host-cores";
 import type { MetricPoint } from "@/hooks/use-metrics-history";
-import { type InstanceState, type MetricSample, system } from "@/lib/api";
-
-// Host core count, fetched once per page load: the daemon reports CPU as % of one core (like
-// top), which reads as "150 %" without it.
-let hostCores: number | null = null;
-function useHostCores() {
-  const [cores, setCores] = useState(hostCores);
-  useEffect(() => {
-    if (hostCores) return;
-    system.get().then(
-      (s) => {
-        hostCores = s.cpuCores || null;
-        setCores(hostCores);
-      },
-      () => {},
-    );
-  }, []);
-  return cores;
-}
+import type { InstanceState, MetricSample } from "@/lib/api";
+import { CPU_DOMAIN, hostShare, memCeiling, netCeiling, tpsDomain } from "@/lib/metrics-axis";
 
 const compact = (n: number) => {
   if (n >= 1 << 30) return `${(n / (1 << 30)).toFixed(1)}G`;
@@ -39,9 +23,9 @@ type Tile = {
   icon: React.ComponentType<{ className?: string }>;
   value: string;
   detail?: string;
-  keys?: (keyof MetricPoint)[];
-  max?: number;
-  headroom?: number;
+  keys?: string[];
+  /** The vertical range, from lib/metrics-axis.ts — the same one the full chart uses. */
+  domain?: readonly [number, number];
 };
 
 export function ResourceCards({
@@ -61,14 +45,18 @@ export function ResourceCards({
   const live = state === "running" || state === "starting" || state === "stopping";
   const m = live ? metrics : null;
   const cores = useHostCores();
+  // Every tile is drawn against the same range as its full chart in the Metrics tab, so the shape
+  // of the miniature means the same thing as the shape of the big one.
+  const plot = useMemo(() => history.map((p) => ({ ...p, cpuHost: hostShare(p.cpu, cores) })), [history, cores]);
   const tiles: Tile[] = [
     {
       label: "CPU",
       icon: Cpu,
       // Of the whole host when the core count is known; the raw per-core figure stays in the detail.
-      value: m ? `${(cores ? m.cpu / cores : m.cpu).toFixed(1)} %` : "—",
+      value: m ? `${hostShare(m.cpu, cores).toFixed(1)} %` : "—",
       detail: m && cores ? `${(m.cpu / 100).toFixed(2)} of ${cores} cores` : undefined,
-      keys: ["cpu"],
+      keys: ["cpuHost"],
+      domain: CPU_DOMAIN,
     },
     {
       // Resident memory of the Java process; the heap limit (-Xmx) is only part of it.
@@ -77,27 +65,33 @@ export function ResourceCards({
       value: m ? compact(m.memRss) : "—",
       detail: `heap max ${compact(memoryMb * 1048576)}`,
       keys: ["memMb"],
-      headroom: 2.5,
+      domain: [0, memCeiling(memoryMb)] as const,
     },
     {
       label: "Network",
       icon: ArrowDownUp,
       value: m ? `↓${rate(m.netRx)} ↑${rate(m.netTx)}/s` : "—",
       keys: ["rxKb", "txKb"],
+      domain: [0, netCeiling(history)] as const,
     },
-    { label: "TPS", icon: Gauge, value: live && tps ? tps[0].toFixed(1) : "—", keys: ["tps"], max: 20 },
+    {
+      label: "TPS",
+      icon: Gauge,
+      value: live && tps ? tps[0].toFixed(1) : "—",
+      keys: ["tps"],
+      domain: tpsDomain(history),
+    },
   ];
   return (
     <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
       {tiles.map((c) => (
         <StatTile key={c.label} label={c.label} icon={c.icon} value={c.value} detail={c.detail} className="h-28">
           {/* sparkline under a gradient scrim — opaque behind the text, transparent at the bottom */}
-          {c.keys && live && (
+          {c.keys && c.domain && live && (
             <Sparkline
-              data={history}
+              data={plot}
               keys={c.keys}
-              max={c.max}
-              headroom={c.headroom}
+              domain={c.domain}
               className="pointer-events-none absolute inset-x-0 bottom-0 h-14"
             />
           )}
