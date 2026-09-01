@@ -80,7 +80,7 @@ Keep the daemon's DNS record un-proxied (Cloudflare: DNS only) so the HTTP-01 ch
 
 ### Environment (`/etc/warden/wardend.env`)
 
-Written by the installer; [`deploy/wardend.env.example`](../deploy/wardend.env.example) documents every variable for manual edits (`systemctl restart wardend` afterwards). The ones that must match the Beacon deployment: `WARDEND_PANEL_ISSUER` (Beacon's public URL; the JWKS is derived from it), `WARDEND_PANEL_KEY` (same value on both sides) and `WARDEND_ALLOWED_ORIGINS` (Beacon's origin, for the WebSocket).
+Written by the installer; [`deploy/wardend.env.example`](../deploy/wardend.env.example) documents every variable for manual edits (`systemctl restart wardend` afterwards). The ones that must match the Beacon deployment: `WARDEND_PANEL_ISSUER` (Beacon's public URL; the JWKS is derived from it), `WARDEND_PANEL_KEY` (same value on both sides) and `WARDEND_ALLOWED_ORIGINS` (Beacon's origin, for the WebSocket). `WARDEND_NODE_ID` names this daemon (default `default`) and must match Beacon's `WARDEND_NODE_ID`; a token minted for another node is rejected.
 
 ### TLS modes (`WARDEND_TLS`)
 
@@ -131,7 +131,7 @@ What the compose file does for you: pins the image line with `BEACON_TAG` (defau
 1. Create an application from the image `ghcr.io/manuelvegadev/warden-beacon:latest` (or Dockerfile build type with build path `.` and Dockerfile `beacon/Dockerfile` — the panel depends on `packages/ui`, ADR-014).
 2. Environment: the variables from `deploy/beacon.env.example` with the daemon's public URL: `WARDEND_URL=https://mc.example.com:8443`, `WARDEND_PUBLIC_WS_URL=wss://mc.example.com:8443`, `BETTER_AUTH_URL=https://beacon.example.com`.
 3. Mount a volume at `/data`, add the domain with HTTPS (Let's Encrypt via Traefik), deploy.
-4. First visit: the first account created becomes admin; with `BEACON_OPEN_SIGNUP=false` further users are created from **Settings → Account** by an admin.
+4. First visit: the first account created becomes the host admin and owns the default organization. Everyone else joins by invitation from **Settings → Members** — pick the server and the role (viewer/operator/manager), then copy the link and send it (Beacon has no mail server). `BEACON_OPEN_SIGNUP=true` lets anyone register instead, as a member with no server access until one is granted (ADR-017).
 5. Continuous deployment: turn on **Autodeploy** in the app, copy its **Webhook URL** (Deployments tab) and store it as the repository secret `DOKPLOY_BEACON_WEBHOOK`. `.github/workflows/deploy-beacon.yml` publishes `warden-beacon:latest` and calls the webhook only when a push to `main` touches `beacon/`, `packages/ui/` or the workspace files; `release.yml` does the same after publishing a version tag. Docs-only or daemon-only pushes never redeploy the panel.
 
 Then in wardend's env set `WARDEND_PANEL_ISSUER=https://beacon.example.com` and the same panel key, and restart wardend. `journalctl -u wardend` shows `auth: jwks loaded` on the first panel request.
