@@ -2,6 +2,7 @@ import { Toaster } from "@warden/ui/components/sonner";
 import { BRAND } from "@warden/ui/lib/brand";
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Google_Sans_Code } from "next/font/google";
+import localFont from "next/font/local";
 import Script from "next/script";
 import "./globals.css";
 
@@ -9,6 +10,19 @@ const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 // Console / log viewer font (open-source release of Google Sans Mono).
 const consoleFont = Google_Sans_Code({ variable: "--font-console", subsets: ["latin"], weight: ["400", "500"] });
+// The game's own typeface, for the MOTD editor and the multiplayer-list preview only. Its metrics
+// are the point, not just its look — see app/fonts/README.md.
+const minecraftFont = localFont({
+  variable: "--font-minecraft",
+  display: "block", // a fallback face here would misreport every line width
+  preload: false, // only the Properties tab renders it; every other route would pay for the link
+  src: [
+    { path: "./fonts/MinecraftDefault-Regular.woff2", weight: "400", style: "normal" },
+    { path: "./fonts/MinecraftDefault-Bold.woff2", weight: "700", style: "normal" },
+    { path: "./fonts/MinecraftDefault-Italic.woff2", weight: "400", style: "italic" },
+    { path: "./fonts/MinecraftDefault-BoldItalic.woff2", weight: "700", style: "italic" },
+  ],
+});
 
 export const metadata: Metadata = {
   title: "Beacon · Warden",
@@ -33,7 +47,10 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`dark ${geistSans.variable} ${geistMono.variable} ${consoleFont.variable}`}>
+    <html
+      lang="en"
+      className={`dark ${geistSans.variable} ${geistMono.variable} ${consoleFont.variable} ${minecraftFont.variable}`}
+    >
       <body className="min-h-screen bg-background font-sans text-foreground antialiased">
         {children}
         <Toaster />
