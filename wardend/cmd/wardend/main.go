@@ -77,7 +77,7 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	verifier, err := auth.NewVerifier(ctx, auth.Options{JWKSURL: cfg.PanelJWKSURL, Issuer: cfg.PanelIssuer, PanelKey: cfg.PanelKey})
+	verifier, err := auth.NewVerifier(ctx, auth.Options{JWKSURL: cfg.PanelJWKSURL, Issuer: cfg.PanelIssuer, PanelKey: cfg.PanelKey, NodeID: cfg.NodeID})
 	if err != nil {
 		slog.Error("auth", "err", err)
 		os.Exit(1)
@@ -122,7 +122,7 @@ func main() {
 
 	srv := &http.Server{
 		Addr:              cfg.Listen,
-		Handler:           api.NewRouter(api.Deps{Config: cfg, Manager: mgr, Verifier: verifier, Catalog: reg, Tasks: tm, Java: jm, Metrics: sampler, Store: st, Skins: sk, WS: hub, Version: version, StartedAt: time.Now().UTC()}),
+		Handler:           api.NewRouter(api.Deps{Config: cfg, Manager: mgr, Verifier: verifier, Catalog: reg, Tasks: tm, Java: jm, Metrics: sampler, Store: st, Skins: sk, WS: hub, Sessions: hub, Version: version, StartedAt: time.Now().UTC()}),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 

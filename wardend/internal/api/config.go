@@ -9,10 +9,16 @@ import (
 	"github.com/manuelvega/warden/wardend/internal/instance"
 )
 
-// instanceJSON looks up the instance and writes fn's result as JSON.
-// instanceOr404 resolves {id}; on failure it has already written the 404.
+// instanceOr404 resolves {id}; on failure it has already written the 404. An instance the caller
+// has no grant on is reported as missing, the same answer auth.OnInstance gives — this is the
+// second layer of ADR-017 §5, so a route that ever ships without its wrapper still leaks nothing.
 func (s *server) instanceOr404(w http.ResponseWriter, r *http.Request) (*instance.Instance, bool) {
-	inst, err := s.Manager.Get(r.PathValue("id"))
+	id := r.PathValue("id")
+	if p, ok := auth.FromContext(r.Context()); !ok || !p.CanSee(id) {
+		writeError(w, 404, "instance_not_found", "instance not found")
+		return nil, false
+	}
+	inst, err := s.Manager.Get(id)
 	if err != nil {
 		writeError(w, 404, "instance_not_found", err.Error())
 		return nil, false

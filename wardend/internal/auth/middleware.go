@@ -31,15 +31,3 @@ func (v *Verifier) Middleware(next http.Handler) http.Handler {
 		next.ServeHTTP(w, r.WithContext(WithPrincipal(r.Context(), p)))
 	})
 }
-
-// RequireAdmin wraps a handler that only administrators may use.
-func RequireAdmin(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		p, ok := FromContext(r.Context())
-		if !ok || !p.IsAdmin() {
-			writeErr(w, http.StatusForbidden, "forbidden", "admin role required")
-			return
-		}
-		next(w, r)
-	}
-}

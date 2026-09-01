@@ -20,6 +20,7 @@ type Config struct {
 	PanelJWKSURL   string   // WARDEND_PANEL_JWKS_URL, e.g. https://beacon.example.com/api/auth/jwks
 	PanelIssuer    string   // WARDEND_PANEL_ISSUER, = the panel's BETTER_AUTH_URL
 	PanelKey       string   // WARDEND_PANEL_KEY, shared secret (X-Panel-Key)
+	NodeID         string   // WARDEND_NODE_ID, this node's id in Beacon (ADR-017 §8)
 	// WARDEND_TLS (off|files|acme|self-signed), WARDEND_TLS_CERT/KEY, WARDEND_TLS_HOSTS (comma-separated),
 	// WARDEND_TLS_EMAIL, WARDEND_TLS_HTTP_ADDR (ACME challenge/redirect listener, default ":80"; set empty to disable).
 	TLS tlsconf.Options
@@ -34,6 +35,7 @@ func Load() (*Config, error) {
 		PanelJWKSURL: os.Getenv("WARDEND_PANEL_JWKS_URL"),
 		PanelIssuer:  os.Getenv("WARDEND_PANEL_ISSUER"),
 		PanelKey:     os.Getenv("WARDEND_PANEL_KEY"),
+		NodeID:       os.Getenv("WARDEND_NODE_ID"),
 		TLS: tlsconf.Options{
 			Mode:     env("WARDEND_TLS", tlsconf.ModeOff),
 			CertFile: os.Getenv("WARDEND_TLS_CERT"),

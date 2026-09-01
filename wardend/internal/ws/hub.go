@@ -77,6 +77,23 @@ func (h *Hub) Broadcast(instanceID, typ string, data any) {
 	}
 }
 
+// RevokeUser closes one user's live connections so a changed grant takes effect immediately
+// (ADR-017 §7). The browser reconnects with a freshly signed token, i.e. with the new claims.
+func (h *Hub) RevokeUser(userID string) int {
+	h.mu.RLock()
+	var victims []*client
+	for c := range h.clients {
+		if c.principal != nil && c.principal.UserID == userID {
+			victims = append(victims, c)
+		}
+	}
+	h.mu.RUnlock()
+	for _, c := range victims {
+		c.conn.Close(websocket.StatusPolicyViolation, "access changed")
+	}
+	return len(victims)
+}
+
 func (h *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{OriginPatterns: h.origins})
 	if err != nil {
@@ -143,6 +160,11 @@ func (c *client) reader(ctx context.Context, h *Hub) {
 		case "ping":
 			c.send <- outbound{Type: "pong"}
 		case "subscribe":
+			// An instance the client has no grant on must look absent, exactly as over REST.
+			if !c.principal.CanSee(msg.Instance) {
+				c.send <- outbound{Type: "error", Instance: msg.Instance, Data: "instance not found"}
+				continue
+			}
 			inst, err := h.mgr.Get(msg.Instance)
 			if err != nil {
 				c.send <- outbound{Type: "error", Instance: msg.Instance, Data: "instance not found"}
@@ -162,6 +184,14 @@ func (c *client) reader(ctx context.Context, h *Hub) {
 				Command string `json:"command"`
 			}
 			_ = json.Unmarshal(msg.Data, &d)
+			if !c.principal.CanSee(msg.Instance) {
+				c.send <- outbound{Type: "error", Instance: msg.Instance, Data: "instance not found"}
+				continue
+			}
+			if !c.principal.Can(msg.Instance, auth.ActionConsoleSend) {
+				c.send <- outbound{Type: "error", Instance: msg.Instance, Data: "role operator is required on this instance"}
+				continue
+			}
 			inst, err := h.mgr.Get(msg.Instance)
 			if err != nil {
 				c.send <- outbound{Type: "error", Instance: msg.Instance, Data: "instance not found"}

@@ -21,6 +21,9 @@ import (
 
 const Audience = "wardend"
 
+// DefaultNodeID is the node id of a single-daemon deployment, matching Beacon's WARDEND_NODE_ID.
+const DefaultNodeID = "default"
+
 type Role string
 
 const (
@@ -28,15 +31,19 @@ const (
 	RoleOperator Role = "operator"
 )
 
-// Principal is the authenticated identity carried in the request context.
+// Principal is the authenticated identity carried in the request context. Beacon resolves the
+// access fields and signs them into the token; wardend only reads them (ADR-017 §4).
 type Principal struct {
 	UserID string `json:"userId"`
 	Email  string `json:"email"`
 	Name   string `json:"name"`
 	Role   Role   `json:"role"`
+	// Caps are host and organization powers not tied to one instance.
+	Caps []Cap `json:"caps,omitempty"`
+	// ACLAll is the role held on every instance of this node; ACL holds the per-instance grants.
+	ACLAll InstanceRole            `json:"aclAll,omitempty"`
+	ACL    map[string]InstanceRole `json:"acl,omitempty"`
 }
-
-func (p Principal) IsAdmin() bool { return p.Role == RoleAdmin }
 
 type Verifier struct {
 	issuer    string
@@ -46,6 +53,7 @@ type Verifier struct {
 	lastFetch time.Time
 	lastErr   error
 	jwksURL   string
+	nodeID    string
 	devMode   bool // no JWKS configured: local development only, rejects everything except /health
 }
 
@@ -53,10 +61,15 @@ type Options struct {
 	JWKSURL  string // https://beacon.example.com/api/auth/jwks
 	Issuer   string // https://beacon.example.com (BETTER_AUTH_URL)
 	PanelKey string // shared X-Panel-Key secret; empty = not required (dev only)
+	NodeID   string // this node's id in Beacon; tokens carrying a different one are rejected
 }
 
 func NewVerifier(ctx context.Context, o Options) (*Verifier, error) {
-	v := &Verifier{issuer: o.Issuer, panelKey: o.PanelKey, jwksURL: o.JWKSURL}
+	nodeID := o.NodeID
+	if nodeID == "" {
+		nodeID = DefaultNodeID
+	}
+	v := &Verifier{issuer: o.Issuer, panelKey: o.PanelKey, jwksURL: o.JWKSURL, nodeID: nodeID}
 	if o.JWKSURL == "" {
 		slog.Warn("auth: WARDEND_PANEL_JWKS_URL is empty; every authenticated request will fail; set WARDEND_PANEL_JWKS_URL and WARDEND_PANEL_ISSUER to Beacon's URL (or use `make run`)")
 		v.devMode = true
@@ -113,7 +126,65 @@ func (v *Verifier) Verify(ctx context.Context, raw string) (*Principal, error) {
 	if p.UserID == "" {
 		return nil, fmt.Errorf("%w: missing sub", ErrUnauthorized)
 	}
+	// A token minted for another node must not work here (ADR-017 §4). Absent on older panels.
+	if err := tok.Get("node", &s); err == nil && s != "" && s != v.nodeID {
+		return nil, fmt.Errorf("%w: token was issued for node %q, this is %q", ErrUnauthorized, s, v.nodeID)
+	}
+	readAccess(tok, p)
 	return p, nil
+}
+
+// readAccess fills the access claims. A panel that predates ADR-017 sends none of them, so the
+// host role decides: admin managed everything, operator could reach every instance.
+func readAccess(tok jwt.Token, p *Principal) {
+	var raw any
+	found := false
+	if err := tok.Get("caps", &raw); err == nil {
+		found = true
+		for _, c := range toStrings(raw) {
+			p.Caps = append(p.Caps, Cap(c))
+		}
+	}
+	if err := tok.Get("aclAll", &raw); err == nil {
+		if s, ok := raw.(string); ok && s != "" {
+			found = true
+			p.ACLAll = InstanceRole(s)
+		}
+	}
+	if err := tok.Get("acl", &raw); err == nil {
+		if m, ok := raw.(map[string]any); ok {
+			found = true
+			p.ACL = make(map[string]InstanceRole, len(m))
+			for id, role := range m {
+				if s, ok := role.(string); ok {
+					p.ACL[id] = InstanceRole(s)
+				}
+			}
+		}
+	}
+	if found {
+		return
+	}
+	if p.Role == RoleAdmin {
+		p.Caps = []Cap{CapSystemUpdate, CapJavaManage, CapInstanceCreate, CapInstanceDestroy}
+		p.ACLAll = InstManager
+		return
+	}
+	p.ACLAll = InstOperator
+}
+
+func toStrings(v any) []string {
+	items, ok := v.([]any)
+	if !ok {
+		return nil
+	}
+	out := make([]string, 0, len(items))
+	for _, it := range items {
+		if s, ok := it.(string); ok {
+			out = append(out, s)
+		}
+	}
+	return out
 }
 
 // provideKey hands jws the key named by the token's kid. The cached set is tried first; a miss

@@ -31,6 +31,8 @@ type Deps struct {
 	Store    *store.Store
 	Skins    *skins.Service
 	WS       http.Handler
+	// Sessions closes a user's live WebSocket connections when Beacon revokes their access.
+	Sessions interface{ RevokeUser(string) int }
 	Version  string
 	// StartedAt is when the daemon process came up; the panel derives the uptime from it.
 	StartedAt time.Time
@@ -48,10 +50,20 @@ func NewRouter(d Deps) http.Handler {
 	mux := http.NewServeMux()
 	root.Handle("/api/v1/", d.Verifier.Middleware(mux))
 
+	// Host powers need a capability. Everything under an instance is mounted through `inst`, which
+	// makes naming the required role part of registering the route — a new instance route cannot be
+	// added without deciding who may call it — and answers 404 rather than 403 when the caller has
+	// no grant, so the set of instances on the node does not leak (ADR-017 §5).
+	inst := func(pattern string, a auth.Action, h http.HandlerFunc) {
+		mux.HandleFunc(pattern, auth.OnInstance(a, h))
+	}
+	read := func(pattern string, h http.HandlerFunc) { inst(pattern, auth.ActionRead, h) }
+
 	// System
 	mux.HandleFunc("GET /api/v1/system", s.system)
 	mux.HandleFunc("GET /api/v1/system/update", s.getUpdate)
-	mux.HandleFunc("POST /api/v1/system/update", auth.RequireAdmin(s.applyUpdate))
+	mux.HandleFunc("POST /api/v1/system/update", auth.RequireCap(auth.CapSystemUpdate, s.applyUpdate))
+	mux.HandleFunc("POST /api/v1/sessions/revoke", s.revokeSessions) // server-to-server, needs members.manage
 	mux.HandleFunc("GET /api/v1/auth/me", s.me)
 	mux.HandleFunc("GET /api/v1/tasks", s.listTasks)
 	mux.HandleFunc("GET /api/v1/tasks/{id}", s.getTask)
@@ -59,8 +71,8 @@ func NewRouter(d Deps) http.Handler {
 	// Java runtimes (ADR-010)
 	mux.HandleFunc("GET /api/v1/java", s.listJava)
 	mux.HandleFunc("GET /api/v1/java/required", s.javaRequired)
-	mux.HandleFunc("POST /api/v1/java", auth.RequireAdmin(s.installJava))
-	mux.HandleFunc("DELETE /api/v1/java/{id}", auth.RequireAdmin(s.removeJava))
+	mux.HandleFunc("POST /api/v1/java", auth.RequireCap(auth.CapJavaManage, s.installJava))
+	mux.HandleFunc("DELETE /api/v1/java/{id}", auth.RequireCap(auth.CapJavaManage, s.removeJava))
 
 	// Catalog
 	mux.HandleFunc("GET /api/v1/catalog/servers", s.catalogServers)
@@ -71,66 +83,67 @@ func NewRouter(d Deps) http.Handler {
 	mux.HandleFunc("GET /api/v1/catalog/plugins/{source}/{id}/versions", s.pluginVersions)
 
 	// Instances
-	mux.HandleFunc("GET /api/v1/instances", s.listInstances)
-	mux.HandleFunc("POST /api/v1/instances", auth.RequireAdmin(s.createInstance))
-	mux.HandleFunc("POST /api/v1/instances/import", auth.RequireAdmin(s.importInstance))
-	mux.HandleFunc("GET /api/v1/instances/{id}", s.getInstance)
-	mux.HandleFunc("PATCH /api/v1/instances/{id}", auth.RequireAdmin(s.patchInstance))
-	mux.HandleFunc("DELETE /api/v1/instances/{id}", auth.RequireAdmin(s.deleteInstance))
-	mux.HandleFunc("POST /api/v1/instances/{id}/install", auth.RequireAdmin(s.installInstance))
-	mux.HandleFunc("POST /api/v1/instances/{id}/start", s.startInstance)
-	mux.HandleFunc("POST /api/v1/instances/{id}/stop", s.stopInstance)
-	mux.HandleFunc("POST /api/v1/instances/{id}/restart", s.restartInstance)
-	mux.HandleFunc("POST /api/v1/instances/{id}/kill", s.killInstance)
-	mux.HandleFunc("POST /api/v1/instances/{id}/command", s.sendCommand)
-	mux.HandleFunc("GET /api/v1/instances/{id}/console", s.console)
-	mux.HandleFunc("GET /api/v1/instances/{id}/logs", s.listLogs)
-	mux.HandleFunc("GET /api/v1/instances/{id}/logs/{file}", s.getLog)
-	mux.HandleFunc("GET /api/v1/instances/{id}/metrics", s.instanceMetrics)
-	mux.HandleFunc("POST /api/v1/instances/{id}/eula", auth.RequireAdmin(s.eula))
-	mux.HandleFunc("GET /api/v1/instances/{id}/players", s.listPlayers)
-	mux.HandleFunc("GET /api/v1/instances/{id}/players/{name}/sessions", s.playerSessions)
-	mux.HandleFunc("GET /api/v1/players/{name}/skin", s.playerSkin)
-	mux.HandleFunc("GET /api/v1/instances/{id}/players/{name}/stats", s.playerStats)
-	mux.HandleFunc("GET /api/v1/instances/{id}/players/{name}/advancements", s.playerAdvancements)
-	mux.HandleFunc("POST /api/v1/instances/{id}/players/{name}/action", auth.RequireAdmin(s.playerAction))
-	mux.HandleFunc("GET /api/v1/instances/{id}/events", s.listEvents)
+	mux.HandleFunc("GET /api/v1/instances", s.listInstances) // filtered by the caller's grants
+	mux.HandleFunc("POST /api/v1/instances", auth.RequireCap(auth.CapInstanceCreate, s.createInstance))
+	mux.HandleFunc("POST /api/v1/instances/import", auth.RequireCap(auth.CapInstanceCreate, s.importInstance))
+	mux.HandleFunc("GET /api/v1/players/{name}/skin", s.playerSkin) // not instance-scoped
+	read("GET /api/v1/instances/{id}", s.getInstance)
+	inst("PATCH /api/v1/instances/{id}", auth.ActionSettingsWrite, s.patchInstance)
+	inst("DELETE /api/v1/instances/{id}", auth.ActionSettingsWrite, auth.RequireCap(auth.CapInstanceDestroy, s.deleteInstance))
+	inst("POST /api/v1/instances/{id}/install", auth.ActionSettingsWrite, s.installInstance)
+	inst("POST /api/v1/instances/{id}/start", auth.ActionPower, s.startInstance)
+	inst("POST /api/v1/instances/{id}/stop", auth.ActionPower, s.stopInstance)
+	inst("POST /api/v1/instances/{id}/restart", auth.ActionPower, s.restartInstance)
+	inst("POST /api/v1/instances/{id}/kill", auth.ActionPower, s.killInstance)
+	inst("POST /api/v1/instances/{id}/command", auth.ActionConsoleSend, s.sendCommand)
+	read("GET /api/v1/instances/{id}/console", s.console)
+	read("GET /api/v1/instances/{id}/logs", s.listLogs)
+	read("GET /api/v1/instances/{id}/logs/{file}", s.getLog)
+	read("GET /api/v1/instances/{id}/metrics", s.instanceMetrics)
+	inst("POST /api/v1/instances/{id}/eula", auth.ActionSettingsWrite, s.eula)
+	read("GET /api/v1/instances/{id}/players", s.listPlayers)
+	read("GET /api/v1/instances/{id}/players/{name}/sessions", s.playerSessions)
+	read("GET /api/v1/instances/{id}/players/{name}/stats", s.playerStats)
+	read("GET /api/v1/instances/{id}/players/{name}/advancements", s.playerAdvancements)
+	inst("POST /api/v1/instances/{id}/players/{name}/action", auth.ActionPlayersAction, s.playerAction)
+	read("GET /api/v1/instances/{id}/events", s.listEvents)
 
-	// Configuration and access lists
-	mux.HandleFunc("GET /api/v1/instances/{id}/properties", s.getProperties)
-	mux.HandleFunc("PUT /api/v1/instances/{id}/properties", auth.RequireAdmin(s.putProperties))
-	mux.HandleFunc("GET /api/v1/instances/{id}/command", s.launchCommand)
-	mux.HandleFunc("GET /api/v1/instances/{id}/upgrade", s.checkUpgrade)
-	mux.HandleFunc("POST /api/v1/instances/{id}/upgrade", auth.RequireAdmin(s.startUpgrade))
-	mux.HandleFunc("GET /api/v1/instances/{id}/backups", s.listBackups)
-	mux.HandleFunc("POST /api/v1/instances/{id}/backups", auth.RequireAdmin(s.createBackup))
-	mux.HandleFunc("GET /api/v1/instances/{id}/backups/{name}/download", s.downloadBackup)
-	mux.HandleFunc("POST /api/v1/instances/{id}/backups/{name}/restore", auth.RequireAdmin(s.restoreBackup))
-	mux.HandleFunc("DELETE /api/v1/instances/{id}/backups/{name}", auth.RequireAdmin(s.deleteBackup))
-	mux.HandleFunc("GET /api/v1/instances/{id}/files", s.listConfigFiles)
-	mux.HandleFunc("GET /api/v1/instances/{id}/files/content", s.getConfigFile)
-	mux.HandleFunc("PUT /api/v1/instances/{id}/files/content", auth.RequireAdmin(s.putConfigFile))
-	mux.HandleFunc("GET /api/v1/instances/{id}/properties/raw", s.getPropertiesRaw)
-	mux.HandleFunc("PUT /api/v1/instances/{id}/properties/raw", auth.RequireAdmin(s.putPropertiesRaw))
-	mux.HandleFunc("GET /api/v1/instances/{id}/whitelist", s.getWhitelist)
-	mux.HandleFunc("POST /api/v1/instances/{id}/whitelist/{name}", s.addWhitelist)
-	mux.HandleFunc("DELETE /api/v1/instances/{id}/whitelist/{name}", s.removeWhitelist)
-	mux.HandleFunc("GET /api/v1/instances/{id}/ops", s.getOps)
-	mux.HandleFunc("POST /api/v1/instances/{id}/ops/{name}", auth.RequireAdmin(s.addOp))
-	mux.HandleFunc("DELETE /api/v1/instances/{id}/ops/{name}", auth.RequireAdmin(s.removeOp))
-	mux.HandleFunc("GET /api/v1/instances/{id}/bans", s.getBans)
-	mux.HandleFunc("POST /api/v1/instances/{id}/bans", s.addBan)
-	mux.HandleFunc("DELETE /api/v1/instances/{id}/bans/{target}", s.removeBan)
+	// Configuration and access lists. server.properties and the config files are manager-only: they
+	// carry rcon.password.
+	inst("GET /api/v1/instances/{id}/properties", auth.ActionConfigWrite, s.getProperties)
+	inst("PUT /api/v1/instances/{id}/properties", auth.ActionConfigWrite, s.putProperties)
+	inst("GET /api/v1/instances/{id}/properties/raw", auth.ActionConfigWrite, s.getPropertiesRaw)
+	inst("PUT /api/v1/instances/{id}/properties/raw", auth.ActionConfigWrite, s.putPropertiesRaw)
+	inst("GET /api/v1/instances/{id}/files", auth.ActionConfigWrite, s.listConfigFiles)
+	inst("GET /api/v1/instances/{id}/files/content", auth.ActionConfigWrite, s.getConfigFile)
+	inst("PUT /api/v1/instances/{id}/files/content", auth.ActionConfigWrite, s.putConfigFile)
+	read("GET /api/v1/instances/{id}/command", s.launchCommand)
+	read("GET /api/v1/instances/{id}/upgrade", s.checkUpgrade)
+	inst("POST /api/v1/instances/{id}/upgrade", auth.ActionSettingsWrite, s.startUpgrade)
+	read("GET /api/v1/instances/{id}/backups", s.listBackups)
+	inst("POST /api/v1/instances/{id}/backups", auth.ActionBackupsWrite, s.createBackup)
+	inst("GET /api/v1/instances/{id}/backups/{name}/download", auth.ActionBackupsWrite, s.downloadBackup)
+	inst("POST /api/v1/instances/{id}/backups/{name}/restore", auth.ActionBackupsWrite, s.restoreBackup)
+	inst("DELETE /api/v1/instances/{id}/backups/{name}", auth.ActionBackupsWrite, s.deleteBackup)
+	read("GET /api/v1/instances/{id}/whitelist", s.getWhitelist)
+	inst("POST /api/v1/instances/{id}/whitelist/{name}", auth.ActionAccessWrite, s.addWhitelist)
+	inst("DELETE /api/v1/instances/{id}/whitelist/{name}", auth.ActionAccessWrite, s.removeWhitelist)
+	read("GET /api/v1/instances/{id}/ops", s.getOps)
+	inst("POST /api/v1/instances/{id}/ops/{name}", auth.ActionOpsWrite, s.addOp)
+	inst("DELETE /api/v1/instances/{id}/ops/{name}", auth.ActionOpsWrite, s.removeOp)
+	read("GET /api/v1/instances/{id}/bans", s.getBans)
+	inst("POST /api/v1/instances/{id}/bans", auth.ActionAccessWrite, s.addBan)
+	inst("DELETE /api/v1/instances/{id}/bans/{target}", auth.ActionAccessWrite, s.removeBan)
 
 	// Plugins
-	mux.HandleFunc("GET /api/v1/instances/{id}/plugins", s.listInstancePlugins)
-	mux.HandleFunc("GET /api/v1/instances/{id}/plugins/updates", s.pluginUpdates)
-	mux.HandleFunc("GET /api/v1/instances/{id}/plugins/{file}/icon", s.pluginIcon)
-	mux.HandleFunc("POST /api/v1/instances/{id}/plugins/upload", auth.RequireAdmin(s.uploadPlugin))
-	mux.HandleFunc("POST /api/v1/instances/{id}/plugins/{file}/toggle", auth.RequireAdmin(s.togglePlugin))
-	mux.HandleFunc("POST /api/v1/instances/{id}/plugins/{file}/update", auth.RequireAdmin(s.updatePlugin))
-	mux.HandleFunc("DELETE /api/v1/instances/{id}/plugins/{file}", auth.RequireAdmin(s.removePlugin))
-	mux.HandleFunc("POST /api/v1/instances/{id}/plugins", auth.RequireAdmin(s.installPlugin))
+	read("GET /api/v1/instances/{id}/plugins", s.listInstancePlugins)
+	read("GET /api/v1/instances/{id}/plugins/updates", s.pluginUpdates)
+	read("GET /api/v1/instances/{id}/plugins/{file}/icon", s.pluginIcon)
+	inst("POST /api/v1/instances/{id}/plugins", auth.ActionPluginsWrite, s.installPlugin)
+	inst("POST /api/v1/instances/{id}/plugins/upload", auth.ActionPluginsWrite, s.uploadPlugin)
+	inst("POST /api/v1/instances/{id}/plugins/{file}/toggle", auth.ActionPluginsWrite, s.togglePlugin)
+	inst("POST /api/v1/instances/{id}/plugins/{file}/update", auth.ActionPluginsWrite, s.updatePlugin)
+	inst("DELETE /api/v1/instances/{id}/plugins/{file}", auth.ActionPluginsWrite, s.removePlugin)
 
 	// Files, backups (see docs/api.md) — later phases
 	for _, p := range []string{"schedule"} {
@@ -174,11 +187,46 @@ func (s *server) me(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) listTasks(w http.ResponseWriter, r *http.Request) {
+	p, _ := auth.FromContext(r.Context())
 	if id := r.URL.Query().Get("instance"); id != "" {
+		if p == nil || !p.CanSee(id) {
+			writeError(w, 404, "instance_not_found", "instance not found")
+			return
+		}
 		writeJSON(w, 200, s.Tasks.ListInstance(id))
 		return
 	}
-	writeJSON(w, 200, s.Tasks.List())
+	all := s.Tasks.List()
+	out := make([]tasks.Task, 0, len(all))
+	for _, t := range all {
+		// A task on an instance the caller cannot see would leak that the instance exists.
+		if t.InstanceID != "" && (p == nil || !p.CanSee(t.InstanceID)) {
+			continue
+		}
+		out = append(out, t)
+	}
+	writeJSON(w, 200, out)
+}
+
+// revokeSessions drops a user's live connections after Beacon changed their access (ADR-017 §7).
+func (s *server) revokeSessions(w http.ResponseWriter, r *http.Request) {
+	p, ok := auth.FromContext(r.Context())
+	if !ok || !p.HasCap(auth.CapMembersManage) {
+		writeError(w, 403, "forbidden", "members.manage is required")
+		return
+	}
+	var body struct {
+		UserID string `json:"userId"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.UserID == "" {
+		writeError(w, 400, "bad_request", "userId is required")
+		return
+	}
+	closed := 0
+	if s.Sessions != nil {
+		closed = s.Sessions.RevokeUser(body.UserID)
+	}
+	writeJSON(w, 200, map[string]any{"closed": closed})
 }
 
 func (s *server) getTask(w http.ResponseWriter, r *http.Request) {

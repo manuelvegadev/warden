@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/manuelvega/warden/wardend/internal/auth"
 	"github.com/manuelvega/warden/wardend/internal/backup"
 	"github.com/manuelvega/warden/wardend/internal/instance"
 	"github.com/manuelvega/warden/wardend/internal/tasks"
@@ -36,10 +37,16 @@ func summary(i *instance.Instance) instanceSummary {
 		Build: m.Build, Status: i.Status(), Port: m.Port, MemoryMB: m.MemoryMB, Autostart: m.Autostart}
 }
 
-func (s *server) listInstances(w http.ResponseWriter, _ *http.Request) {
+// listInstances answers with the instances the caller has a grant on (ADR-017 §4); the rest are
+// invisible rather than forbidden.
+func (s *server) listInstances(w http.ResponseWriter, r *http.Request) {
+	p, _ := auth.FromContext(r.Context())
 	list := s.Manager.List()
 	out := make([]instanceSummary, 0, len(list))
 	for _, i := range list {
+		if p == nil || !p.CanSee(i.Manifest.ID) {
+			continue
+		}
 		out = append(out, summary(i))
 	}
 	writeJSON(w, 200, out)
