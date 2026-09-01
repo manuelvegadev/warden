@@ -20,7 +20,7 @@ import {
   TriangleAlert,
   Wrench,
 } from "lucide-react";
-import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PlayerFace } from "@/components/instance/player-face";
 import { CopyButton } from "@/components/instance/section-card";
 import type { ConsoleLine } from "@/lib/api";
@@ -88,11 +88,27 @@ export function PrettyConsole({ lines, className }: { lines: ConsoleLine[]; clas
     const el = scrollRef.current;
     if (el) stickRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
   };
-  // biome-ignore lint/correctness/useExhaustiveDependencies: scroll after every batch of new rows
-  useEffect(() => {
+  const pinToBottom = useCallback(() => {
     const el = scrollRef.current;
     if (el && stickRef.current) el.scrollTop = el.scrollHeight;
-  }, [shown.length]);
+  }, []);
+
+  // Keyed on the newest row, not on how many rows are shown: `shown` is a fixed-size window over a
+  // capped buffer, so its length freezes at PAGE and the tail stopped being followed after the
+  // first thousand lines.
+  const lastId = shown.at(-1)?.id;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: scroll when the newest row changes
+  useEffect(pinToBottom, [pinToBottom, lastId]);
+
+  // The viewport can also change without any new row — entering full screen, rotating the phone,
+  // the on-screen keyboard opening. Re-pin on resize rather than special-casing each of them.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(pinToBottom);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [pinToBottom]);
 
   const toggle = (k: Kind) =>
     setHidden((h) => {
