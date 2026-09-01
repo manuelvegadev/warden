@@ -36,6 +36,8 @@ var PropertySchema = []PropertySpec{
 	{Key: "max-players", Type: "int", Default: "20", Min: ip(0), Max: ip(2147483647), Group: "General", Description: "Maximum number of players allowed at once.", RequiresRestart: true, Common: true},
 	{Key: "gamemode", Type: "enum", Default: "survival", Enum: []string{"survival", "creative", "adventure", "spectator"}, Group: "General", Description: "Default game mode for new players.", RequiresRestart: true, Common: true},
 	{Key: "force-gamemode", Type: "bool", Default: "false", Group: "General", Description: "Force players to the default game mode on join.", RequiresRestart: true},
+	// Enum order is part of the contract for keys the panel renders as a scale (difficulty):
+	// Beacon takes the slider position from the index, so these stay ordered low to high.
 	{Key: "difficulty", Type: "enum", Default: "easy", Enum: []string{"peaceful", "easy", "normal", "hard"}, Group: "General", Description: "World difficulty.", RequiresRestart: true, Common: true},
 	{Key: "hardcore", Type: "bool", Default: "false", Group: "General", Description: "Players are banned on death; difficulty locked to hard.", RequiresRestart: true, Common: true},
 	{Key: "pvp", Type: "bool", Default: "true", Group: "General", Description: "Allow players to hurt each other.", RequiresRestart: true, Common: true},
