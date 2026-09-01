@@ -489,6 +489,15 @@ export const instances = {
   properties: (id: string) => api<ServerProperty[]>(`/instances/${id}/properties`),
   updateProperties: (id: string, updates: Record<string, string>) =>
     api<{ restartRequired: boolean }>(`/instances/${id}/properties`, { method: "PUT", body: JSON.stringify(updates) }),
+  /** server-icon.png. The URL is served by the BFF, so an <img> can point straight at it. */
+  serverIconUrl: (id: string) => `/api/wardend/instances/${id}/icon`,
+  setServerIcon: (id: string, png: Blob) =>
+    api<{ restartRequired: boolean }>(`/instances/${id}/icon`, {
+      method: "PUT",
+      body: png,
+      headers: { "Content-Type": "image/png" },
+    }),
+  removeServerIcon: (id: string) => api<{ restartRequired: boolean }>(`/instances/${id}/icon`, { method: "DELETE" }),
   launchCommand: (id: string) => api<LaunchCommand>(`/instances/${id}/command`),
   upgradeCheck: (id: string) => api<UpgradeCheck>(`/instances/${id}/upgrade`),
   upgrade: (id: string, target: { mcVersion?: string; build?: number }) =>

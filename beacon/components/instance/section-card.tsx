@@ -133,6 +133,7 @@ export function SettingRow({
   description,
   dirty,
   wide,
+  stack,
   badges,
   trailing,
   children,
@@ -142,13 +143,15 @@ export function SettingRow({
   description?: React.ReactNode;
   dirty?: boolean;
   wide?: boolean;
+  /** Put the control under the label, at full width — for one that is a picture of a range. */
+  stack?: boolean;
   badges?: React.ReactNode;
   trailing?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
     <div
-      className={`group flex flex-col gap-2 px-5 py-3 sm:flex-row sm:items-center sm:gap-4 ${dirty ? "bg-primary/5 shadow-[inset_2px_0_0_0_var(--primary)]" : ""}`}
+      className={`group flex flex-col gap-2 px-5 py-3 ${stack ? "" : "sm:flex-row sm:items-center sm:gap-4"} ${dirty ? "bg-primary/5 shadow-[inset_2px_0_0_0_var(--primary)]" : ""}`}
     >
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
@@ -159,10 +162,25 @@ export function SettingRow({
         </div>
         {description && <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>}
       </div>
-      <div className={`w-full shrink-0 ${wide ? "sm:max-w-md" : "sm:w-56"}`}>{children}</div>
+      <div className={`w-full ${stack ? "" : `shrink-0 ${wide ? "sm:max-w-md" : "sm:w-56"}`}`}>{children}</div>
       {trailing}
     </div>
   );
+}
+
+/** Clipboard state, shared by the standalone button and the one that lives inside a text field. */
+export function useCopy(value: string) {
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1200);
+    } catch {
+      toast.error("Clipboard unavailable");
+    }
+  };
+  return { copied, copy };
 }
 
 /** Copies `value` to the clipboard and flashes a check for a moment. */
@@ -177,7 +195,7 @@ export function CopyButton({
   showLabel?: boolean;
   className?: string;
 }) {
-  const [copied, setCopied] = useState(false);
+  const { copied, copy } = useCopy(value);
   return (
     <Button
       type="button"
@@ -186,15 +204,7 @@ export function CopyButton({
       aria-label={label}
       title={label}
       className={className}
-      onClick={async () => {
-        try {
-          await navigator.clipboard.writeText(value);
-          setCopied(true);
-          setTimeout(() => setCopied(false), 1200);
-        } catch {
-          toast.error("Clipboard unavailable");
-        }
-      }}
+      onClick={copy}
     >
       {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
       {showLabel && label}
