@@ -5,11 +5,20 @@
  */
 export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
-  const [{ getMigrations }, { auth }] = await Promise.all([import("better-auth/db/migration"), import("@/lib/auth")]);
+  const [{ getMigrations }, { auth }, { getDb }, { bootstrapOrganization }] = await Promise.all([
+    import("better-auth/db/migration"),
+    import("@/lib/auth"),
+    import("@/lib/db"),
+    import("@/lib/org"),
+  ]);
   const m = await getMigrations(auth.options);
   const pending = m.toBeCreated.length + m.toBeAdded.length + m.toBeAddedIndexes.length;
-  if (pending === 0) return;
-  await m.runMigrations();
-  // biome-ignore lint/suspicious/noConsole: server startup log, no logger exists at this point
-  console.log(`[beacon] auth schema migrated (${m.toBeCreated.length} tables, ${m.toBeAdded.length} column sets)`);
+  if (pending > 0) {
+    await m.runMigrations();
+    // biome-ignore lint/suspicious/noConsole: server startup log, no logger exists at this point
+    console.log(`[beacon] auth schema migrated (${m.toBeCreated.length} tables, ${m.toBeAdded.length} column sets)`);
+  }
+  // Must come after the migrations: on the first start of an upgraded panel the organization tables
+  // do not exist yet, and until everyone is a member nobody resolves any access at all (ADR-017).
+  bootstrapOrganization(getDb());
 }
