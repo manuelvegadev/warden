@@ -1,0 +1,82 @@
+{
+  "$comment": [
+    "The access model of ADR-017 exists twice on purpose: beacon/lib/access.ts decides what the UI",
+    "offers, wardend/internal/auth/access.go decides what actually happens (the browser opens the",
+    "WebSocket straight at the daemon, so Go has to rule on its own). This file is the contract",
+    "between them — both test suites load it, and both assert that every action they know about is",
+    "covered here, so an action added on one side fails the other side's test.",
+    "Readers: beacon/lib/access.test.ts and wardend/internal/auth/access_test.go."
+  ],
+  "vectors": [
+    {
+      "name": "viewer reads and nothing else",
+      "acl": { "survival": "viewer" },
+      "instance": "survival",
+      "allowed": ["read"],
+      "denied": [
+        "power",
+        "console.send",
+        "players.action",
+        "access.write",
+        "ops.write",
+        "config.write",
+        "plugins.write",
+        "backups.write",
+        "settings.write"
+      ]
+    },
+    {
+      "name": "operator runs the server but does not reconfigure it",
+      "acl": { "survival": "operator" },
+      "instance": "survival",
+      "allowed": ["read", "power", "console.send", "players.action", "access.write"],
+      "denied": ["ops.write", "config.write", "plugins.write", "backups.write", "settings.write"]
+    },
+    {
+      "name": "manager may do everything on the instance",
+      "acl": { "survival": "manager" },
+      "instance": "survival",
+      "allowed": [
+        "read",
+        "power",
+        "console.send",
+        "players.action",
+        "access.write",
+        "ops.write",
+        "config.write",
+        "plugins.write",
+        "backups.write",
+        "settings.write"
+      ]
+    },
+    {
+      "name": "no grant means no read",
+      "acl": { "survival": "manager" },
+      "instance": "creative",
+      "denied": ["read", "power", "config.write"]
+    },
+    {
+      "name": "a per-instance grant beats the blanket one",
+      "aclAll": "operator",
+      "acl": { "survival": "manager" },
+      "instance": "survival",
+      "allowed": ["config.write", "backups.write"]
+    },
+    {
+      "name": "the blanket grant still applies elsewhere",
+      "aclAll": "operator",
+      "acl": { "survival": "manager" },
+      "instance": "creative",
+      "allowed": ["read", "power"],
+      "denied": ["config.write"]
+    },
+    {
+      "name": "a weaker blanket grant is not lowered by a stronger per-instance one",
+      "aclAll": "viewer",
+      "acl": { "survival": "operator" },
+      "instance": "creative",
+      "allowed": ["read"],
+      "denied": ["power"]
+    }
+  ]
+}

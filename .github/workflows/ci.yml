@@ -51,6 +51,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Biome (lint + format)
         run: pnpm lint
+      - name: Tests (Beacon)
+        run: pnpm --filter beacon test
       - name: Build (Beacon's next build type-checks; the landing runs astro check + build)
         env:
           # The only build-time input; auth and the database are created at runtime (lib/auth.ts).
