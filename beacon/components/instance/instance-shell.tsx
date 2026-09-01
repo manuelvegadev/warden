@@ -2,12 +2,13 @@
 
 import { Alert, AlertDescription, AlertTitle } from "@warden/ui/components/alert";
 import { Button } from "@warden/ui/components/button";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useCallback } from "react";
 import { Controls } from "@/components/instance/controls";
 import { useInstance } from "@/components/instance/instance-context";
 import { ResourceCards } from "@/components/instance/resource-cards";
 import { CopyButton } from "@/components/instance/section-card";
+import { sectionBySlug } from "@/components/instance/sections";
 import { InstanceSidebar } from "@/components/instance/sidebar";
 import { TaskBanner } from "@/components/instance/task-banner";
 import { StateBadge } from "@/components/state-badge";
@@ -23,6 +24,9 @@ export function InstanceShell({ children }: { children: React.ReactNode }) {
   const onDeleted = useCallback(() => router.push("/"), [router]);
 
   const address = useServerAddress(manifest.port);
+  // Metrics charts the same four series as the tiles, so it asks the shell to drop them.
+  const { section } = useParams<{ section?: string }>();
+  const showTiles = !(section && sectionBySlug(section)?.hidesResourceCards);
 
   return (
     <div className="grid min-w-0 grid-rows-[auto_minmax(0,1fr)]">
@@ -55,13 +59,15 @@ export function InstanceShell({ children }: { children: React.ReactNode }) {
             </AlertDescription>
           </Alert>
         )}
-        <ResourceCards
-          metrics={metrics}
-          history={recent}
-          state={status.state}
-          tps={status.tps}
-          memoryMb={manifest.memoryMb}
-        />
+        {showTiles && (
+          <ResourceCards
+            metrics={metrics}
+            history={recent}
+            state={status.state}
+            tps={status.tps}
+            memoryMb={manifest.memoryMb}
+          />
+        )}
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_280px]">

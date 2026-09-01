@@ -26,8 +26,18 @@ import { UpgradeCard } from "@/components/instance/upgrade-card";
 import { can, type InstanceAction, type InstanceRole } from "@/lib/access";
 import { hasPlugins, isStopped } from "@/lib/api";
 
+/**
+ * Sidebar groups, in the order they are shown: what you watch while it runs, what you edit, and
+ * people. There is deliberately no "World" group — backups are the only world-scoped section, and
+ * server.properties and the config files read as server configuration to anyone who has edited them.
+ */
+export const SECTION_GROUPS = ["Server", "Configuration", "Players"] as const;
+export type SectionGroup = (typeof SECTION_GROUPS)[number];
+
 export interface Section {
   slug: string;
+  /** Which sidebar group the section belongs to. */
+  group: SectionGroup;
   label: string;
   icon: React.ComponentType<{ className?: string }>;
   render: (s: InstanceState) => React.ReactNode;
@@ -39,25 +49,32 @@ export interface Section {
    * files carry rcon.password) must name it here, or the tab would open onto a 403 (ADR-017 §3).
    */
   needs?: InstanceAction;
+  /** Set when the section already shows what the header tiles show, so the shell drops them. */
+  hidesResourceCards?: boolean;
 }
 
 /** Single source of truth for instance sections: sidebar items, breadcrumb labels and the [section] route. */
 export const SECTIONS: Section[] = [
-  { slug: "console", label: "Console", icon: Terminal, render: () => <Console /> },
+  { slug: "console", group: "Server", label: "Console", icon: Terminal, render: () => <Console /> },
   {
     slug: "metrics",
+    group: "Server",
     label: "Metrics",
     icon: Activity,
-    render: (s) => <MetricsChart data={s.history} memoryMb={s.manifest.memoryMb} />,
+    // The header tiles chart the same four series; showing both is the same data twice.
+    hidesResourceCards: true,
+    render: (s) => <MetricsChart data={s.history} memoryMb={s.manifest.memoryMb} instanceId={s.manifest.id} />,
   },
   {
     slug: "players",
+    group: "Players",
     label: "Players",
     icon: Users,
     render: (s) => <PlayersTab id={s.manifest.id} online={s.status.players} canManage={s.canManage} />,
   },
   {
     slug: "properties",
+    group: "Configuration",
     label: "Properties",
     icon: SlidersHorizontal,
     needs: "config.write",
@@ -65,6 +82,7 @@ export const SECTIONS: Section[] = [
   },
   {
     slug: "files",
+    group: "Configuration",
     label: "Files",
     icon: FileCode2,
     needs: "config.write",
@@ -72,12 +90,14 @@ export const SECTIONS: Section[] = [
   },
   {
     slug: "access",
+    group: "Players",
     label: "Access",
     icon: Shield,
     render: (s) => <AccessLists id={s.manifest.id} canManage={s.canManage} />,
   },
   {
     slug: "plugins",
+    group: "Configuration",
     label: "Plugins",
     icon: Puzzle,
     hidden: (software) => !hasPlugins(software),
@@ -87,12 +107,14 @@ export const SECTIONS: Section[] = [
   },
   {
     slug: "backups",
+    group: "Server",
     label: "Backups",
     icon: Archive,
     render: (s) => <BackupsTab manifest={s.manifest} state={s.status.state} canManage={s.canManage} task={s.task} />,
   },
   {
     slug: "settings",
+    group: "Configuration",
     label: "Settings",
     icon: Settings,
     needs: "settings.write",
@@ -109,6 +131,14 @@ export const SECTIONS: Section[] = [
 /** The sections this software supports and this role may open. */
 export const sectionsFor = (software: string, role: InstanceRole | undefined) =>
   SECTIONS.filter((s) => !s.hidden?.(software) && allows(s, role));
+
+/** The same sections bucketed for the sidebar. A group with nothing left in it is dropped. */
+export function sectionGroupsFor(software: string, role: InstanceRole | undefined) {
+  const available = sectionsFor(software, role);
+  return SECTION_GROUPS.map((group) => ({ group, sections: available.filter((s) => s.group === group) })).filter(
+    (g) => g.sections.length > 0,
+  );
+}
 
 export const sectionBySlug = (slug: string) => SECTIONS.find((s) => s.slug === slug);
 

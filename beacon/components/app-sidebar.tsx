@@ -26,7 +26,7 @@ import {
 import { Coffee, Download, House, KeyRound, LogOut, UserRound, Users } from "lucide-react";
 import Link from "next/link";
 import { useParams, usePathname, useRouter } from "next/navigation";
-import { sectionsFor } from "@/components/instance/sections";
+import { sectionGroupsFor } from "@/components/instance/sections";
 import { InstanceSwitcher } from "@/components/instance-switcher";
 import { useInstances } from "@/components/instances-store";
 import { Versions } from "@/components/versions";
@@ -66,14 +66,18 @@ export function AppSidebar({
   const { instances, roleOf } = useInstances();
   const software = instances.find((i) => i.id === instanceId)?.software ?? DEFAULT_SOFTWARE;
 
-  const main: Item[] = instanceId
-    ? sectionsFor(software, roleOf(instanceId)).map((s) => ({
-        href: instanceHref(instanceId, s.slug),
-        label: s.label,
-        icon: s.icon,
-        active: pathname === instanceHref(instanceId, s.slug),
+  // Nine flat entries were a wall; the registry buckets them into Server / World / Players.
+  const groups = instanceId
+    ? sectionGroupsFor(software, roleOf(instanceId)).map(({ group, sections }) => ({
+        label: group,
+        items: sections.map((s) => ({
+          href: instanceHref(instanceId, s.slug),
+          label: s.label,
+          icon: s.icon,
+          active: pathname === instanceHref(instanceId, s.slug),
+        })),
       }))
-    : [{ ...HOME, icon: House, active: pathname === HOME.href }];
+    : [{ label: undefined, items: [{ ...HOME, icon: House, active: pathname === HOME.href }] }];
   const secondary: Item[] = [
     ...(canManageMembers
       ? [{ href: "/settings/members", label: "Members", icon: Users, active: pathname.startsWith("/settings/members") }]
@@ -96,12 +100,14 @@ export function AppSidebar({
       </SidebarHeader>
 
       <SidebarContent>
-        <SidebarGroup>
-          {instanceId && <SidebarGroupLabel>Instance</SidebarGroupLabel>}
-          <SidebarGroupContent>
-            <NavItems items={main} />
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {groups.map(({ label, items }) => (
+          <SidebarGroup key={label ?? "root"}>
+            {label && <SidebarGroupLabel>{label}</SidebarGroupLabel>}
+            <SidebarGroupContent>
+              <NavItems items={items} />
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ))}
         {/* Secondary nav anchored above the footer (dashboard-01 pattern). */}
         <SidebarGroup className="mt-auto">
           <SidebarGroupContent>
