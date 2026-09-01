@@ -404,16 +404,19 @@ export class ApiError extends Error {
   }
 }
 
-type ApiInit = RequestInit & { text?: boolean };
+type ApiInit = RequestInit & {
+  text?: boolean /** Absolute Beacon path; skips the /api/wardend prefix. */;
+  own?: boolean;
+};
 
 /** Calls the BFF. JSON in/out by default; `text: true` returns the body as a string. Errors map to ApiError. */
-export async function api<T>(path: string, { text, ...init }: ApiInit = {}): Promise<T> {
+export async function api<T>(path: string, { text, own, ...init }: ApiInit = {}): Promise<T> {
   // FormData bodies set their own multipart Content-Type (with boundary); never override it.
   const headers = new Headers(init.headers);
   if (!(init.body instanceof FormData) && !headers.has("Content-Type")) {
     headers.set("Content-Type", text ? "text/plain" : "application/json");
   }
-  const res = await fetch(`/api/wardend${path}`, { ...init, headers });
+  const res = await fetch(own ? path : `/api/wardend${path}`, { ...init, headers });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     const e = body?.error ?? {};

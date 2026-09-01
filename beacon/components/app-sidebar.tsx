@@ -23,7 +23,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@warden/ui/components/sidebar";
-import { Coffee, Download, House, KeyRound, LogOut, UserRound } from "lucide-react";
+import { Coffee, Download, House, KeyRound, LogOut, UserRound, Users } from "lucide-react";
 import Link from "next/link";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import { sectionsFor } from "@/components/instance/sections";
@@ -52,16 +52,22 @@ function NavItems({ items }: { items: Item[] }) {
   );
 }
 
-export function AppSidebar({ user }: { user: { name: string; email: string; role: string } }) {
+export function AppSidebar({
+  user,
+  canManageMembers,
+}: {
+  user: { name: string; email: string; role: string };
+  canManageMembers: boolean;
+}) {
   const pathname = usePathname();
   const router = useRouter();
   const install = useInstallPrompt();
   const { id: instanceId } = useParams<{ id?: string }>();
-  const { instances } = useInstances();
+  const { instances, roleOf } = useInstances();
   const software = instances.find((i) => i.id === instanceId)?.software ?? DEFAULT_SOFTWARE;
 
   const main: Item[] = instanceId
-    ? sectionsFor(software).map((s) => ({
+    ? sectionsFor(software, roleOf(instanceId)).map((s) => ({
         href: instanceHref(instanceId, s.slug),
         label: s.label,
         icon: s.icon,
@@ -69,6 +75,9 @@ export function AppSidebar({ user }: { user: { name: string; email: string; role
       }))
     : [{ ...HOME, icon: House, active: pathname === HOME.href }];
   const secondary: Item[] = [
+    ...(canManageMembers
+      ? [{ href: "/settings/members", label: "Members", icon: Users, active: pathname.startsWith("/settings/members") }]
+      : []),
     { href: "/settings/java", label: "Java runtimes", icon: Coffee, active: pathname.startsWith("/settings/java") },
   ];
 
