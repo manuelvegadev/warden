@@ -1,16 +1,23 @@
 "use client";
 
-import { Button } from "@warden/ui/components/button";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@warden/ui/components/dialog";
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@warden/ui/components/alert-dialog";
 
-/** Yes/no confirmation. `open` doubles as the payload: pass null to close. */
+/**
+ * Yes/no confirmation. `open` doubles as the payload: pass null to close.
+ *
+ * Built on AlertDialog rather than Dialog: it is announced as an alert, focus starts on the safe
+ * choice, and it does not dismiss on a stray click outside — which is what you want in front of
+ * something irreversible.
+ */
 export function ConfirmDialog({
   open,
   title,
@@ -29,21 +36,19 @@ export function ConfirmDialog({
   onClose: () => void;
 }) {
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
-        </DialogHeader>
-        <DialogFooter>
-          <Button variant="ghost" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button variant={destructive ? "destructive" : "default"} onClick={onConfirm}>
+    <AlertDialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <AlertDialogContent className="sm:max-w-md">
+        <AlertDialogHeader>
+          <AlertDialogTitle>{title}</AlertDialogTitle>
+          <AlertDialogDescription>{description}</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel variant="ghost">Cancel</AlertDialogCancel>
+          <AlertDialogAction variant={destructive ? "destructive" : "default"} onClick={onConfirm}>
             {confirmLabel}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }

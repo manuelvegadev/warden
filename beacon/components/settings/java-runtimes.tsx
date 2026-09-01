@@ -6,6 +6,7 @@ import { Progress } from "@warden/ui/components/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@warden/ui/components/table";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { useWardendSocket, type WsMessage } from "@/hooks/use-wardend-socket";
 import { formatBytes, type JavaRelease, type JavaRuntime, java, type Task } from "@/lib/api";
 
@@ -52,8 +53,9 @@ export function JavaRuntimes() {
       toast.error(e instanceof Error ? e.message : "Install failed");
     }
   }
+  const [removing, setRemoving] = useState<string | null>(null);
+
   async function remove(id: string) {
-    if (!confirm(`Remove ${id}? Instances using it will fail to start until another runtime is selected.`)) return;
     try {
       await java.remove(id);
       refresh();
@@ -107,7 +109,7 @@ export function JavaRuntimes() {
                 <TableCell>{r.size ? formatBytes(r.size) : "—"}</TableCell>
                 <TableCell className="text-right">
                   {r.managed && (
-                    <Button size="sm" variant="ghost" className="text-destructive" onClick={() => remove(r.id)}>
+                    <Button size="sm" variant="ghost" className="text-destructive" onClick={() => setRemoving(r.id)}>
                       Remove
                     </Button>
                   )}
@@ -140,6 +142,17 @@ export function JavaRuntimes() {
           ))}
         </div>
       </section>
+
+      <ConfirmDialog
+        open={removing !== null}
+        onClose={() => setRemoving(null)}
+        title={`Remove ${removing}?`}
+        description="Any instance pinned to this runtime will fail to start until another one is selected for it.
+          Instances set to pick a runtime automatically are unaffected."
+        confirmLabel="Remove runtime"
+        destructive
+        onConfirm={() => removing && void remove(removing)}
+      />
     </div>
   );
 }
