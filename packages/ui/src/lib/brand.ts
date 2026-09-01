@@ -21,6 +21,11 @@ export const BRAND = {
   core: "#22d3ee", // cyan-400 = --brand-core (dark)
   tile: "#0f172a", // slate-900
   tileMark: "#cbd5e1", // slate-300
-  /** Beacon's dark --background, used as the PWA theme colour. */
-  theme: "#252525",
+  // The two chrome colours, as hex because manifests and <meta> cannot read CSS tokens. They mirror
+  // the dark theme in packages/ui/src/styles/theme.css and brand.test.ts keeps them in step — the
+  // previous single value had drifted two shades away from the token it claimed to be.
+  /** Dark `--background`: the app surface, and what shows where the shell is hidden. */
+  theme: "#0a0a0a",
+  /** Dark `--sidebar`: the shell behind the sidebar and the header. */
+  shell: "#171717",
 } as const;
