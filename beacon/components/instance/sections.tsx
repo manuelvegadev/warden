@@ -78,7 +78,15 @@ export const SECTIONS: Section[] = [
     label: "Properties",
     icon: SlidersHorizontal,
     needs: "config.write",
-    render: (s) => <PropertiesEditor id={s.manifest.id} running={s.status.state === "running"} />,
+    render: (s) => (
+      <PropertiesEditor
+        id={s.manifest.id}
+        name={s.manifest.name}
+        mcVersion={s.manifest.mcVersion}
+        memoryMb={s.manifest.memoryMb}
+        running={s.status.state === "running"}
+      />
+    ),
   },
   {
     slug: "files",
