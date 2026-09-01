@@ -8,6 +8,8 @@ export default function manifest(): MetadataRoute.Manifest {
     short_name: "Beacon",
     start_url: "/",
     display: "standalone",
+    // An installed Beacon is overwhelmingly a phone, where the shell is hidden, so both the splash
+    // screen and the launch chrome use the app surface rather than the shell grey.
     background_color: BRAND.theme,
     theme_color: BRAND.theme,
     icons: [

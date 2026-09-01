@@ -18,7 +18,18 @@ export const metadata: Metadata = {
   appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "Beacon" },
 };
 
-export const viewport: Viewport = { themeColor: BRAND.theme, viewportFit: "cover" };
+// Safari (15+, macOS and iOS) tints the browser chrome around the address bar with this; Chrome
+// uses it for the address bar on Android and for an installed PWA's title bar, and ignores it in a
+// desktop tab. The breakpoint is the one at which the sidebar hides (packages/ui use-mobile.ts), so
+// the chrome matches whatever is actually behind it: the shell on desktop, the app surface on a
+// phone. First match wins, so the wide rule comes first.
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(min-width: 768px)", color: BRAND.shell },
+    { media: "(max-width: 767px)", color: BRAND.theme },
+  ],
+  viewportFit: "cover",
+};
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
