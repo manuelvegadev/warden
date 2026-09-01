@@ -122,7 +122,10 @@ Creation body:
 |---|---|---|
 | GET | `/instances/{id}/properties` | `[{key,value,type:"bool|int|string|enum",default,enum:[],min,max,group,description,requiresRestart,managed,known}]` — schema in `internal/mc/properties_schema.go`; unknown keys returned as strings |
 | GET/PUT | `/instances/{id}/properties/raw` | Whole file as `text/plain`. PUT validates every `key=value` line against the schema; edits made while running are re-applied after the server rewrites the file on stop. Admin only for PUT. |
-| PUT | `/instances/{id}/properties` | `{"motd":"...", "max-players":"30"}` (only the keys sent). Response indicates `restartRequired` |
+| PUT | `/instances/{id}/properties` | `{"motd":"...", "max-players":"30"}` (only the keys sent). Response indicates `restartRequired`. Values are sent and returned decoded: the daemon owns .properties escaping, writing newlines as `\n` and the section sign as `\u00A7` so `Properties.load` decodes it whatever charset the file is read as. |
+| GET | `/instances/{id}/icon` | `server-icon.png` as `image/png`; `404 no_icon` when the instance has none. |
+| PUT | `/instances/{id}/icon` | Body `image/png`, which must decode to exactly 64×64 (`400 invalid_icon`) and stay under 1 MB (`413`) — vanilla loads no other shape. Written atomically → `{"restartRequired":true}`: the client caches the icon in its status response, so it is read once, at boot. Admin only. |
+| DELETE | `/instances/{id}/icon` | Removes the icon; the client falls back to its own placeholder. Removing a missing icon is a no-op. Admin only. |
 | GET/PUT | `/instances/{id}/whitelist` | `[{uuid,name}]`; PUT replaces and runs `whitelist reload` |
 | POST/DELETE | `/instances/{id}/whitelist/{name}` | Resolves UUID via usercache/Mojang |
 | GET | `/instances/{id}/ops` | `[{uuid,name,level}]` |
