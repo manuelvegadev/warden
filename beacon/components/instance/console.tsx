@@ -18,6 +18,7 @@ import { PrettyConsole } from "@/components/instance/console-pretty";
 import { useConsoleLines, useInstance } from "@/components/instance/instance-context";
 import { Logs } from "@/components/instance/logs";
 import { useKnownPlayers } from "@/hooks/use-known-players";
+import { useWakeLock } from "@/hooks/use-wake-lock";
 import type { ConsoleLine } from "@/lib/api";
 import "@xterm/xterm/css/xterm.css";
 
@@ -144,6 +145,9 @@ export function Console({ popout }: { popout?: boolean }) {
   const instanceId = manifest.id;
   // A viewer reads the console but never writes to it; the daemon refuses the command either way.
   const disabled = !canOperate || (status.state !== "running" && status.state !== "starting");
+  // Hold the screen awake only while there is output to watch; a stopped server should not keep a
+  // phone lit up in someone's pocket.
+  useWakeLock(status.state === "running" || status.state === "starting");
   const [history, setHistory] = useState<string[]>([]);
   const [value, setValue] = useState("");
   // Remaining commands of a multi-command template: each one is put in the input after the previous is sent.
