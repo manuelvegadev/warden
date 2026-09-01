@@ -19,9 +19,34 @@ The UI is served from `/` (embedded SPA); the WebSocket from `/api/v1/ws`.
 | GET | `/auth/me` | Current user |
 | GET | `/system` | `{hostname, os, platform, kernel, cpuCores, cpuPercent, load:[1m,5m,15m], memTotal, memUsed, hostUptime (s), disk:{path,total,used}, daemonVersion, goVersion, startedAt}` (managed Java runtimes live under `/java`) |
 | GET | `/system/metrics` | Global CPU/RAM/network snapshot |
-| GET | `/tasks` | Most recent tasks first |
+| GET | `/tasks` | Most recent tasks first; tasks on instances the caller cannot see are filtered out |
 | GET | `/tasks/{id}` | Long-running task status `{id,type,status,progress,message,error}` |
+| POST | `/sessions/revoke` | `{userId}` → `{closed}`. Server-to-server, needs the `members.manage` capability: closes that user's live WebSocket connections after Beacon changed their access (ADR-017 §7) |
 | GET | `/settings` / PUT | Panel config (port, dataDir, User-Agent contact, Java paths, backups) |
+
+## Authorization (ADR-017)
+
+Beacon resolves what a user may reach and signs it into the JWT; wardend only reads the claims — it
+holds no access state of its own.
+
+| Claim | Meaning |
+|---|---|
+| `role` | Host role, `admin` or `operator` |
+| `node` | The node the token was minted for; a token for another node is rejected (`WARDEND_NODE_ID`) |
+| `caps` | Powers not tied to one instance: `system.update`, `java.manage`, `instances.create`, `instances.delete`, `members.manage` |
+| `aclAll` | Role held on **every** instance of the node (`viewer` \| `operator` \| `manager`), if any |
+| `acl` | Per-instance roles, e.g. `{"survival":"operator"}` |
+
+The role held on an instance is the stronger of `aclAll` and `acl[id]`. Roles are a ladder:
+
+- `viewer` — read the instance, console, metrics, players, events, and list backups and plugins.
+- `operator` — also power (`start`/`stop`/`restart`/`kill`), `POST /command`, player message/kick, whitelist and bans.
+- `manager` — also `server.properties` and the config files (they carry `rcon.password`), plugins, backups, upgrades, EULA and instance settings.
+
+An instance the caller has no role on answers **404, not 403**, so the set of instances on the node
+stays private; `GET /instances` lists only what they may see. A token with none of the three access
+claims comes from a panel older than ADR-017: `admin` is then read as `aclAll: manager` plus every
+capability, and `operator` as `aclAll: operator`.
 
 ## Java runtimes (ADR-010)
 | Method | Path | Description |
@@ -160,9 +185,9 @@ One socket per client, multiplexing instances. JSON messages `{ "type": "...", "
 
 Client → server:
 ```json
-{"type":"subscribe","instance":"survival","streams":["console","metrics","events"]}
+{"type":"subscribe","instance":"survival","streams":["console","metrics","events"]}   // needs viewer
 {"type":"unsubscribe","instance":"survival"}
-{"type":"command","instance":"survival","data":{"command":"list"}}
+{"type":"command","instance":"survival","data":{"command":"list"}}                    // needs operator
 {"type":"ping"}
 ```
 Server → client:

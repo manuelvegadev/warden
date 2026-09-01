@@ -58,6 +58,31 @@ Browser ──WSS + single-use ticket (1st message)─────────�
 ## 7. Update (ADR-009)
 **Better Auth** is adopted in the panel: identity moves to the panel (SQLite/Postgres), the daemon verifies JWTs **offline via JWKS** (`/api/auth/jwks`) with `aud="wardend"`, and the WS uses the short-lived JWT from `/api/auth/token` as the first message instead of the opaque ticket. Everything else in §5 (BFF, `HttpOnly` cookie, `X-Panel-Key`, `Origin`, TLS, hardening) remains in force.
 
+## 8. Update (ADR-017)
+
+Identity gains an **organization** (Better Auth `organization` plugin) and per-instance grants of our
+own, because the plugin's access control is per resource type, not per object.
+
+- **Roles split by scope.** The global `admin`/`operator` pair now governs the *host* only (node
+  registration, daemon self-update, Java runtimes, accounts). Organization roles (`owner`/`admin`/
+  `member`) govern instances, and a `member` reaches only the instances an `instanceAccess` row
+  grants them, as `viewer`, `operator` or `manager`.
+- **Beacon resolves, wardend enforces.** The grants are signed into the JWT (`caps`, `aclAll`, `acl`,
+  `node`) — Pterodactyl's pattern, and the reason §2's lesson holds: permissions are resolved by the
+  issuer, never trusted from the client. The daemon keeps no access state.
+- **The WebSocket is scoped too.** `subscribe` requires `viewer` on that instance and `command`
+  requires `operator`; without this the browser's own token would be a way around the BFF, since the
+  socket goes straight to the daemon.
+- **Instances are hidden, not forbidden.** No grant → 404, and `GET /instances` returns only what the
+  caller may see, so the list of servers on a node does not leak.
+- **Registration** stays closed. An account can be created only by the first user, by following a
+  pending invitation for that address, or with `BEACON_OPEN_SIGNUP=true`. Invitations are links the
+  inviter copies (no mail server); the invitation id is a bearer token and is never logged.
+- **Revocation is immediate.** Removing or lowering a grant calls `POST /sessions/revoke` on the
+  daemon, which closes that user's live sockets. REST needs nothing extra: the BFF signs a fresh
+  token per request. If that call fails, the 15-minute token lifetime bounds the window.
+- **`server.properties` is manager-only**, in both directions, because it carries `rcon.password`.
+
 ## Plugins (third-party code)
 
 Plugins are arbitrary Java loaded into the server JVM: once loaded they can do anything the `warden`

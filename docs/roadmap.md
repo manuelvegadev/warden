@@ -42,9 +42,15 @@
 ## Phase 4 — Operations
 - [x] Backups (save-off/save-all flush/tar.zst with sidecar), restore with pre-restore safety copy, download/delete, in-daemon scheduler with keep/max-size retention
 - [x] TLS built into the daemon (files / ACME / self-signed), systemd unit + install script, optional daemon Dockerfile, deployment guide (`docs/deploy.md`)
-- [ ] Multi-node in the panel (several daemons)
+- [ ] Multi-node in the panel (several daemons) — `node` table, per-node proxy and UI, `node` claim (ADR-017 §8)
 - [x] Landing page (`landing/`, static export on GitHub Pages) and `@warden/ui` shared package (ADR-014)
 - [x] Other providers: Purpur (api.purpurmc.org, md5), Fabric (meta.fabricmc.net launcher jar, loader = build), Vanilla (piston-meta, sha1); software picker in the panel, Plugins tab only for Paper/Purpur (ADR-013)
+
+## Phase 5 — Users and access (ADR-017)
+- [x] Members: `organization` plugin, default organization, migration of existing users, `caps` claim, Settings → Members
+- [x] Invitations by copiable link (no mail server): `nodeId`/`instanceId`/`instanceRole` on the invitation, signup gated by a pending invitation, `/invite/{id}` page
+- [x] Per-instance access: `instanceAccess` table, `acl`/`aclAll` claims, `Principal.Can()` in wardend, route reclassification, list filtering with 404s, WS `subscribe` check, role-aware UI
+- [x] Immediate revocation: `POST /api/v1/sessions/revoke` on the daemon, called by Beacon when a grant, member or role changes
 
 ## Backlog (optional, unscheduled)
 - [ ] Plugin scanning before load. Plugins run inside the server JVM with the daemon's privileges, so the only defence is pre-load. Layers, all optional: (1) built-in static heuristics on the jar/zip — native libs or nested jars, `Runtime.exec`/`ProcessBuilder`/`defineClass`/`javax.script`/`Unsafe` references, Base64+reflection droppers, known indicators (e.g. Fractureiser), heavy obfuscation — reported as warnings, never as a verdict; (2) ClamAV via `clamd` socket when configured (`WARDEN_CLAMAV_SOCKET`), blocking on positives; (3) VirusTotal hash lookup with an API key (no file upload). Flow: quarantine (`plugins/.quarantine`) → scan → `scan:{status,findings}` in the manifest → badge in the panel; `malicious` blocked, `warnings` need an explicit admin override. See docs/security.md.
