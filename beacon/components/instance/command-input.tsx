@@ -17,6 +17,8 @@ export interface CommandInputProps {
   knownPlayers?: readonly string[];
   software?: string;
   placeholder?: string;
+  /** Read-only viewers and stopped servers get an inert input rather than one that silently ignores Enter. */
+  disabled?: boolean;
   /** The underlying <input>, so the parent can focus it (e.g. after inserting a template). */
   inputRef?: React.RefObject<HTMLInputElement | null>;
   className?: string;
@@ -37,6 +39,7 @@ export function CommandInput({
   knownPlayers,
   software,
   placeholder = "Type a command…",
+  disabled,
   inputRef: externalRef,
   className,
 }: CommandInputProps) {
@@ -165,6 +168,7 @@ export function CommandInput({
       <Input
         ref={ref}
         value={value}
+        disabled={disabled}
         onChange={(e) => {
           set({ value: e.target.value, caret: e.target.selectionStart ?? e.target.value.length });
           setOpen(true);

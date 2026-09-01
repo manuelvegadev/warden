@@ -139,10 +139,11 @@ function RawConsole({ lines, className }: { lines: ConsoleLine[]; className?: st
  * window variant: fills its container and has no pop-out button of its own.
  */
 export function Console({ popout }: { popout?: boolean }) {
-  const { manifest, status, sendCommand } = useInstance();
+  const { manifest, status, sendCommand, canOperate } = useInstance();
   const lines = useConsoleLines();
   const instanceId = manifest.id;
-  const disabled = status.state !== "running" && status.state !== "starting";
+  // A viewer reads the console but never writes to it; the daemon refuses the command either way.
+  const disabled = !canOperate || (status.state !== "running" && status.state !== "starting");
   const [history, setHistory] = useState<string[]>([]);
   const [value, setValue] = useState("");
   // Remaining commands of a multi-command template: each one is put in the input after the previous is sent.
@@ -270,11 +271,18 @@ export function Console({ popout }: { popout?: boolean }) {
             if (!v) setQueue([]);
           }}
           onSubmit={submit}
+          disabled={disabled}
           history={history}
           players={status.players}
           knownPlayers={knownPlayers}
           software={manifest.software}
-          placeholder={disabled ? "Server is not running" : "Type a command (e.g. list, say hello)… Tab completes"}
+          placeholder={
+            !canOperate
+              ? "You have read-only access to this server"
+              : disabled
+                ? "Server is not running"
+                : "Type a command (e.g. list, say hello)… Tab completes"
+          }
           className="min-w-0 flex-1"
         />
         <CommandTemplates software={manifest.software} onPick={pickTemplate} />

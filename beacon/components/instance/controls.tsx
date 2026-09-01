@@ -12,7 +12,18 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { type InstanceState, instances } from "@/lib/api";
 
-export function Controls({ id, state, onDeleted }: { id: string; state: InstanceState; onDeleted: () => void }) {
+export function Controls({
+  id,
+  state,
+  onDeleted,
+  canManage,
+}: {
+  id: string;
+  state: InstanceState;
+  onDeleted: () => void;
+  /** Deleting the instance is a manager's call; power is already gated by the caller. */
+  canManage: boolean;
+}) {
   const [busy, setBusy] = useState(false);
   const run = async (label: string, fn: () => Promise<void>) => {
     setBusy(true);
@@ -60,20 +71,24 @@ export function Controls({ id, state, onDeleted }: { id: string; state: Instance
           >
             Kill process
           </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            className="text-destructive"
-            onClick={() => {
-              if (confirm(`Delete instance "${id}"? It will be moved to the trash.`)) {
-                void run("Delete", async () => {
-                  await instances.remove(id);
-                  onDeleted();
-                });
-              }
-            }}
-          >
-            Delete instance
-          </DropdownMenuItem>
+          {canManage && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="text-destructive"
+                onClick={() => {
+                  if (confirm(`Delete instance "${id}"? It will be moved to the trash.`)) {
+                    void run("Delete", async () => {
+                      await instances.remove(id);
+                      onDeleted();
+                    });
+                  }
+                }}
+              >
+                Delete instance
+              </DropdownMenuItem>
+            </>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
     </div>

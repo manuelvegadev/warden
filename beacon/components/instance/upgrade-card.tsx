@@ -30,12 +30,12 @@ import { formatDate, formatDateTime, mono } from "@/lib/utils";
 export function UpgradeCard({
   manifest,
   state,
-  isAdmin,
+  canManage,
   task,
 }: {
   manifest: Manifest;
   state: InstanceState;
-  isAdmin: boolean;
+  canManage: boolean;
   task: Task | null;
 }) {
   const router = useRouter();
@@ -102,7 +102,7 @@ export function UpgradeCard({
         <TargetRow
           label={`Build #${check.latestBuild.build} for ${check.latestBuild.mcVersion}`}
           target={check.latestBuild}
-          isAdmin={isAdmin}
+          canManage={canManage}
           disabled={!stopped || upgrading}
           onUpgrade={setConfirm}
         />
@@ -111,7 +111,7 @@ export function UpgradeCard({
         <TargetRow
           label={`Minecraft ${check.latestVersion.mcVersion} · build #${check.latestVersion.build}`}
           target={check.latestVersion}
-          isAdmin={isAdmin}
+          canManage={canManage}
           disabled={!stopped || upgrading}
           onUpgrade={setConfirm}
         />
@@ -164,13 +164,13 @@ export function UpgradeCard({
 function TargetRow({
   label,
   target,
-  isAdmin,
+  canManage,
   disabled,
   onUpgrade,
 }: {
   label: string;
   target: UpgradeTarget;
-  isAdmin: boolean;
+  canManage: boolean;
   disabled: boolean;
   onUpgrade: (target: UpgradeTarget) => void;
 }) {
@@ -187,7 +187,7 @@ function TargetRow({
           <p className="line-clamp-2 text-xs text-muted-foreground">{target.changes.join(" · ")}</p>
         )}
       </div>
-      {isAdmin && (
+      {canManage && (
         <Button size="sm" disabled={disabled} onClick={() => onUpgrade(target)}>
           Upgrade
         </Button>

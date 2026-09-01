@@ -66,14 +66,14 @@ export function PlayerSheet({
   instanceId,
   player,
   online,
-  isAdmin,
+  canManage,
   onClose,
   onChanged,
 }: {
   instanceId: string;
   player: Player | null;
   online: boolean;
-  isAdmin: boolean;
+  canManage: boolean;
   onClose: () => void;
   onChanged: () => void;
 }) {
@@ -153,7 +153,7 @@ export function PlayerSheet({
                 {formatDuration(stats?.playTimeSeconds ?? player.playTimeSeconds)} played · first seen{" "}
                 {formatDateTime(player.firstSeen)} · last seen {formatDateTime(player.lastSeen)}
               </SheetDescription>
-              {isAdmin && (
+              {canManage && (
                 <div className="mt-2 flex flex-wrap gap-2">
                   <Button size="sm" variant="outline" disabled={!online} onClick={() => setPrompt("message")}>
                     <MessageSquare className="size-4" /> Message

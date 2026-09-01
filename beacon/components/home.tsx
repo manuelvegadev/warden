@@ -40,7 +40,7 @@ const dots = (...parts: (string | false | undefined | 0)[]) => parts.filter(Bool
 const pct = (used?: number, total?: number) => (used && total ? `${Math.round((used / total) * 100)} %` : "—");
 
 /** Home: daemon and host overview on top, the instance list below. Live via the socket + a 5 s poll. */
-export function Home({ isAdmin }: { isAdmin: boolean }) {
+export function Home({ isAdmin, canCreate }: { isAdmin: boolean; canCreate: boolean }) {
   const { instances, setStatus, openCreate, openImport } = useInstances();
   const [sys, setSys] = useState<SystemInfo | null>(null);
 
@@ -119,12 +119,14 @@ export function Home({ isAdmin }: { isAdmin: boolean }) {
     <div className="grid gap-8">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Home</h1>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={openImport}>
-            Import
-          </Button>
-          <Button onClick={openCreate}>New instance</Button>
-        </div>
+        {canCreate && (
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={openImport}>
+              Import
+            </Button>
+            <Button onClick={openCreate}>New instance</Button>
+          </div>
+        )}
       </div>
       <WardendUpdate current={sys?.daemonVersion} isAdmin={isAdmin} />
       <Tiles title="Wardend" tiles={wardend} />

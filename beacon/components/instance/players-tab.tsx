@@ -12,7 +12,7 @@ import { instances, type Player, type ServerEvent } from "@/lib/api";
 import { formatDateTime, formatDuration } from "@/lib/utils";
 
 /** Player history from the daemon store; `online` comes from the live status so it refreshes on join/leave. */
-export function PlayersTab({ id, online, isAdmin }: { id: string; online: string[]; isAdmin: boolean }) {
+export function PlayersTab({ id, online, canManage }: { id: string; online: string[]; canManage: boolean }) {
   const [players, setPlayers] = useState<Player[] | null>(null);
   const [events, setEvents] = useState<ServerEvent[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
@@ -92,7 +92,7 @@ export function PlayersTab({ id, online, isAdmin }: { id: string; online: string
         instanceId={id}
         player={player}
         online={player ? online.includes(player.name) : false}
-        isAdmin={isAdmin}
+        canManage={canManage}
         onClose={() => setSelected(null)}
         onChanged={refresh}
       />

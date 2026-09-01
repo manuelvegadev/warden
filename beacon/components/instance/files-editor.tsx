@@ -22,7 +22,7 @@ const CodeEditor = dynamic(() => import("./code-editor").then((m) => m.CodeEdito
 const GROUP_ORDER = ["Server", "Paper", "Worlds", "Plugins"];
 
 /** Confined config editor: the daemon lists allowlisted files; this shows them grouped next to an editor. */
-export function FilesEditor({ id, running, isAdmin }: { id: string; running: boolean; isAdmin: boolean }) {
+export function FilesEditor({ id, running, canManage }: { id: string; running: boolean; canManage: boolean }) {
   const [list, setList] = useState<ConfigFile[] | null>(null);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
@@ -77,7 +77,7 @@ export function FilesEditor({ id, running, isAdmin }: { id: string; running: boo
 
       <section className="grid min-w-0 gap-3">
         {selected ? (
-          <FileDraft key={selected} id={id} path={selected} running={running} isAdmin={isAdmin} />
+          <FileDraft key={selected} id={id} path={selected} running={running} canManage={canManage} />
         ) : (
           <div className="flex h-[560px] items-center justify-center rounded-md border text-sm text-muted-foreground">
             Pick a file to edit. Only Paper, Bukkit, world and plugin config files are exposed here.
@@ -115,7 +115,17 @@ function FileButton({
 }
 
 /** Editor for one file. Keyed by path from the parent, so switching files remounts a fresh draft. */
-function FileDraft({ id, path, running, isAdmin }: { id: string; path: string; running: boolean; isAdmin: boolean }) {
+function FileDraft({
+  id,
+  path,
+  running,
+  canManage,
+}: {
+  id: string;
+  path: string;
+  running: boolean;
+  canManage: boolean;
+}) {
   const load = useCallback(() => files.read(id, path), [id, path]);
   const write = useCallback((t: string) => files.write(id, path, t), [id, path]);
   const draft = useTextDraft(load, write);
@@ -135,13 +145,13 @@ function FileDraft({ id, path, running, isAdmin }: { id: string; path: string; r
         <span className={`${mono} truncate text-sm`}>{path}</span>
         {draft.dirty && <span className="text-xs text-muted-foreground">Unsaved changes</span>}
       </div>
-      <CodeEditor value={draft.text} onChange={draft.setText} language={languageFor(path)} readOnly={!isAdmin} />
+      <CodeEditor value={draft.text} onChange={draft.setText} language={languageFor(path)} readOnly={!canManage} />
       {running && (
         <p className="text-xs text-muted-foreground">
           Paper reads these files at startup: changes apply on the next start.
         </p>
       )}
-      {isAdmin && (
+      {canManage && (
         <SaveBar dirty={draft.dirty} pending={draft.pending} onDiscard={draft.discard} onSave={draft.save}>
           <Button variant="outline" onClick={draft.reload} disabled={draft.pending}>
             Reload

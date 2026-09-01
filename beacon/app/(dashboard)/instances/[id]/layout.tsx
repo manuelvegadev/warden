@@ -1,6 +1,6 @@
 import { InstanceProvider } from "@/components/instance/instance-context";
 import { InstanceShell } from "@/components/instance/instance-shell";
-import { getSession } from "@/lib/session";
+import { instanceRoleOf } from "@/lib/members";
 import { loadInstanceDetail } from "@/lib/wardend";
 
 export default async function InstanceLayout({
@@ -11,9 +11,9 @@ export default async function InstanceLayout({
   children: React.ReactNode;
 }) {
   const { id } = await params;
-  const [detail, session] = await Promise.all([loadInstanceDetail(id), getSession()]);
+  const [detail, role] = await Promise.all([loadInstanceDetail(id), instanceRoleOf(id)]);
   return (
-    <InstanceProvider initial={detail} isAdmin={session?.user.role === "admin"}>
+    <InstanceProvider initial={detail} role={role}>
       <InstanceShell>{children}</InstanceShell>
     </InstanceProvider>
   );

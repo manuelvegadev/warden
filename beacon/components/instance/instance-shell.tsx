@@ -18,7 +18,7 @@ import { useServerAddress } from "@/components/wardend-config";
  * to the facts sidebar. Section navigation lives in the app sidebar.
  */
 export function InstanceShell({ children }: { children: React.ReactNode }) {
-  const { manifest, status, metrics, recent, task, connected, retryInstall } = useInstance();
+  const { manifest, status, metrics, recent, task, connected, retryInstall, canOperate, canManage } = useInstance();
   const router = useRouter();
   const onDeleted = useCallback(() => router.push("/"), [router]);
 
@@ -40,7 +40,7 @@ export function InstanceShell({ children }: { children: React.ReactNode }) {
               className="font-mono text-muted-foreground hover:text-foreground"
             />
           </div>
-          <Controls id={manifest.id} state={status.state} onDeleted={onDeleted} />
+          {canOperate && <Controls id={manifest.id} state={status.state} onDeleted={onDeleted} canManage={canManage} />}
         </div>
         <TaskBanner task={task} onRetryInstall={retryInstall} />
         {/* Only when there is a build to fetch: an unfinished import has no software yet and no task to retry. */}

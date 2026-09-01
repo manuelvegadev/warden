@@ -28,12 +28,12 @@ const installedOn = (iso?: string) => (iso && !iso.startsWith("0001") ? formatDa
 export function PluginsTab({
   id,
   mcVersion,
-  isAdmin,
+  canManage,
   task,
 }: {
   id: string;
   mcVersion: string;
-  isAdmin: boolean;
+  canManage: boolean;
   task: Task | null;
 }) {
   const [installed, setInstalled] = useState<PluginFile[] | null>(null);
@@ -91,14 +91,14 @@ export function PluginsTab({
     refresh();
     if (fileInput.current) fileInput.current.value = "";
   }
-  const dragging = useFileDrag(isAdmin, upload);
+  const dragging = useFileDrag(canManage, upload);
 
   return (
     <SectionCard
       title="Plugins"
       subtitle="Jars in server/plugins. Changes here apply on the next server start."
       action={
-        isAdmin && (
+        canManage && (
           <div className="flex gap-2">
             <input
               ref={fileInput}
@@ -128,7 +128,7 @@ export function PluginsTab({
               <TableHead>Source</TableHead>
               <TableHead className="text-right">Size</TableHead>
               <TableHead>Installed</TableHead>
-              {isAdmin && <TableHead className="w-12" />}
+              {canManage && <TableHead className="w-12" />}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -166,7 +166,7 @@ export function PluginsTab({
                   <TableCell className="text-muted-foreground" title={p.source?.installedAt}>
                     {installedOn(p.source?.installedAt)}
                   </TableCell>
-                  {isAdmin && (
+                  {canManage && (
                     <TableCell className="pr-3">
                       <RowActions label={`Actions for ${label}`}>
                         <DropdownMenuGroup>

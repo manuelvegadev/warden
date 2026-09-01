@@ -57,12 +57,12 @@ const SCOPES = { full: "Full (worlds, plugins, configs)", worlds: "Worlds only" 
 export function BackupsTab({
   manifest,
   state,
-  isAdmin,
+  canManage,
   task,
 }: {
   manifest: Manifest;
   state: InstanceState;
-  isAdmin: boolean;
+  canManage: boolean;
   task: Task | null;
 }) {
   const id = manifest.id;
@@ -92,7 +92,7 @@ export function BackupsTab({
         title="Backups"
         subtitle="tar.zst archives in the instance's backups folder. With the server running, worlds are flushed and auto-save paused while archiving."
         action={
-          isAdmin && (
+          canManage && (
             <Button
               size="sm"
               disabled={busy}
@@ -138,7 +138,7 @@ export function BackupsTab({
                         <DropdownMenuItem render={<a href={backups.downloadUrl(id, b.name)} download />}>
                           <Download className="size-4" /> Download
                         </DropdownMenuItem>
-                        {isAdmin && (
+                        {canManage && (
                           <DropdownMenuItem
                             disabled={!stopped || busy}
                             onClick={() => setConfirm({ kind: "restore", backup: b })}
@@ -147,7 +147,7 @@ export function BackupsTab({
                           </DropdownMenuItem>
                         )}
                       </DropdownMenuGroup>
-                      {isAdmin && (
+                      {canManage && (
                         <>
                           <DropdownMenuSeparator />
                           <DropdownMenuGroup>
@@ -169,7 +169,7 @@ export function BackupsTab({
         )}
       </SectionCard>
 
-      {isAdmin && <ScheduleCard manifest={manifest} />}
+      {canManage && <ScheduleCard manifest={manifest} />}
 
       <ConfirmDialog
         open={confirm !== null}

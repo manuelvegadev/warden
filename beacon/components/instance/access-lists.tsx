@@ -14,7 +14,7 @@ import { mono } from "@/lib/utils";
 type Kind = "whitelist" | "ops" | "bans";
 
 /** Whitelist, operators and bans. Commands go through the live server when running, JSON files otherwise. */
-export function AccessLists({ id, isAdmin }: { id: string; isAdmin: boolean }) {
+export function AccessLists({ id, canManage }: { id: string; canManage: boolean }) {
   const [whitelist, setWhitelist] = useState<WhitelistEntry[]>([]);
   const [ops, setOps] = useState<OpEntry[]>([]);
   const [bans, setBans] = useState<{ players: BanEntry[]; ips: BanEntry[] }>({ players: [], ips: [] });
@@ -130,7 +130,7 @@ export function AccessLists({ id, isAdmin }: { id: string; isAdmin: boolean }) {
       <SectionCard
         title="Operators"
         subtitle="Players with admin commands. Levels only apply while the server is stopped."
-        action={isAdmin && toggle("ops", "Op player")}
+        action={canManage && toggle("ops", "Op player")}
         topRow={
           openForm === "ops" && (
             <form
@@ -167,7 +167,7 @@ export function AccessLists({ id, isAdmin }: { id: string; isAdmin: boolean }) {
             label: o.name,
             badge: `level ${o.level}`,
             hint: o.uuid,
-            onRemove: isAdmin ? () => run("ops", "Deop", () => instances.opRemove(id, o.name)) : undefined,
+            onRemove: canManage ? () => run("ops", "Deop", () => instances.opRemove(id, o.name)) : undefined,
           }))}
         />
       </SectionCard>

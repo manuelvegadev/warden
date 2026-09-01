@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { useOptionalInstances } from "@/components/instances-store";
 import { type MetricPoint, useMetricsHistory } from "@/hooks/use-metrics-history";
 import { useWardendSocket, type WsMessage } from "@/hooks/use-wardend-socket";
+import { can, type InstanceRole } from "@/lib/access";
 import {
   type ConsoleLine,
   type InstanceDetail,
@@ -26,7 +27,12 @@ export interface InstanceState {
   recent: MetricPoint[];
   task: Task | null;
   connected: boolean;
-  isAdmin: boolean;
+  /** What this viewer may do on this instance (ADR-017 §3); undefined only if the grant vanished. */
+  role: InstanceRole | undefined;
+  /** Start, stop, send commands, whitelist and bans. */
+  canOperate: boolean;
+  /** Also configuration, plugins, backups and instance settings. */
+  canManage: boolean;
   sendCommand: (command: string) => void;
   retryInstall: () => Promise<void>;
 }
@@ -50,11 +56,11 @@ const MAX_LINES = 2000;
 /** Owns the WebSocket subscription and live state for one instance; every section reads from here. */
 export function InstanceProvider({
   initial,
-  isAdmin,
+  role,
   children,
 }: {
   initial: InstanceDetail;
-  isAdmin: boolean;
+  role: InstanceRole | undefined;
   children: React.ReactNode;
 }) {
   const { manifest } = initial;
@@ -156,8 +162,21 @@ export function InstanceProvider({
   }, [manifest.id]);
 
   const value = useMemo<InstanceState>(
-    () => ({ manifest, status, metrics, history, recent, task, connected, isAdmin, sendCommand, retryInstall }),
-    [manifest, status, metrics, history, recent, task, connected, isAdmin, sendCommand, retryInstall],
+    () => ({
+      manifest,
+      status,
+      metrics,
+      history,
+      recent,
+      task,
+      connected,
+      role,
+      canOperate: can(role, "power"),
+      canManage: can(role, "settings.write"),
+      sendCommand,
+      retryInstall,
+    }),
+    [manifest, status, metrics, history, recent, task, connected, role, sendCommand, retryInstall],
   );
 
   return (
