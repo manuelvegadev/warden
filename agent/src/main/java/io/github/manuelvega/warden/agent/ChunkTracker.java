@@ -87,7 +87,7 @@ public final class ChunkTracker implements Listener {
     private final AtomicInteger inFlight = new AtomicInteger();
     private final ExecutorService worker = Executors.newSingleThreadExecutor(WardendClient.daemon("warden-agent-encode"));
     private int ticks;
-    private long lastReconcile = System.currentTimeMillis();
+    private volatile long lastReconcile = System.currentTimeMillis(); // reset from the socket thread on (re)connect
     private static final int MAX_IN_FLIGHT = 64;
 
     public ChunkTracker(Plugin plugin, AgentConfig cfg, WardendClient client, ChunkEncoder encoder) {
@@ -119,7 +119,10 @@ public final class ChunkTracker implements Listener {
         }
         sent.clear();
         sent.putAll(fresh);
-        // A fresh connection means a fresh planner: whatever was queued for the old socket is stale.
+        // A fresh connection means a fresh planner: whatever was queued for the old socket is stale,
+        // and the first plan reconciles, so a chunk wardend holds a stale copy of is re-encoded and,
+        // if it differs, resent at once rather than at the next periodic pass.
+        lastReconcile = 0;
         Bukkit.getScheduler().runTask(plugin, () -> {
             queue.clear();
             queued.clear();
