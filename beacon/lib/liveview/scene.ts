@@ -2,13 +2,19 @@
 // water) per chunk, avatars, and the bookkeeping of which chunks around the focus are wanted.
 import {
   AmbientLight,
+  BoxGeometry,
   BufferAttribute,
   BufferGeometry,
   Color,
   DirectionalLight,
   Fog,
+  Group,
+  type Material,
+  MathUtils,
   Mesh,
   MeshBasicMaterial,
+  MeshLambertMaterial,
+  MOUSE,
   PerspectiveCamera,
   Scene,
   Vector3,
@@ -16,7 +22,7 @@ import {
 } from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import type { PlayerPos } from "@/lib/api";
-import { Avatar } from "./avatar";
+import { Avatar, pixelTexture } from "./avatar";
 import { chunkKey, parseChunkKey } from "./format";
 import type { MeshData } from "./mesher";
 
@@ -45,8 +51,8 @@ const UNLOAD_MARGIN = 3;
 /** Chunks per request. Ring order means the nearest batch lands first; the daemon caps a request at 1024. */
 const REQUEST_BATCH = 256;
 /** The opening shot: an aerial view pitched well down, from the south-east, like a strategy game camera. */
-const CAMERA_PITCH = (55 * Math.PI) / 180;
-const CAMERA_AZIMUTH = (30 * Math.PI) / 180;
+const CAMERA_PITCH = MathUtils.degToRad(55);
+const CAMERA_AZIMUTH = MathUtils.degToRad(30);
 const CAMERA_DISTANCE = 80;
 const CAMERA_OFFSET = new Vector3(
   CAMERA_DISTANCE * Math.cos(CAMERA_PITCH) * Math.sin(CAMERA_AZIMUTH),
@@ -59,19 +65,20 @@ export class LiveViewScene {
   readonly camera: PerspectiveCamera;
   readonly renderer: WebGLRenderer;
   readonly controls: OrbitControls;
-  private readonly opaqueMaterial = new MeshBasicMaterial({ vertexColors: true });
-  private readonly waterMaterial = new MeshBasicMaterial({
-    vertexColors: true,
-    transparent: true,
-    opacity: 0.7,
-    depthWrite: false,
-  });
+  private readonly opaqueMaterial = horizontalFog(new MeshBasicMaterial({ vertexColors: true }));
+  // Translucency comes per vertex (RGBA colours): water, ice, glass and leaves in one pass.
+  private readonly transMaterial = horizontalFog(
+    new MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false }),
+  );
   private world = "";
   private loaded = new Map<string, LoadedChunk>();
   private pending = new Map<string, number>(); // key → requested at
   private absent = new Map<string, number>(); // key → learned at
   private avatars = new Map<string, Avatar>();
   private following: string | null = null;
+  /** Every chunk mesh, so the terrain shows or hides as one. */
+  private readonly terrain = new Group();
+  private readonly idleCube = makeIdleCube();
   private radius = 8;
   private raf = 0;
   private lastFrame = 0;
@@ -93,9 +100,21 @@ export class LiveViewScene {
     this.controls.maxPolarAngle = Math.PI / 2 - 0.02;
     this.controls.minDistance = 3;
     this.controls.maxDistance = 600;
+    // Map-style mouse: left drags the world (panning along the ground), right tilts and turns.
+    this.controls.mouseButtons = { LEFT: MOUSE.PAN, MIDDLE: MOUSE.DOLLY, RIGHT: MOUSE.ROTATE };
+    this.controls.screenSpacePanning = false;
     this.jumpTo(new Vector3(0, 64, 0));
-    // Grabbing the view is how you stop following someone.
-    canvas.addEventListener("pointerdown", () => this.follow(null));
+    canvas.style.cursor = "grab";
+    canvas.addEventListener("pointerdown", (ev) => {
+      canvas.style.cursor = "grabbing";
+      // Dragging the world away is how you stop following someone; turning the camera is not.
+      if (ev.button === 0) this.follow(null);
+    });
+    for (const ev of ["pointerup", "pointercancel", "pointerleave"]) {
+      canvas.addEventListener(ev, () => {
+        canvas.style.cursor = "grab";
+      });
+    }
     this.scene.background = new Color(0x9fc4e7);
     // Terrain shading is baked into vertex colours (MeshBasicMaterial ignores lights); the lights are
     // for the skinview3d player models, whose standard material renders black without them.
@@ -103,6 +122,9 @@ export class LiveViewScene {
     const sun = new DirectionalLight(0xffffff, 2.0);
     sun.position.set(0.4, 1, 0.6);
     this.scene.add(sun);
+    this.scene.add(this.terrain);
+    this.scene.add(this.idleCube);
+    this.setIdle(true);
     this.setRadius(this.radius);
     this.resize();
     this.loop(performance.now());
@@ -121,6 +143,20 @@ export class LiveViewScene {
     this.avatars.clear();
     this.follow(null);
     this.lastPlan = 0;
+  }
+
+  /**
+   * Waiting mode: the terrain is hidden, nothing is fetched, and the globe spins at the focus. The
+   * component decides when (no player in the world, agent gone, server stopped).
+   */
+  setIdle(idle: boolean) {
+    this.terrain.visible = !idle;
+    this.idleCube.visible = idle;
+    if (!idle) this.lastPlan = 0;
+  }
+
+  private get idle() {
+    return this.idleCube.visible;
   }
 
   setRadius(r: number) {
@@ -164,13 +200,18 @@ export class LiveViewScene {
     this.absent.delete(k);
     const prev = this.loaded.get(k);
     if (prev) this.dropChunk(prev);
-    // A chunk without water (most of them) gets no water mesh: an empty mesh is still a draw call.
+    // A chunk without translucent blocks (most of them) gets no second mesh: an empty mesh is still a draw call.
     const opaque = this.place(cx, cz, mesh.positions, mesh.colors, mesh.indices, this.opaqueMaterial);
-    const water = this.place(cx, cz, mesh.waterPositions, mesh.waterColors, mesh.waterIndices, this.waterMaterial);
-    if (water) water.renderOrder = 1;
+    const water = this.place(cx, cz, mesh.transPositions, mesh.transColors, mesh.transIndices, this.transMaterial);
     this.loaded.set(k, { hash, opaque, water });
   }
 
+  /**
+   * One mesh per chunk and pass. The mesh origin sits at the geometry's centre rather than the chunk
+   * corner at y = 0: three.js orders translucent meshes by the depth of their origin, and with the
+   * centre that order is right for neighbouring chunks, so water under one chunk's ice never paints
+   * over the next chunk's ice.
+   */
   private place(
     cx: number,
     cz: number,
@@ -182,19 +223,24 @@ export class LiveViewScene {
     if (indices.length === 0) return null;
     const g = new BufferGeometry();
     g.setAttribute("position", new BufferAttribute(positions, 3));
-    g.setAttribute("color", new BufferAttribute(colors, 3, true));
+    g.setAttribute("color", new BufferAttribute(colors, 4, true));
     g.setIndex(new BufferAttribute(indices, 1));
     g.computeBoundingSphere();
+    // Whole blocks only: vertices must stay exact integers or neighbouring chunks show hairline cracks.
+    // Cloned: recomputing the sphere below would otherwise overwrite the very vector we position by.
+    const c = (g.boundingSphere?.center ?? new Vector3()).clone().round();
+    g.translate(-c.x, -c.y, -c.z);
+    g.computeBoundingSphere();
     const m = new Mesh(g, material);
-    m.position.set(cx * 16, 0, cz * 16);
-    this.scene.add(m);
+    m.position.set(cx * 16 + c.x, c.y, cz * 16 + c.z);
+    this.terrain.add(m);
     return m;
   }
 
   private dropChunk(c: LoadedChunk) {
     for (const m of [c.opaque, c.water]) {
       if (!m) continue;
-      this.scene.remove(m);
+      this.terrain.remove(m);
       m.geometry.dispose();
     }
   }
@@ -202,13 +248,15 @@ export class LiveViewScene {
   // ---- players ----
 
   setPlayers(players: PlayerPos[], now: number) {
+    const hadAny = this.avatars.size > 0;
+    const wasFollowing = this.following;
     const seen = new Set<string>();
     for (const p of players) {
       if (p.world !== this.world) continue;
       seen.add(p.name);
       let a = this.avatars.get(p.name);
       if (!a) {
-        a = new Avatar(p.name, this.opts.skinUrl(p.name));
+        a = new Avatar(p.name, this.opts.skinUrl(p.name), horizontalFog);
         this.avatars.set(p.name, a);
         this.scene.add(a.group);
       }
@@ -220,6 +268,12 @@ export class LiveViewScene {
         this.avatars.delete(name);
         if (this.following === name) this.follow(null);
       }
+    }
+    // The first arrival gets the camera (nothing else is worth looking at), and so does whoever is
+    // left when the followed player leaves.
+    const followedLeft = wasFollowing !== null && this.following === null;
+    if (!this.following && this.avatars.size > 0 && (!hadAny || followedLeft)) {
+      this.follow(this.avatars.keys().next().value ?? null);
     }
   }
 
@@ -233,10 +287,8 @@ export class LiveViewScene {
 
   /** Puts the focus on a point at once, keeping the camera's current offset from the target. */
   jumpTo(p: Vector3) {
-    // Before the first jump the camera has no offset yet: it gets the opening aerial angle.
-    const offset = this.lastTarget.equals(this.controls.target)
-      ? this.camera.position.clone().sub(this.controls.target)
-      : CAMERA_OFFSET;
+    // Before the first jump the camera sits on the target: it gets the opening aerial angle.
+    const offset = this.camera.position.clone().sub(this.controls.target);
     if (offset.lengthSq() < 1) offset.copy(CAMERA_OFFSET);
     this.controls.target.copy(p);
     this.camera.position.copy(p).add(offset);
@@ -260,6 +312,10 @@ export class LiveViewScene {
     const dt = Math.min(0.1, (t - this.lastFrame) / 1000 || 0.016);
     this.lastFrame = t;
     for (const a of this.avatars.values()) a.update(dt);
+    if (this.idle) {
+      this.idleCube.position.copy(this.controls.target);
+      this.idleCube.rotation.y += dt * 0.6;
+    }
     if (this.following) {
       const a = this.avatars.get(this.following);
       if (a) {
@@ -277,7 +333,7 @@ export class LiveViewScene {
   private plan(now: number) {
     this.lastPlan = now;
     this.lastTarget.copy(this.controls.target);
-    if (!this.world) return;
+    if (!this.world || this.idle) return;
     const fx = Math.floor(this.controls.target.x / 16);
     const fz = Math.floor(this.controls.target.z / 16);
     const need: [number, number][] = [];
@@ -329,7 +385,65 @@ export class LiveViewScene {
     for (const a of this.avatars.values()) a.dispose();
     this.controls.dispose();
     this.opaqueMaterial.dispose();
-    this.waterMaterial.dispose();
+    this.transMaterial.dispose();
     this.renderer.dispose();
   }
+}
+
+// A 16×16 pixel-art globe: ocean, a few continents, ice caps. Drawn once onto a canvas and used on
+// every face of the waiting cube.
+const GLOBE = [
+  "wwwwwwwwwwwwwwww",
+  "wwwbbbwwwwbbbwww",
+  "bbbbbggbbbbbbbbb",
+  "bbbgggggbbbggggb",
+  "bbggggggbbgggggg",
+  "bbbggggbbbgggggg",
+  "bbbbgggbbbbggggb",
+  "bbbbbggbbbbbgggb",
+  "bbbbbbggbbbbbbgb",
+  "bbbbbggggbbbbbbb",
+  "bbbbbgggbbbbbbbb",
+  "bbbbbbggbbbbbbbb",
+  "bbbbbbbgbbbbbbbb",
+  "bbbbbbbbbbbbgbbb",
+  "wbbbbbbbbbbbbbbw",
+  "wwwwwwwwwwwwwwww",
+];
+const GLOBE_COLORS: Record<string, string> = { w: "#e8f3ff", b: "#3b6fd6", g: "#4caf50" };
+
+function makeIdleCube(): Mesh {
+  const canvas = document.createElement("canvas");
+  canvas.width = 16;
+  canvas.height = 16;
+  const ctx = canvas.getContext("2d");
+  if (ctx) {
+    GLOBE.forEach((row, y) => {
+      for (let x = 0; x < 16; x++) {
+        ctx.fillStyle = GLOBE_COLORS[row[x]] ?? GLOBE_COLORS.b;
+        ctx.fillRect(x, y, 1, 1);
+      }
+    });
+  }
+  const cube = new Mesh(new BoxGeometry(10, 10, 10), new MeshLambertMaterial({ map: pixelTexture(canvas) }));
+  cube.rotation.x = 0.35;
+  return cube;
+}
+
+/**
+ * Fog by horizontal distance from the camera instead of view depth, so climbing high does not fade
+ * the ground below: the fog only hides what is far along the ground.
+ */
+function horizontalFog<T extends Material>(material: T): T {
+  material.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader.replace(
+      "#include <fog_vertex>",
+      `#ifdef USE_FOG
+        vec4 fogWorld = modelMatrix * vec4(transformed, 1.0);
+        vFogDepth = length(fogWorld.xz - cameraPosition.xz);
+      #endif`,
+    );
+  };
+  material.customProgramCacheKey = () => "horizontal-fog";
+  return material;
 }

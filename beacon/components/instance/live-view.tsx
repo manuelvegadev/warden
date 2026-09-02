@@ -26,6 +26,21 @@ type Radius = (typeof RADII)[number];
 
 const SUBTITLE = "The world around each player, as the agent streams it.";
 
+/** What the viewer is waiting on, when it is not showing the world. */
+const PHASES = {
+  stopped: { badge: "server stopped", title: "The server is stopped", hint: "Start the server to see the world." },
+  connecting: {
+    badge: "agent not connected",
+    title: "Waiting for the agent",
+    hint: "The plugin connects a few seconds after the server starts.",
+  },
+  ready: {
+    badge: "agent connected",
+    title: "Waiting for a player",
+    hint: "The world appears around the first player to join.",
+  },
+} as const;
+
 /**
  * The live world view (ADR-018): the terrain around each player as flat-coloured blocks, the players
  * themselves, updated as the agent streams. `popout` is the pop-out window variant.
@@ -117,7 +132,9 @@ export function LiveView({ popout }: { popout?: boolean }) {
     scene.setWorld(w);
     workerRef.current?.postMessage({ type: "clear" } satisfies WorkerRequest);
     scene.setPlayers(playersRef.current, performance.now());
-    scene.follow(playersRef.current.find((p) => p.world === w)?.name ?? null);
+    const first = playersRef.current.find((p) => p.world === w);
+    scene.setIdle(!first);
+    scene.follow(first?.name ?? null);
   }, []);
 
   // The scene and its worker live as long as the canvas does; later state reaches them through refs.
@@ -189,6 +206,10 @@ export function LiveView({ popout }: { popout?: boolean }) {
   useEffect(() => applyWorld(world), [world, applyWorld]);
   useEffect(() => sceneRef.current?.setRadius(Number(radius)), [radius]);
 
+  const worldPlayers = useMemo(() => players.filter((p) => p.world === world), [players, world]);
+  // Nobody to look at: the scene shows the globe instead of the world.
+  useEffect(() => sceneRef.current?.setIdle(worldPlayers.length === 0), [worldPlayers.length]);
+
   const run = useAction(refresh);
   const toggle = (enabled: boolean) =>
     run(async () => {
@@ -196,7 +217,6 @@ export function LiveView({ popout }: { popout?: boolean }) {
       return enabled ? "Live view enabled. Restart the server to load the agent." : "Live view disabled.";
     });
 
-  const worldPlayers = useMemo(() => players.filter((p) => p.world === world), [players, world]);
   const worlds = info?.worlds ?? [];
 
   if (error) {
@@ -239,6 +259,7 @@ export function LiveView({ popout }: { popout?: boolean }) {
   }
 
   const running = status.state === "running";
+  const phase = PHASES[agentConnected ? "ready" : running ? "connecting" : "stopped"];
   const viewClass = fillHeight ? "min-h-0 flex-1" : "h-[min(70vh,760px)]";
   return (
     <div ref={rootRef} className={cn("flex flex-col gap-2", fillHeight && "h-full", fullscreen && "bg-background p-3")}>
@@ -260,7 +281,7 @@ export function LiveView({ popout }: { popout?: boolean }) {
             </div>
           )}
           <Badge variant="outline" className={agentConnected ? badgeTone.emerald : badgeTone.muted}>
-            {agentConnected ? "agent connected" : running ? "agent not connected" : "server stopped"}
+            {phase.badge}
           </Badge>
           <span className="text-xs text-muted-foreground tabular-nums">
             {stats.chunks} chunks{stats.pending ? ` · ${stats.pending} loading` : ""}
@@ -313,15 +334,17 @@ export function LiveView({ popout }: { popout?: boolean }) {
               {following === p.name && <LocateFixed className="size-3 text-primary" />}
             </button>
           ))}
-          {worldPlayers.length === 0 && (
-            <span className="rounded-md bg-background/85 px-2 py-1 text-xs text-muted-foreground backdrop-blur">
-              {agentConnected ? "Nobody online in this world" : "Waiting for the agent"}
-            </span>
-          )}
         </div>
-        {agentConnected && worlds.every((w) => w.chunks === 0) && (
-          <div className="absolute inset-x-0 bottom-3 text-center text-xs text-muted-foreground">
-            Terrain appears as players load chunks around them.
+        {worldPlayers.length === 0 && (
+          <div className="pointer-events-none absolute inset-x-0 bottom-10 text-center">
+            <p className="text-sm font-medium text-slate-800">
+              {agentConnected ? "Waiting for a player" : running ? "Waiting for the agent" : "The server is stopped"}
+            </p>
+            <p className="text-xs text-slate-700/80">
+              {agentConnected
+                ? "The world appears around the first player to join."
+                : "Start the server to see the world."}
+            </p>
           </div>
         )}
       </div>
