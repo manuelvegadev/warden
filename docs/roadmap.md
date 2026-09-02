@@ -52,6 +52,13 @@
 - [x] Per-instance access: `instanceAccess` table, `acl`/`aclAll` claims, `Principal.Can()` in wardend, route reclassification, list filtering with 404s, WS `subscribe` check, role-aware UI
 - [x] Immediate revocation: `POST /api/v1/sessions/revoke` on the daemon, called by Beacon when a grant, member or role changes
 
+## Phase 6 — Live world view (ADR-018)
+- [x] Phase 1 (in progress, not yet verified against a real server): Warden Agent plugin (`agent/`, positions at 5 Hz, chunk snapshots encoded to the WCK1 format, dirty tracking), wardend agent listener + SQLite chunk cache + `map` API + `world.*` bus messages + embedded jar install, Beacon "Live view" section (three.js, worker mesher with ambient occlusion, water, skinned players with name tags, follow, pop-out)
+- [ ] Phase 2: biome tint, greedy meshing, orthographic top-down camera, Nether/End band rules, clouds and day/night
+- [ ] Phase 3: full columns with a Y-level slider, marker layers
+- [ ] Phase 4: event and telemetry overlays from the agent
+- [ ] Phase 5 (optional): offline import of unvisited chunks from region files
+
 ## Backlog (optional, unscheduled)
 - [ ] Server-list appearance follow-ups, from the cleanup pass over the MOTD/icon work. None block anything; each was judged not worth its blast radius at the time:
   - `hasIcon` on the instance detail (or properties) response. Beacon currently learns whether an instance has an icon by requesting `GET /instances/{id}/icon` and treating the 404 as "no" — a guaranteed 404 in the network panel for the common case. The daemon knows it for free; this is an API contract change, so it wants its own commit.
