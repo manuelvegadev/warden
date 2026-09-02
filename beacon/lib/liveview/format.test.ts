@@ -10,6 +10,7 @@ export function encodePayload(opts: {
   yMin: number;
   yMax: number;
   palette: number[][]; // [r,g,b,flags], entry 0 = air
+  names?: string[]; // one per palette entry
   biomes?: string[];
   block: (x: number, y: number, z: number) => number;
 }): Uint8Array {
@@ -17,10 +18,16 @@ export function encodePayload(opts: {
   const biomes = opts.biomes ?? ["plains"];
   const enc = new TextEncoder();
   const biomeBytes = biomes.map((b) => enc.encode(b));
-  const size = 20 + opts.palette.length * 4 + biomeBytes.reduce((n, b) => n + 1 + b.length, 0) + 256 + 256 * height;
+  const names = (opts.names ?? FLAT_NAMES).map((n) => enc.encode(n));
+  const size =
+    20 +
+    names.reduce((n, b) => n + 5 + b.length, 0) +
+    biomeBytes.reduce((n, b) => n + 1 + b.length, 0) +
+    256 +
+    256 * height;
   const buf = new Uint8Array(size);
   const view = new DataView(buf.buffer);
-  view.setUint32(0, 0x314b4357, true);
+  view.setUint32(0, 0x324b4357, true);
   view.setInt32(4, opts.cx, true);
   view.setInt32(8, opts.cz, true);
   view.setInt16(12, opts.yMin, true);
@@ -28,10 +35,12 @@ export function encodePayload(opts: {
   view.setUint16(16, opts.palette.length, true);
   buf[18] = biomes.length;
   let p = 20;
-  for (const e of opts.palette) {
+  opts.palette.forEach((e, i) => {
     buf.set(e, p);
-    p += 4;
-  }
+    buf[p + 4] = names[i].length;
+    buf.set(names[i], p + 5);
+    p += 5 + names[i].length;
+  });
   for (const b of biomeBytes) {
     buf[p++] = b.length;
     buf.set(b, p);
@@ -48,6 +57,7 @@ export function encodePayload(opts: {
   return buf;
 }
 
+export const FLAT_NAMES = ["air", "stone", "grass_block", "water"];
 export const FLAT_PALETTE = [
   [0, 0, 0, 0],
   [112, 112, 112, 0], // stone
@@ -71,8 +81,12 @@ describe("decodeChunk", () => {
     assert.equal(c.yMin, 56);
     assert.equal(c.yMax, 70);
     assert.equal(c.height, 15);
-    assert.equal(c.paletteLen, 4);
-    assert.deepEqual(Array.from(c.palette.subarray(8, 12)), [127, 178, 56, FLAG_GRASS]);
+    assert.equal(c.entries.length, 4);
+    assert.deepEqual(c.entries[2], { name: "grass_block", rgb: [127, 178, 56], flags: FLAG_GRASS });
+    assert.deepEqual(
+      c.entries.map((e) => e.name),
+      FLAT_NAMES,
+    );
     assert.deepEqual(c.biomeNames, ["plains"]);
     assert.equal(c.blocks.length, 256 * 15);
     // Column (10,10): grass replaced by water at 64, stone below, air above.

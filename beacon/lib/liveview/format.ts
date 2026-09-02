@@ -1,13 +1,23 @@
 // The chunk format the Warden Agent produces and wardend serves (ADR-018 "WCK1"). Pure functions:
 // they run in the mesher worker and in node tests alike.
 
+// Palette flags: server-side facts the viewer cannot derive from a block name. They are hints for
+// blocks missing from the colour table (mods, newer versions); known blocks take everything from it.
 export const FLAG_GRASS = 1;
 export const FLAG_FOLIAGE = 2;
 export const FLAG_WATER = 4;
-export const FLAG_TRANSLUCENT = 8;
+/** Solid but not a full cube (slabs, stairs, fences). Boxed for now. */
 export const FLAG_PARTIAL = 16;
 
-const MAGIC = 0x314b4357; // "WCK1"
+const MAGIC = 0x324b4357; // "WCK2"
+
+export interface PaletteEntry {
+  /** Block key ("grass_block"), what the texture colour table is looked up by. */
+  name: string;
+  /** The game's map colour: the fallback when the table does not know the block. */
+  rgb: [number, number, number];
+  flags: number;
+}
 
 export interface ChunkData {
   cx: number;
@@ -17,9 +27,8 @@ export interface ChunkData {
   /** Highest row sent (inclusive). Rows above are air. */
   yMax: number;
   height: number;
-  /** 4 bytes per entry: r, g, b, flags. Entry 0 is air. */
-  palette: Uint8Array;
-  paletteLen: number;
+  /** One entry per palette index; entry 0 is air. */
+  entries: PaletteEntry[];
   biomeNames: string[];
   /** One biome index per column, `z * 16 + x`. */
   biomes: Uint8Array;
@@ -30,7 +39,7 @@ export interface ChunkData {
 /** Decodes an uncompressed payload. Throws on a bad magic or a truncated buffer. */
 export function decodeChunk(payload: Uint8Array): ChunkData {
   const view = new DataView(payload.buffer, payload.byteOffset, payload.byteLength);
-  if (payload.byteLength < 20 || view.getUint32(0, true) !== MAGIC) throw new Error("not a WCK1 chunk");
+  if (payload.byteLength < 20 || view.getUint32(0, true) !== MAGIC) throw new Error("not a WCK2 chunk");
   const cx = view.getInt32(4, true);
   const cz = view.getInt32(8, true);
   const yMin = view.getInt16(12, true);
@@ -38,21 +47,32 @@ export function decodeChunk(payload: Uint8Array): ChunkData {
   const paletteLen = view.getUint16(16, true);
   const biomeLen = payload[18];
   let p = 20;
-  const palette = payload.subarray(p, p + paletteLen * 4);
-  p += paletteLen * 4;
-  const biomeNames: string[] = [];
   const dec = new TextDecoder();
-  for (let i = 0; i < biomeLen; i++) {
+  // A u8-length UTF-8 string, the wire's one string primitive.
+  const str = () => {
+    if (p >= payload.byteLength) throw new Error("truncated chunk");
     const n = payload[p++];
-    biomeNames.push(dec.decode(payload.subarray(p, p + n)));
+    if (p + n > payload.byteLength) throw new Error("truncated chunk");
+    const out = dec.decode(payload.subarray(p, p + n));
     p += n;
+    return out;
+  };
+  const entries: PaletteEntry[] = [];
+  for (let i = 0; i < paletteLen; i++) {
+    if (p + 4 > payload.byteLength) throw new Error("truncated chunk");
+    const rgb: [number, number, number] = [payload[p], payload[p + 1], payload[p + 2]];
+    const flags = payload[p + 3];
+    p += 4;
+    entries.push({ name: str(), rgb, flags });
   }
+  const biomeNames: string[] = [];
+  for (let i = 0; i < biomeLen; i++) biomeNames.push(str());
   const biomes = payload.subarray(p, p + 256);
   p += 256;
   const height = yMax - yMin + 1;
   const blocks = payload.subarray(p, p + 256 * height);
-  if (blocks.byteLength !== 256 * height || palette.byteLength !== paletteLen * 4) throw new Error("truncated chunk");
-  return { cx, cz, yMin, yMax, height, palette, paletteLen, biomeNames, biomes, blocks };
+  if (blocks.byteLength !== 256 * height) throw new Error("truncated chunk");
+  return { cx, cz, yMin, yMax, height, entries, biomeNames, biomes, blocks };
 }
 
 export interface ChunkRecord {

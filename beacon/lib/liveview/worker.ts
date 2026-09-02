@@ -1,7 +1,8 @@
 // Mesher worker: owns the decoded chunks of the current world so it can cull faces against
 // neighbours, and posts geometry back with transferred buffers. One instance per viewer.
+import tables from "./blocks.json";
 import { type ChunkData, chunkKey, decodeChunk, gunzip, parseChunkKey } from "./format";
-import { type MeshData, meshChunk } from "./mesher";
+import { type BlockTables, type MeshData, meshChunk } from "./mesher";
 
 export type WorkerRequest =
   /** One transferred buffer holding every blob; each record is a view into it. */
@@ -27,14 +28,14 @@ const post = (msg: WorkerResponse, transfer: Transferable[] = []) =>
 function emit(cx: number, cz: number) {
   const chunk = chunks.get(chunkKey(cx, cz));
   if (!chunk) return;
-  const mesh = meshChunk(chunk.data, (dx, dz) => chunks.get(chunkKey(cx + dx, cz + dz))?.data);
+  const mesh = meshChunk(chunk.data, (dx, dz) => chunks.get(chunkKey(cx + dx, cz + dz))?.data, tables as BlockTables);
   post({ type: "mesh", world, cx, cz, hash: chunk.hash, mesh }, [
     mesh.positions.buffer,
     mesh.colors.buffer,
     mesh.indices.buffer,
-    mesh.waterPositions.buffer,
-    mesh.waterColors.buffer,
-    mesh.waterIndices.buffer,
+    mesh.transPositions.buffer,
+    mesh.transColors.buffer,
+    mesh.transIndices.buffer,
   ]);
 }
 
