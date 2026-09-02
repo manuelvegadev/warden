@@ -146,6 +146,14 @@ export function PluginsTab({
                     <div className="flex items-center gap-2 font-medium">
                       {ref ? <PluginNameButton onClick={() => setSelected(ref)}>{label}</PluginNameButton> : label}
                       {!p.enabled && <Badge variant="outline">disabled</Badge>}
+                      {p.managed && (
+                        <Badge
+                          variant="outline"
+                          title="Installed and kept up to date by Warden; the live view needs it"
+                        >
+                          required
+                        </Badge>
+                      )}
                     </div>
                     <div className={`${mono} text-xs text-muted-foreground`}>{p.fileName}</div>
                   </TableCell>
@@ -168,38 +176,40 @@ export function PluginsTab({
                   </TableCell>
                   {canManage && (
                     <TableCell className="pr-3">
-                      <RowActions label={`Actions for ${label}`}>
-                        <DropdownMenuGroup>
-                          {update && (
+                      {!p.managed && (
+                        <RowActions label={`Actions for ${label}`}>
+                          <DropdownMenuGroup>
+                            {update && (
+                              <DropdownMenuItem
+                                onClick={() =>
+                                  act(async () => {
+                                    await plugins.update(id, p.fileName);
+                                    return `Updating ${label} to ${update.version}…`;
+                                  }, false)
+                                }
+                              >
+                                <ArrowUpCircle className="size-4" /> Update to {update.version}
+                              </DropdownMenuItem>
+                            )}
                             <DropdownMenuItem
                               onClick={() =>
                                 act(async () => {
-                                  await plugins.update(id, p.fileName);
-                                  return `Updating ${label} to ${update.version}…`;
-                                }, false)
+                                  const { enabled } = await plugins.toggle(id, p.fileName);
+                                  return `${enabled ? "Enabled" : "Disabled"} ${label}`;
+                                })
                               }
                             >
-                              <ArrowUpCircle className="size-4" /> Update to {update.version}
+                              <Power className="size-4" /> {p.enabled ? "Disable" : "Enable"}
                             </DropdownMenuItem>
-                          )}
-                          <DropdownMenuItem
-                            onClick={() =>
-                              act(async () => {
-                                const { enabled } = await plugins.toggle(id, p.fileName);
-                                return `${enabled ? "Enabled" : "Disabled"} ${label}`;
-                              })
-                            }
-                          >
-                            <Power className="size-4" /> {p.enabled ? "Disable" : "Enable"}
-                          </DropdownMenuItem>
-                        </DropdownMenuGroup>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuGroup>
-                          <DropdownMenuItem variant="destructive" onClick={() => setRemoving(p)}>
-                            <Trash2 className="size-4" /> Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuGroup>
-                      </RowActions>
+                          </DropdownMenuGroup>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuGroup>
+                            <DropdownMenuItem variant="destructive" onClick={() => setRemoving(p)}>
+                              <Trash2 className="size-4" /> Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuGroup>
+                        </RowActions>
+                      )}
                     </TableCell>
                   )}
                 </TableRow>

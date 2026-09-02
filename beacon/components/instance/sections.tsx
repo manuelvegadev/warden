@@ -53,8 +53,8 @@ export interface Section {
   needs?: InstanceAction;
   /** Set when the section already shows what the header tiles show, so the shell drops them. */
   hidesResourceCards?: boolean;
-  /** Set when the section wants the whole width (a viewer), so the shell drops the facts sidebar. */
-  hidesSidebar?: boolean;
+  /** A viewer takes the whole page: no header tiles, no facts sidebar, stretched to the bottom. */
+  layout?: "viewer";
 }
 
 /** Single source of truth for instance sections: sidebar items, breadcrumb labels and the [section] route. */
@@ -75,8 +75,7 @@ export const SECTIONS: Section[] = [
     label: "Live view",
     icon: Box,
     // The viewer wants the whole page; the tiles and the facts are one click away.
-    hidesResourceCards: true,
-    hidesSidebar: true,
+    layout: "viewer",
     render: () => <LiveView />,
   },
   {

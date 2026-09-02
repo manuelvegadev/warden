@@ -64,6 +64,12 @@ export interface PlayerPos {
   pitch: number;
   sneaking: boolean;
   sprinting: boolean;
+  /** The game's pose: standing, sneaking, swimming (also crawling), fall_flying (gliding), sleeping, … */
+  pose: string;
+  onGround: boolean;
+  /** Creative or spectator flight. */
+  flying: boolean;
+  inWater: boolean;
   gamemode: string;
   vanished: boolean;
 }
@@ -78,13 +84,18 @@ export interface LiveViewWorld {
   chunks: number;
 }
 
+/** A world's day count, time of day (ticks since 06:00) and weather. */
+import type { WorldClock } from "@/lib/liveview/sky";
+
+export type { WorldClock };
+
 export interface LiveViewInfo {
-  enabled: boolean;
-  /** Paper-family software only: the agent is a Bukkit plugin. */
+  /** Paper-family software only: the agent is a Bukkit plugin, installed by wardend wherever it can run. */
   supported: boolean;
   agent: { connected: boolean; version?: string; server?: string };
   worlds: LiveViewWorld[];
   players: PlayerPos[];
+  clocks?: Record<string, WorldClock>;
   /** Millis of the last positions message. */
   t?: number;
 }
@@ -270,6 +281,8 @@ export interface PluginMeta {
 export interface PluginFile {
   fileName: string;
   enabled: boolean;
+  /** Installed and kept by wardend (the Warden Agent): the panel cannot disable or remove it. */
+  managed?: boolean;
   size: number;
   /** Parsed from plugin.yml / paper-plugin.yml inside the jar. */
   meta?: PluginMeta;
@@ -479,11 +492,6 @@ export const instances = {
   list: () => api<InstanceSummary[]>("/instances"),
   /** Live world view (ADR-018). */
   map: (id: string) => api<LiveViewInfo>(`/instances/${id}/map`),
-  setLiveView: (id: string, enabled: boolean) =>
-    api<{ enabled: boolean; restartRequired: boolean }>(`/instances/${id}/map`, {
-      method: "PUT",
-      body: JSON.stringify({ enabled }),
-    }),
   /** Stored chunks among `keys`, as the binary batch `lib/liveview/format.ts` parses. */
   mapChunks: (id: string, world: string, keys: [number, number][]) =>
     api<ArrayBuffer>(`/instances/${id}/map/${encodeURIComponent(world)}/chunks`, {

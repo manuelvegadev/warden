@@ -28,11 +28,14 @@ export function InstanceShell({ children }: { children: React.ReactNode }) {
   // Metrics charts the same four series as the tiles, so it asks the shell to drop them.
   const { section } = useParams<{ section?: string }>();
   const current = section ? sectionBySlug(section) : undefined;
-  const showTiles = !current?.hidesResourceCards;
-  const showSidebar = !current?.hidesSidebar;
+  // A viewer section gets the whole page: no tiles, no sidebar, and the height chain down to it.
+  const viewer = current?.layout === "viewer";
+  const showTiles = !current?.hidesResourceCards && !viewer;
+  const showSidebar = !viewer;
+  const fills = viewer;
 
   return (
-    <div className="grid min-w-0 grid-rows-[auto_minmax(0,1fr)]">
+    <div className={cn("grid min-w-0 grid-rows-[auto_minmax(0,1fr)]", fills && "h-full")}>
       <header className="page-pad grid gap-4 border-b">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
@@ -73,9 +76,11 @@ export function InstanceShell({ children }: { children: React.ReactNode }) {
         )}
       </header>
 
-      <div className={cn("grid grid-cols-1", showSidebar && "lg:grid-cols-[minmax(0,1fr)_280px]")}>
-        <main className="page-pad min-w-0">
-          <div className={cn("w-full", showSidebar && "max-w-5xl")}>{children}</div>
+      <div className={cn("grid grid-cols-1", showSidebar && "lg:grid-cols-[minmax(0,1fr)_280px]", fills && "min-h-0")}>
+        <main className={cn("page-pad min-w-0", fills && "flex min-h-0 flex-col")}>
+          <div className={cn("w-full", showSidebar && "max-w-5xl", fills && "flex min-h-0 flex-1 flex-col")}>
+            {children}
+          </div>
         </main>
         {showSidebar && (
           <div className="page-pad border-t lg:border-t-0 lg:border-l">
