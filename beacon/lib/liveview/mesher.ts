@@ -19,7 +19,7 @@ export type TintKind = "grass" | "foliage" | "water";
 /** lib/liveview/blocks.json: texture averages per block and the biome tints (scripts/block-colors.mjs). */
 export interface BlockTables {
   blocks: Record<string, { rgb: number[]; alpha?: number; tint?: TintKind }>;
-  biomes: Record<string, Record<TintKind, number[]>>;
+  biomes: Record<string, Record<TintKind, number[]> & { sky?: number[] }>;
 }
 
 /** The chunk at (dx, dz) relative to the one being meshed; undefined = not loaded (treated as air). */
@@ -39,12 +39,12 @@ const TRANSLUCENT = 2;
 const CCW = [0, 2, 3, 1] as const;
 const CW = [0, 1, 3, 2] as const;
 const FACES = [
-  { n: [1, 0, 0], t1: [0, 1, 0], t2: [0, 0, 1], order: CCW, shade: 0.72 }, // +x east
-  { n: [-1, 0, 0], t1: [0, 1, 0], t2: [0, 0, 1], order: CW, shade: 0.72 }, // -x west
+  { n: [1, 0, 0], t1: [0, 1, 0], t2: [0, 0, 1], order: CCW, shade: 0.6 }, // +x east
+  { n: [-1, 0, 0], t1: [0, 1, 0], t2: [0, 0, 1], order: CW, shade: 0.6 }, // -x west
   { n: [0, 1, 0], t1: [0, 0, 1], t2: [1, 0, 0], order: CCW, shade: 1.0 }, // +y top
   { n: [0, -1, 0], t1: [0, 0, 1], t2: [1, 0, 0], order: CW, shade: 0.5 }, // -y bottom
-  { n: [0, 0, 1], t1: [1, 0, 0], t2: [0, 1, 0], order: CCW, shade: 0.82 }, // +z south
-  { n: [0, 0, -1], t1: [1, 0, 0], t2: [0, 1, 0], order: CW, shade: 0.82 }, // -z north
+  { n: [0, 0, 1], t1: [1, 0, 0], t2: [0, 1, 0], order: CCW, shade: 0.8 }, // +z south
+  { n: [0, 0, -1], t1: [1, 0, 0], t2: [0, 1, 0], order: CW, shade: 0.8 }, // -z north
 ] as const;
 
 const AO_FACTOR = [0.5, 0.68, 0.84, 1.0];

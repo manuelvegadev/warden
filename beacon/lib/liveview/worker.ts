@@ -3,6 +3,7 @@
 import tables from "./blocks.json";
 import { type ChunkData, chunkKey, decodeChunk, gunzip, parseChunkKey } from "./format";
 import { type BlockTables, type MeshData, meshChunk } from "./mesher";
+import type { RGB } from "./sky";
 
 export type WorkerRequest =
   /** One transferred buffer holding every blob; each record is a view into it. */
@@ -16,7 +17,16 @@ export type WorkerRequest =
   | { type: "clear" };
 
 export type WorkerResponse =
-  | { type: "mesh"; world: string; cx: number; cz: number; hash: string; mesh: MeshData }
+  | {
+      type: "mesh";
+      world: string;
+      cx: number;
+      cz: number;
+      hash: string;
+      mesh: MeshData;
+      /** Daytime sky colour of the chunk's most common biome, for the scene's background and fog. */
+      sky: RGB | null;
+    }
   | { type: "error"; message: string };
 
 const chunks = new Map<string, { data: ChunkData; hash: string }>();
@@ -25,11 +35,21 @@ let world = "";
 const post = (msg: WorkerResponse, transfer: Transferable[] = []) =>
   (self as unknown as Worker).postMessage(msg, transfer);
 
+/** The daytime sky of the biome that covers most of the chunk's columns. */
+function skyOf(data: ChunkData): RGB | null {
+  const counts = new Uint16Array(data.biomeNames.length || 1);
+  for (let i = 0; i < 256; i++) counts[data.biomes[i]]++;
+  let best = 0;
+  for (let i = 1; i < counts.length; i++) if (counts[i] > counts[best]) best = i;
+  const sky = (tables as BlockTables).biomes[data.biomeNames[best]]?.sky;
+  return sky ? [sky[0], sky[1], sky[2]] : null;
+}
+
 function emit(cx: number, cz: number) {
   const chunk = chunks.get(chunkKey(cx, cz));
   if (!chunk) return;
   const mesh = meshChunk(chunk.data, (dx, dz) => chunks.get(chunkKey(cx + dx, cz + dz))?.data, tables as BlockTables);
-  post({ type: "mesh", world, cx, cz, hash: chunk.hash, mesh }, [
+  post({ type: "mesh", world, cx, cz, hash: chunk.hash, mesh, sky: skyOf(chunk.data) }, [
     mesh.positions.buffer,
     mesh.colors.buffer,
     mesh.indices.buffer,

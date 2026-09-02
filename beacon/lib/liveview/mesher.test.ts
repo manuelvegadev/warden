@@ -112,9 +112,9 @@ describe("meshChunk", () => {
     // A top face in the middle of the plain: every corner is open (ao 3), shade 1.0.
     const top = quad(m, (xs, ys, zs) => ys.every((y) => y === 65) && within(xs, 5, 6) && within(zs, 5, 6));
     assert.deepEqual(top, [127, 178, 56]);
-    // A west face at the chunk edge (x = 0), two rows under the surface: shade 0.72, corners open.
+    // A west face at the chunk edge (x = 0), two rows under the surface: shade 0.6, corners open.
     const side = quad(m, (xs, ys, zs) => xs.every((x) => x === 0) && within(ys, 58, 59) && within(zs, 5, 6));
-    assert.deepEqual(side, [Math.round(112 * 0.72), Math.round(112 * 0.72), Math.round(112 * 0.72)]);
+    assert.deepEqual(side, [Math.round(112 * 0.6), Math.round(112 * 0.6), Math.round(112 * 0.6)]);
     // The pool floor (stone under water) at the pool's corner: the vertex against two grass walls is
     // fully occluded (ao 0), the one inside the pool sees only water (ao 3). Water never occludes.
     const floor = quadColors(m, (xs, ys, zs) => ys.every((y) => y === 64) && within(xs, 10, 11) && within(zs, 10, 11));
@@ -125,7 +125,7 @@ describe("meshChunk", () => {
     // The grass wall of the pool, facing the water at x = 10: darker than an open side face.
     const wall = quad(m, (xs, ys, zs) => xs.every((x) => x === 10) && within(ys, 64, 65) && within(zs, 10, 11));
     assert.ok(wall);
-    assert.ok(wall[0] < Math.round(127 * 0.72), `wall ${wall}`);
+    assert.ok(wall[0] < Math.round(127 * 0.6), `wall ${wall}`);
   });
 
   it("culls translucent faces across chunk borders even when palettes differ", () => {
@@ -182,7 +182,7 @@ describe("meshChunk", () => {
     assert.deepEqual(top, [200, 100, 0]);
     // Stone is not in the table: its palette (map) colour is used as is.
     const side = quad(m, (xs, ys, zs) => xs.every((x) => x === 0) && within(ys, 58, 59) && within(zs, 5, 6));
-    assert.deepEqual(side, [Math.round(112 * 0.72), Math.round(112 * 0.72), Math.round(112 * 0.72)]);
+    assert.deepEqual(side, [Math.round(112 * 0.6), Math.round(112 * 0.6), Math.round(112 * 0.6)]);
     // The unknown liquid is translucent through its flag, with the table's water alpha.
     assert.equal(m.transIndices.length / 6, 4);
     assert.equal(m.transColors[3], Math.round(0.55 * 255));

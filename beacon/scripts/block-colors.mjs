@@ -7,7 +7,7 @@
 // Only the JDK-free bits of the jar are read: blockstates, block models, block textures, the two
 // colormaps and the biome definitions. The PNG decoder below covers what those textures use.
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -28,12 +28,33 @@ execFileSync("unzip", [
   "assets/minecraft/models/block/*",
   "assets/minecraft/textures/block/*",
   "assets/minecraft/textures/colormap/*",
+  "assets/minecraft/textures/environment/*",
   "data/minecraft/worldgen/biome/*",
   "version.json",
   "-d",
   root,
 ]);
 const A = join(root, "assets/minecraft");
+
+// ---- Sky textures, copied as they are into public/liveview: the sun, the eight moon phases in the
+// game's phase order (day mod 8), and the cloud map (256×256, one pixel = 12 blocks).
+const PUBLIC = join(dirname(fileURLToPath(import.meta.url)), "..", "public", "liveview");
+mkdirSync(PUBLIC, { recursive: true });
+const MOON_PHASES = [
+  "full_moon",
+  "waning_gibbous",
+  "third_quarter",
+  "waning_crescent",
+  "new_moon",
+  "waxing_crescent",
+  "first_quarter",
+  "waxing_gibbous",
+];
+copyFileSync(join(A, "textures/environment/celestial/sun.png"), join(PUBLIC, "sun.png"));
+MOON_PHASES.forEach((phase, i) => {
+  copyFileSync(join(A, `textures/environment/celestial/moon/${phase}.png`), join(PUBLIC, `moon-${i}.png`));
+});
+copyFileSync(join(A, "textures/environment/clouds.png"), join(PUBLIC, "clouds.png"));
 
 // ---- PNG: enough of the format for Minecraft's block textures (8-bit RGB/RGBA/gray, palettes of any depth).
 function png(path) {
@@ -211,7 +232,7 @@ function tintKind(name) {
 }
 
 /** Blocks whose texture alpha understates or overstates how see-through they should look in a flat render. */
-const ALPHA_OVERRIDES = { water: 0.55, ice: 0.75, frosted_ice: 0.75, packed_ice: 1, blue_ice: 1 };
+const ALPHA_OVERRIDES = { water: 0.7, ice: 0.75, frosted_ice: 0.75, packed_ice: 1, blue_ice: 1 };
 /** Leaves are cut-outs (alpha 0.5–0.7 by pixel count) but read as nearly solid canopies in the game. */
 const LEAVES_ALPHA = 0.85;
 
@@ -287,6 +308,28 @@ const lookup = (map, t, d) => {
   const o = (y * map.w + x) * 4;
   return [map.data[o], map.data[o + 1], map.data[o + 2]];
 };
+/** The game's overworld sky colour: a hue that drifts with temperature (OverworldBiomes.calculateSkyColor). */
+function skyFromTemperature(t) {
+  const f = Math.min(1, Math.max(-1, t / 3));
+  return hsv(0.62222 - f * 0.05, 0.5 + f * 0.1, 1.0);
+}
+function hsv(h, s, v) {
+  const i = Math.floor(h * 6);
+  const f = h * 6 - i;
+  const p = v * (1 - s);
+  const q = v * (1 - f * s);
+  const t = v * (1 - (1 - f) * s);
+  const [r, g, b] = [
+    [v, t, p],
+    [q, v, p],
+    [p, v, t],
+    [p, q, v],
+    [t, p, v],
+    [v, p, q],
+  ][i % 6];
+  return [r, g, b].map((c) => Math.round(c * 255));
+}
+
 const biomes = {};
 for (const file of readdirSync(join(root, "data/minecraft/worldgen/biome")).sort()) {
   const key = file.replace(/\.json$/, "");
@@ -300,7 +343,8 @@ for (const file of readdirSync(join(root, "data/minecraft/worldgen/biome")).sort
     grass = grass.map((v, i) => ((v & 0xfe) + split(0x28340a)[i]) >> 1);
   }
   const water = fx.water_color != null ? split(hex(fx.water_color)) : split(0x3f76e4);
-  biomes[key] = { grass, foliage, water };
+  const sky = fx.sky_color != null ? split(hex(fx.sky_color)) : skyFromTemperature(b.temperature);
+  biomes[key] = { grass, foliage, water, sky };
 }
 
 const version = JSON.parse(readFileSync(join(root, "version.json"), "utf8")).id ?? "unknown";

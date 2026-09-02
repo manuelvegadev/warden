@@ -1077,7 +1077,7 @@
     "warped_wall_hanging_sign": { "rgb": [55, 135, 134], "alpha": 0.62 },
     "warped_wall_sign": { "rgb": [43, 101, 98], "alpha": 0.82 },
     "warped_wart_block": { "rgb": [23, 120, 121] },
-    "water": { "rgb": [177, 177, 177], "alpha": 0.55, "tint": "water" },
+    "water": { "rgb": [177, 177, 177], "alpha": 0.7, "tint": "water" },
     "water_cauldron": { "rgb": [177, 177, 177], "tint": "water" },
     "waxed_chiseled_copper": { "rgb": [184, 101, 74] },
     "waxed_copper_bars": { "rgb": [156, 81, 55], "alpha": 0.45 },
@@ -1195,71 +1195,331 @@
     "zombie_wall_head": { "rgb": [81, 62, 51] }
   },
   "biomes": {
-    "badlands": { "grass": [144, 129, 77], "foliage": [158, 129, 77], "water": [63, 118, 228] },
-    "bamboo_jungle": { "grass": [89, 201, 60], "foliage": [48, 187, 11], "water": [63, 118, 228] },
-    "basalt_deltas": { "grass": [191, 183, 85], "foliage": [174, 164, 42], "water": [63, 118, 228] },
-    "beach": { "grass": [145, 189, 89], "foliage": [119, 171, 47], "water": [63, 118, 228] },
-    "birch_forest": { "grass": [136, 187, 103], "foliage": [107, 169, 65], "water": [63, 118, 228] },
-    "cherry_grove": { "grass": [182, 219, 97], "foliage": [182, 219, 97], "water": [93, 183, 239] },
-    "cold_ocean": { "grass": [142, 185, 113], "foliage": [113, 167, 78], "water": [61, 87, 214] },
-    "crimson_forest": { "grass": [191, 183, 85], "foliage": [174, 164, 42], "water": [63, 118, 228] },
-    "dark_forest": { "grass": [80, 122, 50], "foliage": [88, 174, 49], "water": [63, 118, 228] },
-    "deep_cold_ocean": { "grass": [142, 185, 113], "foliage": [113, 167, 78], "water": [61, 87, 214] },
-    "deep_dark": { "grass": [145, 189, 89], "foliage": [119, 171, 47], "water": [63, 118, 228] },
-    "deep_frozen_ocean": { "grass": [142, 185, 113], "foliage": [113, 167, 78], "water": [57, 56, 201] },
-    "deep_lukewarm_ocean": { "grass": [142, 185, 113], "foliage": [113, 167, 78], "water": [69, 173, 242] },
-    "deep_ocean": { "grass": [142, 185, 113], "foliage": [113, 167, 78], "water": [63, 118, 228] },
-    "desert": { "grass": [191, 183, 85], "foliage": [174, 164, 42], "water": [63, 118, 228] },
-    "dripstone_caves": { "grass": [145, 189, 89], "foliage": [119, 171, 47], "water": [63, 118, 228] },
-    "end_barrens": { "grass": [142, 185, 113], "foliage": [113, 167, 78], "water": [63, 118, 228] },
-    "end_highlands": { "grass": [142, 185, 113], "foliage": [113, 167, 78], "water": [63, 118, 228] },
-    "end_midlands": { "grass": [142, 185, 113], "foliage": [113, 167, 78], "water": [63, 118, 228] },
-    "eroded_badlands": { "grass": [144, 129, 77], "foliage": [158, 129, 77], "water": [63, 118, 228] },
-    "flower_forest": { "grass": [121, 192, 91], "foliage": [88, 174, 49], "water": [63, 118, 228] },
-    "forest": { "grass": [121, 192, 91], "foliage": [88, 174, 49], "water": [63, 118, 228] },
-    "frozen_ocean": { "grass": [128, 180, 151], "foliage": [96, 161, 123], "water": [57, 56, 201] },
-    "frozen_peaks": { "grass": [128, 180, 151], "foliage": [96, 161, 123], "water": [63, 118, 228] },
-    "frozen_river": { "grass": [128, 180, 151], "foliage": [96, 161, 123], "water": [57, 56, 201] },
-    "grove": { "grass": [128, 180, 151], "foliage": [96, 161, 123], "water": [63, 118, 228] },
-    "ice_spikes": { "grass": [128, 180, 151], "foliage": [96, 161, 123], "water": [63, 118, 228] },
-    "jagged_peaks": { "grass": [128, 180, 151], "foliage": [96, 161, 123], "water": [63, 118, 228] },
-    "jungle": { "grass": [89, 201, 60], "foliage": [48, 187, 11], "water": [63, 118, 228] },
-    "lukewarm_ocean": { "grass": [142, 185, 113], "foliage": [113, 167, 78], "water": [69, 173, 242] },
-    "lush_caves": { "grass": [142, 185, 113], "foliage": [113, 167, 78], "water": [63, 118, 228] },
-    "mangrove_swamp": { "grass": [106, 112, 57], "foliage": [141, 177, 39], "water": [58, 122, 106] },
-    "meadow": { "grass": [131, 187, 110], "foliage": [100, 169, 73], "water": [14, 78, 207] },
-    "mushroom_fields": { "grass": [85, 201, 63], "foliage": [43, 187, 15], "water": [63, 118, 228] },
-    "nether_wastes": { "grass": [191, 183, 85], "foliage": [174, 164, 42], "water": [63, 118, 228] },
-    "ocean": { "grass": [142, 185, 113], "foliage": [113, 167, 78], "water": [63, 118, 228] },
-    "old_growth_birch_forest": { "grass": [136, 187, 103], "foliage": [107, 169, 65], "water": [63, 118, 228] },
-    "old_growth_pine_taiga": { "grass": [134, 184, 127], "foliage": [104, 165, 95], "water": [63, 118, 228] },
-    "old_growth_spruce_taiga": { "grass": [134, 183, 131], "foliage": [104, 164, 100], "water": [63, 118, 228] },
-    "pale_garden": { "grass": [119, 130, 114], "foliage": [135, 141, 118], "water": [118, 136, 157] },
-    "plains": { "grass": [145, 189, 89], "foliage": [119, 171, 47], "water": [63, 118, 228] },
-    "river": { "grass": [142, 185, 113], "foliage": [113, 167, 78], "water": [63, 118, 228] },
-    "savanna": { "grass": [191, 183, 85], "foliage": [174, 164, 42], "water": [63, 118, 228] },
-    "savanna_plateau": { "grass": [191, 183, 85], "foliage": [174, 164, 42], "water": [63, 118, 228] },
-    "small_end_islands": { "grass": [142, 185, 113], "foliage": [113, 167, 78], "water": [63, 118, 228] },
-    "snowy_beach": { "grass": [131, 181, 147], "foliage": [100, 162, 120], "water": [61, 87, 214] },
-    "snowy_plains": { "grass": [128, 180, 151], "foliage": [96, 161, 123], "water": [63, 118, 228] },
-    "snowy_slopes": { "grass": [128, 180, 151], "foliage": [96, 161, 123], "water": [63, 118, 228] },
-    "snowy_taiga": { "grass": [128, 180, 151], "foliage": [96, 161, 123], "water": [61, 87, 214] },
-    "soul_sand_valley": { "grass": [191, 183, 85], "foliage": [174, 164, 42], "water": [63, 118, 228] },
-    "sparse_jungle": { "grass": [100, 199, 63], "foliage": [62, 184, 15], "water": [63, 118, 228] },
-    "stony_peaks": { "grass": [155, 189, 75], "foliage": [130, 172, 30], "water": [63, 118, 228] },
-    "stony_shore": { "grass": [138, 182, 137], "foliage": [109, 163, 107], "water": [63, 118, 228] },
-    "sulfur_caves": { "grass": [171, 166, 79], "foliage": [119, 171, 47], "water": [52, 191, 137] },
-    "sunflower_plains": { "grass": [145, 189, 89], "foliage": [119, 171, 47], "water": [63, 118, 228] },
-    "swamp": { "grass": [106, 112, 57], "foliage": [106, 112, 57], "water": [97, 123, 100] },
-    "taiga": { "grass": [134, 183, 131], "foliage": [104, 164, 100], "water": [63, 118, 228] },
-    "the_end": { "grass": [142, 185, 113], "foliage": [113, 167, 78], "water": [63, 118, 228] },
-    "the_void": { "grass": [142, 185, 113], "foliage": [113, 167, 78], "water": [63, 118, 228] },
-    "warm_ocean": { "grass": [142, 185, 113], "foliage": [113, 167, 78], "water": [67, 213, 238] },
-    "warped_forest": { "grass": [191, 183, 85], "foliage": [174, 164, 42], "water": [63, 118, 228] },
-    "windswept_forest": { "grass": [138, 182, 137], "foliage": [109, 163, 107], "water": [63, 118, 228] },
-    "windswept_gravelly_hills": { "grass": [138, 182, 137], "foliage": [109, 163, 107], "water": [63, 118, 228] },
-    "windswept_hills": { "grass": [138, 182, 137], "foliage": [109, 163, 107], "water": [63, 118, 228] },
-    "windswept_savanna": { "grass": [191, 183, 85], "foliage": [174, 164, 42], "water": [63, 118, 228] },
-    "wooded_badlands": { "grass": [144, 129, 77], "foliage": [158, 129, 77], "water": [63, 118, 228] }
+    "badlands": { "grass": [144, 129, 77], "foliage": [158, 129, 77], "water": [63, 118, 228], "sky": [111, 178, 255] },
+    "bamboo_jungle": {
+      "grass": [89, 201, 60],
+      "foliage": [48, 187, 11],
+      "water": [63, 118, 228],
+      "sky": [119, 168, 255]
+    },
+    "basalt_deltas": {
+      "grass": [191, 183, 85],
+      "foliage": [174, 164, 42],
+      "water": [63, 118, 228],
+      "sky": [111, 178, 255]
+    },
+    "beach": { "grass": [145, 189, 89], "foliage": [119, 171, 47], "water": [63, 118, 228], "sky": [121, 167, 255] },
+    "birch_forest": {
+      "grass": [136, 187, 103],
+      "foliage": [107, 169, 65],
+      "water": [63, 118, 228],
+      "sky": [122, 166, 255]
+    },
+    "cherry_grove": {
+      "grass": [182, 219, 97],
+      "foliage": [182, 219, 97],
+      "water": [93, 183, 239],
+      "sky": [123, 165, 255]
+    },
+    "cold_ocean": {
+      "grass": [142, 185, 113],
+      "foliage": [113, 167, 78],
+      "water": [61, 87, 214],
+      "sky": [123, 165, 255]
+    },
+    "crimson_forest": {
+      "grass": [191, 183, 85],
+      "foliage": [174, 164, 42],
+      "water": [63, 118, 228],
+      "sky": [111, 178, 255]
+    },
+    "dark_forest": {
+      "grass": [80, 122, 50],
+      "foliage": [88, 174, 49],
+      "water": [63, 118, 228],
+      "sky": [122, 166, 255]
+    },
+    "deep_cold_ocean": {
+      "grass": [142, 185, 113],
+      "foliage": [113, 167, 78],
+      "water": [61, 87, 214],
+      "sky": [123, 165, 255]
+    },
+    "deep_dark": {
+      "grass": [145, 189, 89],
+      "foliage": [119, 171, 47],
+      "water": [63, 118, 228],
+      "sky": [121, 167, 255]
+    },
+    "deep_frozen_ocean": {
+      "grass": [142, 185, 113],
+      "foliage": [113, 167, 78],
+      "water": [57, 56, 201],
+      "sky": [123, 165, 255]
+    },
+    "deep_lukewarm_ocean": {
+      "grass": [142, 185, 113],
+      "foliage": [113, 167, 78],
+      "water": [69, 173, 242],
+      "sky": [123, 165, 255]
+    },
+    "deep_ocean": {
+      "grass": [142, 185, 113],
+      "foliage": [113, 167, 78],
+      "water": [63, 118, 228],
+      "sky": [123, 165, 255]
+    },
+    "desert": { "grass": [191, 183, 85], "foliage": [174, 164, 42], "water": [63, 118, 228], "sky": [111, 178, 255] },
+    "dripstone_caves": {
+      "grass": [145, 189, 89],
+      "foliage": [119, 171, 47],
+      "water": [63, 118, 228],
+      "sky": [121, 167, 255]
+    },
+    "end_barrens": {
+      "grass": [142, 185, 113],
+      "foliage": [113, 167, 78],
+      "water": [63, 118, 228],
+      "sky": [123, 165, 255]
+    },
+    "end_highlands": {
+      "grass": [142, 185, 113],
+      "foliage": [113, 167, 78],
+      "water": [63, 118, 228],
+      "sky": [123, 165, 255]
+    },
+    "end_midlands": {
+      "grass": [142, 185, 113],
+      "foliage": [113, 167, 78],
+      "water": [63, 118, 228],
+      "sky": [123, 165, 255]
+    },
+    "eroded_badlands": {
+      "grass": [144, 129, 77],
+      "foliage": [158, 129, 77],
+      "water": [63, 118, 228],
+      "sky": [111, 178, 255]
+    },
+    "flower_forest": {
+      "grass": [121, 192, 91],
+      "foliage": [88, 174, 49],
+      "water": [63, 118, 228],
+      "sky": [122, 166, 255]
+    },
+    "forest": { "grass": [121, 192, 91], "foliage": [88, 174, 49], "water": [63, 118, 228], "sky": [122, 166, 255] },
+    "frozen_ocean": {
+      "grass": [128, 180, 151],
+      "foliage": [96, 161, 123],
+      "water": [57, 56, 201],
+      "sky": [128, 162, 255]
+    },
+    "frozen_peaks": {
+      "grass": [128, 180, 151],
+      "foliage": [96, 161, 123],
+      "water": [63, 118, 228],
+      "sky": [133, 157, 255]
+    },
+    "frozen_river": {
+      "grass": [128, 180, 151],
+      "foliage": [96, 161, 123],
+      "water": [57, 56, 201],
+      "sky": [128, 162, 255]
+    },
+    "grove": { "grass": [128, 180, 151], "foliage": [96, 161, 123], "water": [63, 118, 228], "sky": [129, 160, 255] },
+    "ice_spikes": {
+      "grass": [128, 180, 151],
+      "foliage": [96, 161, 123],
+      "water": [63, 118, 228],
+      "sky": [128, 162, 255]
+    },
+    "jagged_peaks": {
+      "grass": [128, 180, 151],
+      "foliage": [96, 161, 123],
+      "water": [63, 118, 228],
+      "sky": [133, 157, 255]
+    },
+    "jungle": { "grass": [89, 201, 60], "foliage": [48, 187, 11], "water": [63, 118, 228], "sky": [119, 168, 255] },
+    "lukewarm_ocean": {
+      "grass": [142, 185, 113],
+      "foliage": [113, 167, 78],
+      "water": [69, 173, 242],
+      "sky": [123, 165, 255]
+    },
+    "lush_caves": {
+      "grass": [142, 185, 113],
+      "foliage": [113, 167, 78],
+      "water": [63, 118, 228],
+      "sky": [123, 165, 255]
+    },
+    "mangrove_swamp": {
+      "grass": [106, 112, 57],
+      "foliage": [141, 177, 39],
+      "water": [58, 122, 106],
+      "sky": [121, 167, 255]
+    },
+    "meadow": { "grass": [131, 187, 110], "foliage": [100, 169, 73], "water": [14, 78, 207], "sky": [123, 165, 255] },
+    "mushroom_fields": {
+      "grass": [85, 201, 63],
+      "foliage": [43, 187, 15],
+      "water": [63, 118, 228],
+      "sky": [120, 168, 255]
+    },
+    "nether_wastes": {
+      "grass": [191, 183, 85],
+      "foliage": [174, 164, 42],
+      "water": [63, 118, 228],
+      "sky": [111, 178, 255]
+    },
+    "ocean": { "grass": [142, 185, 113], "foliage": [113, 167, 78], "water": [63, 118, 228], "sky": [123, 165, 255] },
+    "old_growth_birch_forest": {
+      "grass": [136, 187, 103],
+      "foliage": [107, 169, 65],
+      "water": [63, 118, 228],
+      "sky": [122, 166, 255]
+    },
+    "old_growth_pine_taiga": {
+      "grass": [134, 184, 127],
+      "foliage": [104, 165, 95],
+      "water": [63, 118, 228],
+      "sky": [125, 164, 255]
+    },
+    "old_growth_spruce_taiga": {
+      "grass": [134, 183, 131],
+      "foliage": [104, 164, 100],
+      "water": [63, 118, 228],
+      "sky": [125, 163, 255]
+    },
+    "pale_garden": {
+      "grass": [119, 130, 114],
+      "foliage": [135, 141, 118],
+      "water": [118, 136, 157],
+      "sky": [122, 166, 255]
+    },
+    "plains": { "grass": [145, 189, 89], "foliage": [119, 171, 47], "water": [63, 118, 228], "sky": [121, 167, 255] },
+    "river": { "grass": [142, 185, 113], "foliage": [113, 167, 78], "water": [63, 118, 228], "sky": [123, 165, 255] },
+    "savanna": { "grass": [191, 183, 85], "foliage": [174, 164, 42], "water": [63, 118, 228], "sky": [111, 178, 255] },
+    "savanna_plateau": {
+      "grass": [191, 183, 85],
+      "foliage": [174, 164, 42],
+      "water": [63, 118, 228],
+      "sky": [111, 178, 255]
+    },
+    "small_end_islands": {
+      "grass": [142, 185, 113],
+      "foliage": [113, 167, 78],
+      "water": [63, 118, 228],
+      "sky": [123, 165, 255]
+    },
+    "snowy_beach": {
+      "grass": [131, 181, 147],
+      "foliage": [100, 162, 120],
+      "water": [61, 87, 214],
+      "sky": [127, 162, 255]
+    },
+    "snowy_plains": {
+      "grass": [128, 180, 151],
+      "foliage": [96, 161, 123],
+      "water": [63, 118, 228],
+      "sky": [128, 162, 255]
+    },
+    "snowy_slopes": {
+      "grass": [128, 180, 151],
+      "foliage": [96, 161, 123],
+      "water": [63, 118, 228],
+      "sky": [130, 160, 255]
+    },
+    "snowy_taiga": {
+      "grass": [128, 180, 151],
+      "foliage": [96, 161, 123],
+      "water": [61, 87, 214],
+      "sky": [132, 158, 255]
+    },
+    "soul_sand_valley": {
+      "grass": [191, 183, 85],
+      "foliage": [174, 164, 42],
+      "water": [63, 118, 228],
+      "sky": [111, 178, 255]
+    },
+    "sparse_jungle": {
+      "grass": [100, 199, 63],
+      "foliage": [62, 184, 15],
+      "water": [63, 118, 228],
+      "sky": [119, 168, 255]
+    },
+    "stony_peaks": {
+      "grass": [155, 189, 75],
+      "foliage": [130, 172, 30],
+      "water": [63, 118, 228],
+      "sky": [119, 169, 255]
+    },
+    "stony_shore": {
+      "grass": [138, 182, 137],
+      "foliage": [109, 163, 107],
+      "water": [63, 118, 228],
+      "sky": [126, 163, 255]
+    },
+    "sulfur_caves": {
+      "grass": [171, 166, 79],
+      "foliage": [119, 171, 47],
+      "water": [52, 191, 137],
+      "sky": [121, 167, 255]
+    },
+    "sunflower_plains": {
+      "grass": [145, 189, 89],
+      "foliage": [119, 171, 47],
+      "water": [63, 118, 228],
+      "sky": [121, 167, 255]
+    },
+    "swamp": { "grass": [106, 112, 57], "foliage": [106, 112, 57], "water": [97, 123, 100], "sky": [121, 167, 255] },
+    "taiga": { "grass": [134, 183, 131], "foliage": [104, 164, 100], "water": [63, 118, 228], "sky": [125, 163, 255] },
+    "the_end": { "grass": [142, 185, 113], "foliage": [113, 167, 78], "water": [63, 118, 228], "sky": [123, 165, 255] },
+    "the_void": {
+      "grass": [142, 185, 113],
+      "foliage": [113, 167, 78],
+      "water": [63, 118, 228],
+      "sky": [123, 165, 255]
+    },
+    "warm_ocean": {
+      "grass": [142, 185, 113],
+      "foliage": [113, 167, 78],
+      "water": [67, 213, 238],
+      "sky": [123, 165, 255]
+    },
+    "warped_forest": {
+      "grass": [191, 183, 85],
+      "foliage": [174, 164, 42],
+      "water": [63, 118, 228],
+      "sky": [111, 178, 255]
+    },
+    "windswept_forest": {
+      "grass": [138, 182, 137],
+      "foliage": [109, 163, 107],
+      "water": [63, 118, 228],
+      "sky": [126, 163, 255]
+    },
+    "windswept_gravelly_hills": {
+      "grass": [138, 182, 137],
+      "foliage": [109, 163, 107],
+      "water": [63, 118, 228],
+      "sky": [126, 163, 255]
+    },
+    "windswept_hills": {
+      "grass": [138, 182, 137],
+      "foliage": [109, 163, 107],
+      "water": [63, 118, 228],
+      "sky": [126, 163, 255]
+    },
+    "windswept_savanna": {
+      "grass": [191, 183, 85],
+      "foliage": [174, 164, 42],
+      "water": [63, 118, 228],
+      "sky": [111, 178, 255]
+    },
+    "wooded_badlands": {
+      "grass": [144, 129, 77],
+      "foliage": [158, 129, 77],
+      "water": [63, 118, 228],
+      "sky": [111, 178, 255]
+    }
   }
 }
