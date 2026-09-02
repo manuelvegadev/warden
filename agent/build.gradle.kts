@@ -7,12 +7,17 @@ group = "io.github.manuelvega.warden"
 version = "0.1.0"
 
 repositories {
-    // Paper's artifacts come from Paper's repository only: asking Maven Central first costs a request
-    // per artifact that it answers with 404, or, on a busy runner, with 429 and a failed build.
-    maven("https://repo.papermc.io/repository/maven-public/") {
-        content { includeGroupAndSubgroups("io.papermc") }
+    // Paper's repository first: it serves paper-api and what it depends on (Mojang's and md-5's
+    // artifacts included). Asking Maven Central for those costs a request per artifact that it
+    // answers with 404, or, on a busy runner, with 429 and a failed build, so it is never asked.
+    maven("https://repo.papermc.io/repository/maven-public/")
+    mavenCentral {
+        content {
+            excludeGroupAndSubgroups("io.papermc")
+            excludeGroup("com.mojang")
+            excludeGroup("net.md-5")
+        }
     }
-    mavenCentral()
 }
 
 dependencies {
