@@ -69,7 +69,8 @@ func TestLiveViewInstallsAgentOnCreatedAndLoadedInstances(t *testing.T) {
 
 	// A daemon restart: the instance is loaded from disk and the token still resolves.
 	m2 := NewManager(root, nil)
-	m2.SetAgent("ws://127.0.0.1:2/agent/v1", func() ([]byte, string, error) { return jar, "0.2.0", nil }, pluginsOnPaper)
+	jar2 := agentJar(t, "0.2.0")
+	m2.SetAgent("ws://127.0.0.1:2/agent/v1", func() ([]byte, string, error) { return jar2, "0.2.0", nil }, pluginsOnPaper)
 	if err := m2.LoadAll(); err != nil {
 		t.Fatal(err)
 	}
@@ -83,6 +84,15 @@ func TestLiveViewInstallsAgentOnCreatedAndLoadedInstances(t *testing.T) {
 	}
 	if rec, _ := loaded.InstalledPlugin(agent.FileName); rec.Version != "0.2.0" {
 		t.Fatalf("jar not upgraded: %+v", rec)
+	}
+	// A rebuilt jar with the same version number is still new: content decides, not the version.
+	rebuilt := append(agentJar(t, "0.2.0"), 0) // same version, different bytes
+	m2.SetAgent("ws://127.0.0.1:2/agent/v1", func() ([]byte, string, error) { return rebuilt, "0.2.0", nil }, pluginsOnPaper)
+	if msg := loaded.refreshAgent(); msg != "" {
+		t.Fatalf("refresh: %s", msg)
+	}
+	if got, _ := os.ReadFile(filepath.Join(loaded.ServerDir(), "plugins", agent.FileName)); len(got) != len(rebuilt) {
+		t.Fatalf("rebuilt jar not installed: %d bytes, want %d", len(got), len(rebuilt))
 	}
 	cfg, _ = os.ReadFile(filepath.Join(loaded.ServerDir(), "plugins", "WardenAgent", "config.yml"))
 	if !strings.Contains(string(cfg), "ws://127.0.0.1:2/agent/v1") {

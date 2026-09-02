@@ -2,6 +2,7 @@ package instance
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/hex"
 	"errors"
@@ -123,7 +124,8 @@ func (i *Instance) refreshAgent() string {
 	return ""
 }
 
-// installAgent places the embedded jar (once per version) and writes the plugin config.
+// installAgent places the embedded jar (whenever the installed one differs by content: a rebuilt
+// jar with the same version number counts) and writes the plugin config.
 func (i *Instance) installAgent() error {
 	deps := i.agent
 	if deps == nil {
@@ -133,8 +135,10 @@ func (i *Instance) installAgent() error {
 	if err != nil {
 		return err
 	}
+	sum := sha256.Sum256(data)
+	hash := hex.EncodeToString(sum[:])
 	_, enabled, err := i.pluginPath(agent.FileName)
-	if rec, ok := i.InstalledPlugin(agent.FileName); !ok || rec.Version != version || err != nil || !enabled {
+	if rec, ok := i.InstalledPlugin(agent.FileName); !ok || rec.Hash != hash || err != nil || !enabled {
 		staged, err := i.stage(".agent-*")
 		if err != nil {
 			return err
@@ -143,7 +147,8 @@ func (i *Instance) installAgent() error {
 		if err := os.WriteFile(staged, data, 0o640); err != nil {
 			return err
 		}
-		rec := InstalledPlugin{Source: agentSource, ProjectID: "warden-agent", Name: "Warden Agent", Version: version}
+		rec := InstalledPlugin{Source: agentSource, ProjectID: "warden-agent", Name: "Warden Agent", Version: version,
+			HashAlgo: "sha256", Hash: hash}
 		if _, err := i.placePlugin(staged, agent.FileName, rec, nil); err != nil {
 			return err
 		}
