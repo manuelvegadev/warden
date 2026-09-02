@@ -31,9 +31,10 @@ type Instance struct {
 	Manifest *Manifest
 	Console  *RingBuffer
 
-	bc   bus.Broadcaster
-	java JavaResolver
-	sink EventSink
+	bc    bus.Broadcaster
+	java  JavaResolver
+	sink  EventSink
+	agent *agentDeps // live view: agent URL and jar (ADR-018); nil until main wires it
 
 	mu          sync.RWMutex
 	pluginMetas map[string]pluginMetaEntry // jar descriptors keyed by path, invalidated by size/mtime
@@ -132,6 +133,13 @@ func (i *Instance) system(msg string) { i.pushLine("SYSTEM", msg) }
 
 // Start launches `java <flags> -jar <jar> --nogui` in ServerDir and pumps stdout to the console.
 func (i *Instance) Start(ctx context.Context) error {
+	// The agent jar and its config follow the daemon: refreshed before every start (ADR-018). Done
+	// before taking the lock; it touches only plugins/ and a start that is refused below did no harm.
+	if s := i.State(); s == StateStopped || s == StateCrashed {
+		if msg := i.refreshAgent(); msg != "" {
+			i.system(msg)
+		}
+	}
 	i.mu.Lock()
 	if i.state == StateRunning || i.state == StateStarting || i.state == StateStopping {
 		i.mu.Unlock()

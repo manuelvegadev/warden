@@ -3,6 +3,7 @@ package config
 
 import (
 	"errors"
+	"net"
 
 	"github.com/manuelvega/warden/wardend/internal/tlsconf"
 	"log/slog"
@@ -13,6 +14,7 @@ import (
 
 type Config struct {
 	Listen         string   // WARDEND_LISTEN, e.g. ":8080"
+	AgentListen    string   // WARDEND_AGENT_LISTEN, plain HTTP for the agent plugin (ADR-018); loopback by default
 	DataDir        string   // WARDEND_DATA_DIR, e.g. /var/lib/warden
 	AllowedOrigins []string // WARDEND_ALLOWED_ORIGINS, comma-separated (Next.js panel origin)
 	Contact        string   // WARDEND_CONTACT, email/URL for the Fill/Hangar/Modrinth User-Agent
@@ -29,6 +31,7 @@ type Config struct {
 func Load() (*Config, error) {
 	c := &Config{
 		Listen:       env("WARDEND_LISTEN", ":8080"),
+		AgentListen:  env("WARDEND_AGENT_LISTEN", "127.0.0.1:8481"),
 		DataDir:      env("WARDEND_DATA_DIR", "./data"),
 		Contact:      env("WARDEND_CONTACT", "unknown"),
 		Level:        env("WARDEND_LOG_LEVEL", "info"),
@@ -69,6 +72,18 @@ func Load() (*Config, error) {
 }
 
 func (c *Config) ServersDir() string { return filepath.Join(c.DataDir, "servers") }
+
+// AgentURL is what the agent plugin is told to dial: the agent listener, seen from the same host.
+func (c *Config) AgentURL() string {
+	host, port, err := net.SplitHostPort(c.AgentListen)
+	if err != nil {
+		return "ws://127.0.0.1:8481/agent/v1"
+	}
+	if host == "" || host == "0.0.0.0" || host == "::" {
+		host = "127.0.0.1"
+	}
+	return "ws://" + net.JoinHostPort(host, port) + "/agent/v1"
+}
 
 // UpdateDir is where the daemon stages a verified new binary for the root installer unit.
 func (c *Config) UpdateDir() string { return filepath.Join(c.DataDir, "update") }

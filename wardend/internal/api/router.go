@@ -17,6 +17,7 @@ import (
 	"github.com/manuelvega/warden/wardend/internal/skins"
 	"github.com/manuelvega/warden/wardend/internal/store"
 	"github.com/manuelvega/warden/wardend/internal/tasks"
+	"github.com/manuelvega/warden/wardend/internal/world"
 )
 
 // Deps are the services the handlers need.
@@ -30,6 +31,7 @@ type Deps struct {
 	Metrics  *metrics.Sampler
 	Store    *store.Store
 	Skins    *skins.Service
+	World    *world.Service // live world view (ADR-018)
 	WS       http.Handler
 	// Sessions closes a user's live WebSocket connections when Beacon revokes their access.
 	Sessions interface{ RevokeUser(string) int }
@@ -107,6 +109,11 @@ func NewRouter(d Deps) http.Handler {
 	read("GET /api/v1/instances/{id}/players/{name}/advancements", s.playerAdvancements)
 	inst("POST /api/v1/instances/{id}/players/{name}/action", auth.ActionPlayersAction, s.playerAction)
 	read("GET /api/v1/instances/{id}/events", s.listEvents)
+
+	// Live world view (ADR-018)
+	read("GET /api/v1/instances/{id}/map", s.getMap)
+	inst("PUT /api/v1/instances/{id}/map", auth.ActionSettingsWrite, s.putMap)
+	read("POST /api/v1/instances/{id}/map/{world}/chunks", s.postMapChunks)
 
 	// Configuration and access lists. server.properties and the config files are manager-only: they
 	// carry rcon.password.

@@ -24,12 +24,13 @@ var ErrPortInUse = errors.New("port already used by another instance")
 
 // Manager knows every instance under serversDir.
 type Manager struct {
-	root string
-	bc   bus.Broadcaster
-	java JavaResolver
-	sink EventSink
-	mu   sync.RWMutex
-	byID map[string]*Instance
+	root  string
+	bc    bus.Broadcaster
+	java  JavaResolver
+	sink  EventSink
+	agent *agentDeps
+	mu    sync.RWMutex
+	byID  map[string]*Instance
 }
 
 func NewManager(serversDir string, bc bus.Broadcaster) *Manager {
@@ -69,6 +70,14 @@ func (m *Manager) SetBroadcaster(bc bus.Broadcaster) {
 	}
 }
 
+// newInstance builds an instance wired to every dependency the manager holds. The Set* methods
+// re-wire instances that already exist; new ones must come through here.
+func (m *Manager) newInstance(dir string, man *Manifest) *Instance {
+	inst := newInstance(dir, man, m.bc)
+	inst.java, inst.sink, inst.agent = m.java, m.sink, m.agent
+	return inst
+}
+
 // LoadAll reads each <root>/<id>/instance.json.
 func (m *Manager) LoadAll() error {
 	entries, err := os.ReadDir(m.root)
@@ -87,7 +96,7 @@ func (m *Manager) LoadAll() error {
 			slog.Warn("skipping instance dir", "dir", dir, "err", err)
 			continue
 		}
-		inst := newInstance(dir, man, m.bc)
+		inst := m.newInstance(dir, man)
 		inst.java, inst.sink = m.java, m.sink
 		if man.Jar == "" {
 			inst.state = StateInstalling // install never finished; UI can retry
@@ -147,8 +156,7 @@ func (m *Manager) Create(man *Manifest) (*Instance, error) {
 	if err := man.save(dir); err != nil {
 		return nil, err
 	}
-	inst := newInstance(dir, man, m.bc)
-	inst.java, inst.sink = m.java, m.sink
+	inst := m.newInstance(dir, man)
 	inst.state = StateInstalling
 	m.byID[man.ID] = inst
 	return inst, nil

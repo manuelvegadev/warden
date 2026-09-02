@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/manuelvega/warden/wardend/internal/agent"
 	"github.com/manuelvega/warden/wardend/internal/api"
 	"github.com/manuelvega/warden/wardend/internal/auth"
 	"github.com/manuelvega/warden/wardend/internal/catalog"
@@ -25,6 +26,7 @@ import (
 	"github.com/manuelvega/warden/wardend/internal/store"
 	"github.com/manuelvega/warden/wardend/internal/tasks"
 	"github.com/manuelvega/warden/wardend/internal/tlsconf"
+	"github.com/manuelvega/warden/wardend/internal/world"
 	"github.com/manuelvega/warden/wardend/internal/ws"
 )
 
@@ -107,6 +109,19 @@ func main() {
 	tm := tasks.NewManager(hub)
 	sampler := metrics.NewSampler(mgr, st, hub, cfg.DataDir, reg.TraitsOf)
 	sk := skins.New(cfg.DataDir, mj)
+	// Live world view (ADR-018): the agent plugin dials a plain loopback listener; the panel reads the cache.
+	wv := world.NewService(st, hub, mgr)
+	mgr.SetAgent(cfg.AgentURL(), agent.Jar, reg.TraitsOf)
+	agentMux := http.NewServeMux()
+	agentMux.HandleFunc("GET /agent/v1", wv.HandleAgent)
+	agentSrv := &http.Server{Addr: cfg.AgentListen, Handler: agentMux, ReadHeaderTimeout: 10 * time.Second}
+	go func() {
+		slog.Info("agent listener", "addr", cfg.AgentListen)
+		if err := agentSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			slog.Error("agent listener", "addr", cfg.AgentListen, "err", err)
+			stop()
+		}
+	}()
 	var sched *instance.BackupScheduler
 	sched = instance.NewBackupScheduler(mgr, func(inst *instance.Instance) {
 		tm.Run(ctx, "backup", inst.Manifest.ID, func(ctx context.Context, report tasks.Reporter) error {
@@ -122,7 +137,7 @@ func main() {
 
 	srv := &http.Server{
 		Addr:              cfg.Listen,
-		Handler:           api.NewRouter(api.Deps{Config: cfg, Manager: mgr, Verifier: verifier, Catalog: reg, Tasks: tm, Java: jm, Metrics: sampler, Store: st, Skins: sk, WS: hub, Sessions: hub, Version: version, StartedAt: time.Now().UTC()}),
+		Handler:           api.NewRouter(api.Deps{Config: cfg, Manager: mgr, Verifier: verifier, Catalog: reg, Tasks: tm, Java: jm, Metrics: sampler, Store: st, Skins: sk, World: wv, WS: hub, Sessions: hub, Version: version, StartedAt: time.Now().UTC()}),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
@@ -169,6 +184,7 @@ func main() {
 	}
 	mgr.StopAll(shutdownCtx)
 	_ = srv.Shutdown(shutdownCtx)
+	_ = agentSrv.Shutdown(shutdownCtx)
 	if acmeSrv != nil {
 		_ = acmeSrv.Shutdown(shutdownCtx)
 	}

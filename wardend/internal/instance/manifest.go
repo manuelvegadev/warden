@@ -28,6 +28,7 @@ type Manifest struct {
 	StopTimeoutS  int               `json:"stopTimeoutSeconds"`
 	Plugins       []InstalledPlugin `json:"plugins"`
 	Backups       BackupSettings    `json:"backups"`
+	LiveView      *LiveView         `json:"liveView,omitempty"` // ADR-018; nil = never enabled
 	Upgrades      []UpgradeRecord   `json:"upgrades,omitempty"` // newest last
 	CreatedAt     time.Time         `json:"createdAt"`
 }

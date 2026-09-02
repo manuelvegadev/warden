@@ -405,6 +405,13 @@ func (s *server) deleteInstance(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 500, "delete_failed", err.Error())
 		return
 	}
+	// The live-view cache and its agent connection go with the instance (ADR-018).
+	if s.World != nil {
+		s.World.Forget(r.PathValue("id"))
+	}
+	if s.Store != nil {
+		_ = s.Store.DeleteChunks(r.Context(), r.PathValue("id"))
+	}
 	w.WriteHeader(http.StatusNoContent)
 }
 

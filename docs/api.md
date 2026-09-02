@@ -163,6 +163,15 @@ Creation body:
 | GET | `/instances/{id}/players/{name}/sessions?limit=50` | `[{name,joinedAt,leftAt?}]` |
 | POST | `/instances/{id}/broadcast` | `{"text":"...","style":"say|title|actionbar"}` |
 
+## Live world view (ADR-018)
+| Method | Path | Description |
+|---|---|---|
+| GET | `/instances/{id}/map` | `{enabled,supported,agent:{connected,version?,server?},worlds:[{name,dimension,viewDistance,minY,maxY,chunks}],players:[{uuid,name,world,x,y,z,yaw,pitch,sneaking,sprinting,gamemode,vanished}],t?}`. `supported` is false for software that cannot load Bukkit plugins; `chunks` is how many the daemon caches for that world; `players` is the last positions message. |
+| PUT | `/instances/{id}/map` | `{"enabled":bool}` → `{enabled,restartRequired:true}`. Enabling installs the embedded Warden Agent jar into `plugins/` (recorded with source `warden`) and writes `plugins/WardenAgent/config.yml`; disabling removes the jar. The server loads it on the next start. `400 unsupported` for non-Paper software. Manager only. |
+| POST | `/instances/{id}/map/{world}/chunks` | `{"chunks":[[cx,cz],…]}` (≤1024) → `application/octet-stream`: for each chunk the daemon holds, `i32 cx · i32 cz · u64 hash · u32 len · gzip payload` (little-endian). Unknown chunks are omitted. The payload format is the agent's `WCK1` (ADR-018). |
+
+The agent talks to the daemon on a separate loopback listener (`WARDEND_AGENT_LISTEN`, default `127.0.0.1:8481`, plain HTTP): `GET /agent/v1` upgrades to a WebSocket authenticated by the per-instance token in `instance.json` (`liveView.agentToken`). Protocol in ADR-018.
+
 ## Import
 
 `POST /instances/import` streams the upload to `<data>/imports/` and answers as soon as it is on disk; the `import` task then unpacks it into `server/` (a single wrapper folder such as `myserver/…` is unwrapped; `__MACOSX`, `.DS_Store` and friends are dropped; entries are confined to `server/`, symlinks and special files are skipped, and the expansion is capped at 64 GiB / 2 M entries), works out what it is and finishes like an install (Java runtime, `eula.txt`, network properties). The archive is deleted afterwards.
@@ -203,6 +212,9 @@ Server → client:
 | `event` | `{kind:"player.join|player.leave|player.chat|player.advancement|player.death|server.ready|server.overloaded", player?, text, ts}` |
 | `task.progress` | `{id,type,progress:0-100,message,status}` |
 | `players` | `{online:[{uuid,name}]}` after each join/leave |
+| `world.players` | `{t,players:[PlayerPos…]}` 5 times a second while anyone is online (ADR-018); an empty list once when the last player leaves or the agent disconnects |
+| `world.chunks` | `{world,chunks:[[cx,cz,hash],…]}`: chunks whose cached content changed, coalesced to one message per world per second |
+| `world.agent` | `{connected,version?,server?}` when the instance's agent connects or drops |
 | `pong` | |
 
 ## SQLite schema (`<data>/wardend.db`)
@@ -214,6 +226,7 @@ metrics(instance_id, ts, cpu, mem_rss, disk_used, net_rx, net_tx, tps1, players)
 players(instance_id, uuid, name, first_seen, last_seen, play_time_s)
 sessions_mc(instance_id, uuid, joined_at, left_at, ip)
 events(instance_id, ts, kind, player_uuid, text)
+map_chunks(instance_id, world, cx, cz, hash, blob, updated_at)  -- live-view chunk cache (ADR-018), deleted with the instance
 tasks(id, type, instance_id, status, progress, message, error, created_at, finished_at)
 schedules(id, instance_id, cron, action, command, enabled)
 ```

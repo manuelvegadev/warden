@@ -46,6 +46,7 @@ When the daemon runs on the same box as Dokploy, Let's Encrypt inside wardend ca
 
 ```env
 WARDEND_LISTEN=172.17.0.1:8080   # docker0 gateway: reachable from Traefik's containers, not from the internet
+# WARDEND_AGENT_LISTEN=127.0.0.1:8481  # plain-HTTP loopback listener for the live-view agent plugin (ADR-018); the default is fine
 WARDEND_TLS=off
 ```
 

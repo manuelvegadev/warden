@@ -1,0 +1,2 @@
+# Built by `make agent` (see agent/); the jar is embedded in the daemon and not committed.
+*.jar
