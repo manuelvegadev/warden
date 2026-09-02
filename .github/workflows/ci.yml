@@ -28,6 +28,12 @@ jobs:
         with:
           go-version-file: wardend/go.mod
           cache-dependency-path: wardend/go.sum
+      # The agent plugin (agent/) is embedded in the daemon; its Gradle build needs a JVM to bootstrap.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 25
+      - uses: gradle/actions/setup-gradle@v4
       - run: make lint
       - run: make test
       - run: make linux
