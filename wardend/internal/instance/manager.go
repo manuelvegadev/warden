@@ -159,6 +159,9 @@ func (m *Manager) Create(man *Manifest) (*Instance, error) {
 	inst := m.newInstance(dir, man)
 	inst.state = StateInstalling
 	m.byID[man.ID] = inst
+	if err := inst.ensureAgent(); err != nil {
+		slog.Warn("live view agent", "id", man.ID, "err", err)
+	}
 	return inst, nil
 }
 

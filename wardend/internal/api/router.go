@@ -112,7 +112,6 @@ func NewRouter(d Deps) http.Handler {
 
 	// Live world view (ADR-018)
 	read("GET /api/v1/instances/{id}/map", s.getMap)
-	inst("PUT /api/v1/instances/{id}/map", auth.ActionSettingsWrite, s.putMap)
 	read("POST /api/v1/instances/{id}/map/{world}/chunks", s.postMapChunks)
 
 	// Configuration and access lists. server.properties and the config files are manager-only: they

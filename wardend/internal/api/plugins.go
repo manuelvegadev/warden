@@ -136,6 +136,10 @@ func (s *server) updatePlugin(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if instance.IsManagedPlugin(r.PathValue("file")) {
+		writeError(w, 409, "managed", instance.ErrPluginManaged.Error())
+		return
+	}
 	rec, found := inst.InstalledPlugin(r.PathValue("file"))
 	if !found || rec.ProjectID == "" {
 		writeError(w, 400, "not_from_catalog", "plugin was not installed from the catalog")
@@ -149,8 +153,11 @@ func (s *server) updatePlugin(w http.ResponseWriter, r *http.Request) {
 
 // pluginErrStatus maps plugin errors to HTTP statuses; anything unexpected is a 400 from user input.
 func pluginErrStatus(err error) int {
-	if errors.Is(err, instance.ErrPluginNotFound) {
+	switch {
+	case errors.Is(err, instance.ErrPluginNotFound):
 		return 404
+	case errors.Is(err, instance.ErrPluginManaged):
+		return 409
 	}
 	return 400
 }

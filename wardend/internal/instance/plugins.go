@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/manuelvega/warden/wardend/internal/agent"
 	"github.com/manuelvega/warden/wardend/internal/catalog"
 	"github.com/manuelvega/warden/wardend/internal/mc"
 	"github.com/manuelvega/warden/wardend/internal/tasks"
@@ -29,6 +30,8 @@ var (
 	ErrBadJarName = errors.New("invalid jar file name")
 	// ErrPluginNotFound is returned for file names that are not in server/plugins.
 	ErrPluginNotFound = errors.New("plugin not found")
+	// ErrPluginManaged: the Warden Agent is installed and kept by wardend; the panel cannot disable or remove it.
+	ErrPluginManaged = errors.New("the Warden Agent is managed by wardend and cannot be disabled or removed")
 )
 
 const (
@@ -45,12 +48,14 @@ func (i *Instance) iconsDir() string { return filepath.Join(i.Dir, "icons") }
 // PluginFile is one jar in server/plugins, joined with its descriptor and, when wardend installed
 // it, the manifest record.
 type PluginFile struct {
-	FileName string           `json:"fileName"`
-	Enabled  bool             `json:"enabled"`
-	Size     int64            `json:"size"`
-	Meta     *mc.PluginMeta   `json:"meta,omitempty"`    // from plugin.yml / paper-plugin.yml
-	IconURL  string           `json:"iconUrl,omitempty"` // API path of the icon fetched at install time
-	Source   *InstalledPlugin `json:"source,omitempty"`
+	FileName string `json:"fileName"`
+	Enabled  bool   `json:"enabled"`
+	// Managed: installed and kept up to date by wardend (the Warden Agent); not the user's to toggle or remove.
+	Managed bool             `json:"managed,omitempty"`
+	Size    int64            `json:"size"`
+	Meta    *mc.PluginMeta   `json:"meta,omitempty"`    // from plugin.yml / paper-plugin.yml
+	IconURL string           `json:"iconUrl,omitempty"` // API path of the icon fetched at install time
+	Source  *InstalledPlugin `json:"source,omitempty"`
 }
 
 // PluginUpdate names a newer catalog release than the installed one.
@@ -322,8 +327,16 @@ func (i *Instance) pluginPath(fileName string) (path string, enabled bool, err e
 	return "", false, ErrPluginNotFound
 }
 
+// IsManagedPlugin: the file is wardend's own plugin, which the user cannot toggle or remove.
+func IsManagedPlugin(fileName string) bool {
+	return fileName == agent.FileName
+}
+
 // TogglePlugin renames .jar ↔ .jar.disabled; the change applies on the next server start.
 func (i *Instance) TogglePlugin(fileName string) (enabled bool, err error) {
+	if IsManagedPlugin(fileName) {
+		return false, ErrPluginManaged
+	}
 	path, wasEnabled, err := i.pluginPath(fileName)
 	if err != nil {
 		return false, err
@@ -340,6 +353,9 @@ func (i *Instance) TogglePlugin(fileName string) (enabled bool, err error) {
 
 // RemovePlugin deletes the jar (enabled or disabled), its icon and its manifest record.
 func (i *Instance) RemovePlugin(fileName string) error {
+	if IsManagedPlugin(fileName) {
+		return ErrPluginManaged
+	}
 	path, _, err := i.pluginPath(fileName)
 	if err != nil {
 		return err
@@ -403,7 +419,7 @@ func (i *Instance) Plugins() ([]PluginFile, error) {
 			continue
 		}
 		base := strings.TrimSuffix(name, ".disabled")
-		pf := PluginFile{FileName: base, Enabled: name == base, Size: info.Size()}
+		pf := PluginFile{FileName: base, Enabled: name == base, Size: info.Size(), Managed: IsManagedPlugin(base)}
 		pf.Meta = i.pluginMeta(filepath.Join(i.pluginsDir(), name), info)
 		if rec, ok := byFile[base]; ok {
 			pf.Source = &rec

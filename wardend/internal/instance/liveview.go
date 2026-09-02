@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,9 +16,9 @@ import (
 	"github.com/manuelvega/warden/wardend/internal/catalog"
 )
 
-// LiveView is the per-instance state of the live world view (ADR-018).
+// LiveView is the per-instance state of the live world view (ADR-018). The agent is part of the
+// product: it is installed on every server that can load it, so there is no switch here.
 type LiveView struct {
-	Enabled bool `json:"enabled"`
 	// AgentToken authenticates the agent plugin on wardend's agent listener. Generated once.
 	AgentToken string `json:"agentToken,omitempty"`
 }
@@ -30,18 +31,23 @@ type agentDeps struct {
 	traits func(software string) catalog.Traits
 }
 
-// ErrLiveViewUnsupported: the software cannot load Bukkit plugins.
-var ErrLiveViewUnsupported = errors.New("the live view needs a Paper or Purpur server")
-
 const agentSource = "warden"
 
-// SetAgent wires the agent listener URL, the embedded jar and the software traits (main).
+// SetAgent wires the agent listener URL, the embedded jar and the software traits (main), and
+// brings every loaded instance's plugins/ up to date, so an existing server gets the agent too.
 func (m *Manager) SetAgent(url string, jar func() ([]byte, string, error), traits func(string) catalog.Traits) {
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	m.agent = &agentDeps{url: url, jar: jar, traits: traits}
+	all := make([]*Instance, 0, len(m.byID))
 	for _, i := range m.byID {
 		i.agent = m.agent
+		all = append(all, i)
+	}
+	m.mu.Unlock()
+	for _, i := range all {
+		if err := i.ensureAgent(); err != nil {
+			slog.Warn("live view agent", "id", i.Manifest.ID, "err", err)
+		}
 	}
 }
 
@@ -56,7 +62,7 @@ func (m *Manager) InstanceByAgentToken(token string) (string, bool) {
 		inst.mu.RLock()
 		lv := inst.Manifest.LiveView
 		inst.mu.RUnlock()
-		if lv == nil || !lv.Enabled || lv.AgentToken == "" {
+		if lv == nil || lv.AgentToken == "" || !inst.LiveViewSupported() {
 			continue
 		}
 		if subtle.ConstantTimeCompare([]byte(lv.AgentToken), []byte(token)) == 1 {
@@ -81,44 +87,33 @@ func (i *Instance) LiveView() LiveView {
 	return *i.Manifest.LiveView
 }
 
-// SetLiveView enables (installing the agent jar and its config) or disables (removing the jar) the
-// live view. The change takes effect on the next server start.
-func (i *Instance) SetLiveView(enabled bool) error {
-	if enabled && !i.LiveViewSupported() {
-		return ErrLiveViewUnsupported
+// ensureAgent installs the agent (jar and config) on a server that can load it, minting the token
+// the first time. On software without plugins it does nothing.
+func (i *Instance) ensureAgent() error {
+	if !i.LiveViewSupported() {
+		return nil
 	}
 	i.mu.Lock()
 	if i.Manifest.LiveView == nil {
 		i.Manifest.LiveView = &LiveView{}
 	}
-	lv := i.Manifest.LiveView
-	lv.Enabled = enabled
-	if enabled && lv.AgentToken == "" {
-		lv.AgentToken = newToken()
+	var err error
+	if i.Manifest.LiveView.AgentToken == "" {
+		i.Manifest.LiveView.AgentToken = newToken()
+		err = i.Manifest.save(i.Dir)
 	}
-	err := i.Manifest.save(i.Dir)
 	i.mu.Unlock()
 	if err != nil {
 		return err
 	}
-	if enabled {
-		return i.installAgent()
-	}
-	if err := i.RemovePlugin(agent.FileName); err != nil && !errors.Is(err, ErrPluginNotFound) {
-		return err
-	}
-	return nil
+	return i.installAgent()
 }
 
-// refreshAgent keeps plugins/ in step with the manifest before a start: the embedded jar when the
-// installed one is older, and config.yml always (the daemon's agent URL can change). Returns a
-// console line to show, or "".
+// refreshAgent keeps plugins/ in step before a start: the embedded jar when the installed one
+// differs, and config.yml always (the daemon's agent URL can change). Returns a console line to
+// show, or "".
 func (i *Instance) refreshAgent() string {
-	lv := i.LiveView()
-	if !lv.Enabled {
-		return ""
-	}
-	if err := i.installAgent(); err != nil {
+	if err := i.ensureAgent(); err != nil {
 		return "Live view: " + err.Error()
 	}
 	return ""

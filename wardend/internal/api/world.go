@@ -3,17 +3,14 @@ package api
 import (
 	"encoding/binary"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"strconv"
-
-	"github.com/manuelvega/warden/wardend/internal/instance"
 )
 
 // maxChunkRequest bounds one batch: a 32-chunk radius is 4225 chunks, more than any viewer asks at once.
 const maxChunkRequest = 1024
 
-// getMap is GET /instances/{id}/map: whether the live view is on, the agent state, worlds and positions.
+// getMap is GET /instances/{id}/map: whether the software can run the agent, the agent state, worlds and positions.
 func (s *server) getMap(w http.ResponseWriter, r *http.Request) {
 	inst, ok := s.instanceOr404(w, r)
 	if !ok {
@@ -21,38 +18,12 @@ func (s *server) getMap(w http.ResponseWriter, r *http.Request) {
 	}
 	snap := s.World.Snapshot(r.Context(), inst.Manifest.ID)
 	writeJSON(w, 200, map[string]any{
-		"enabled":   inst.LiveView().Enabled,
 		"supported": inst.LiveViewSupported(),
 		"agent":     snap.Agent,
 		"worlds":    snap.Worlds,
 		"players":   snap.Players,
 		"t":         snap.At,
 	})
-}
-
-// putMap is PUT /instances/{id}/map {"enabled":bool}: installs or removes the agent; a restart loads it.
-func (s *server) putMap(w http.ResponseWriter, r *http.Request) {
-	inst, ok := s.instanceOr404(w, r)
-	if !ok {
-		return
-	}
-	var body struct {
-		Enabled bool `json:"enabled"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeError(w, 400, "bad_request", "enabled is required")
-		return
-	}
-	if err := inst.SetLiveView(body.Enabled); err != nil {
-		switch {
-		case errors.Is(err, instance.ErrLiveViewUnsupported):
-			writeError(w, 400, "unsupported", err.Error())
-		default:
-			writeError(w, 500, "live_view_failed", err.Error())
-		}
-		return
-	}
-	writeJSON(w, 200, map[string]any{"enabled": body.Enabled, "restartRequired": true})
 }
 
 // postMapChunks is POST /instances/{id}/map/{world}/chunks {"chunks":[[cx,cz],…]}: the stored chunks
