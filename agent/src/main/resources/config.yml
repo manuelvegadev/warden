@@ -1,0 +1,22 @@
+# Warden Agent configuration. wardend rewrites this file before every server start; edit it only
+# if you run the agent by hand.
+
+# wardend's agent listener (WARDEND_AGENT_LISTEN on the daemon). Loopback only: the agent never
+# needs to be reachable from outside the host.
+url: ws://127.0.0.1:8481/agent/v1
+
+# Per-instance token issued by wardend. Empty = the agent stays idle.
+token: ""
+
+# Chunks streamed around each online player, capped by the world's view distance.
+radius: 10
+
+# Chunk snapshots taken per tick. Bounds the main-thread cost of a player arriving in new terrain.
+snapshots-per-tick: 4
+
+# A chunk marked dirty by a block change is re-sent at most this often.
+resend-seconds: 5
+
+# Every so often the chunks around players are re-encoded and compared by hash, catching changes
+# that no event reports. 0 disables it.
+reconcile-seconds: 300

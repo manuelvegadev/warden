@@ -1,0 +1,7 @@
+name: WardenAgent
+version: ${version}
+main: io.github.manuelvega.warden.agent.WardenAgentPlugin
+api-version: '26.1'
+description: Streams player positions and simplified chunks to wardend for the live world view in Beacon.
+author: Warden
+website: https://github.com/manuelvega/warden
