@@ -9,6 +9,8 @@ web/dist/
 /data/
 /servers/
 *.jar
+# The Gradle wrapper jar is part of the build, not a build product: CI and the release build the agent with it.
+!agent/gradle/wrapper/gradle-wrapper.jar
 # OS / editors
 .DS_Store
 .idea/
