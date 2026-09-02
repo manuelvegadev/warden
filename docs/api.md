@@ -143,7 +143,7 @@ Creation body:
 ## Plugins
 | Method | Path | Description |
 |---|---|---|
-| GET | `/instances/{id}/plugins` | `[{fileName,enabled,size,meta?:{name,version,description,authors,apiVersion},iconUrl?,source?:{fileName,source,projectId,name,versionId,version,hashAlgo,hash,installedAt}}]`. `meta` is parsed from `plugin.yml`/`paper-plugin.yml` (cached by size+mtime); `source` exists for jars installed from the catalog (`hangar`/`modrinth`) or uploaded (`manual`). |
+| GET | `/instances/{id}/plugins` | `[{fileName,enabled,managed?,size,meta?:{name,version,description,authors,apiVersion},iconUrl?,source?:{fileName,source,projectId,name,versionId,version,hashAlgo,hash,installedAt}}]`. `meta` is parsed from `plugin.yml`/`paper-plugin.yml` (cached by size+mtime); `source` exists for jars installed from the catalog (`hangar`/`modrinth`), uploaded (`manual`) or placed by the daemon (`warden`); `managed` marks the Warden Agent, which toggle, update and delete refuse with `409 managed`. |
 | GET | `/instances/{id}/plugins/updates` | `[{fileName,version,versionId}]` — catalog plugins whose newest compatible release differs from the installed one (10 s budget, ≤4 lookups in flight, failures ignored). Separate from the listing so the table never waits on the catalog. | Lists `plugins/*.jar` and `*.jar.disabled`; `source` comes from `instance.json` for jars installed through the catalog. |
 | POST | `/instances/{id}/plugins` | `{"source":"hangar","projectId":"ViaVersion","versionId":"5.12.0"}` (`versionId:"latest"` = newest release for the instance's MC version) → `202` task `plugin.install` (downloads to `plugins/`, verifies the published hash, replaces an older jar of the same project, registers name, icon and install date in `instance.json`). The download is rejected unless it is a jar with a plugin descriptor — Hangar `externalUrl` entries can point at a web page. Admin only. Install several by issuing one request per plugin. |
 | GET | `/instances/{id}/plugins/{fileName}/icon` | Project icon fetched from the catalog at install time (stored in `<instance>/icons/`, ≤2 MB); `404` when none. |
@@ -166,8 +166,7 @@ Creation body:
 ## Live world view (ADR-018)
 | Method | Path | Description |
 |---|---|---|
-| GET | `/instances/{id}/map` | `{enabled,supported,agent:{connected,version?,server?},worlds:[{name,dimension,viewDistance,minY,maxY,chunks}],players:[{uuid,name,world,x,y,z,yaw,pitch,sneaking,sprinting,gamemode,vanished}],t?}`. `supported` is false for software that cannot load Bukkit plugins; `chunks` is how many the daemon caches for that world; `players` is the last positions message. |
-| PUT | `/instances/{id}/map` | `{"enabled":bool}` → `{enabled,restartRequired:true}`. Enabling installs the embedded Warden Agent jar into `plugins/` (recorded with source `warden`) and writes `plugins/WardenAgent/config.yml`; disabling removes the jar. The server loads it on the next start. `400 unsupported` for non-Paper software. Manager only. |
+| GET | `/instances/{id}/map` | `{supported,agent:{connected,version?,server?},worlds:[{name,dimension,viewDistance,minY,maxY,chunks}],players:[{uuid,name,world,x,y,z,yaw,pitch,sneaking,sprinting,pose,onGround,flying,inWater,gamemode,vanished}],clocks?:{name:{day,time,gameTime,rain,thunder}},t?}`. `supported` is false for software that cannot load Bukkit plugins; on the rest the daemon installs the embedded Warden Agent jar into `plugins/` (recorded with source `warden`, listed as `managed`) and writes `plugins/WardenAgent/config.yml` when the instance is created, when the daemon starts, and before every server start, so an existing server picks it up at its next start; `chunks` is how many the daemon caches for that world; `players` is the last positions message. |
 | POST | `/instances/{id}/map/{world}/chunks` | `{"chunks":[[cx,cz],…]}` (≤1024) → `application/octet-stream`: for each chunk the daemon holds, `i32 cx · i32 cz · u64 hash · u32 len · gzip payload` (little-endian). Unknown chunks are omitted. The payload format is the agent's `WCK1` (ADR-018). |
 
 The agent talks to the daemon on a separate loopback listener (`WARDEND_AGENT_LISTEN`, default `127.0.0.1:8481`, plain HTTP): `GET /agent/v1` upgrades to a WebSocket authenticated by the per-instance token in `instance.json` (`liveView.agentToken`). Protocol in ADR-018.
@@ -212,7 +211,7 @@ Server → client:
 | `event` | `{kind:"player.join|player.leave|player.chat|player.advancement|player.death|server.ready|server.overloaded", player?, text, ts}` |
 | `task.progress` | `{id,type,progress:0-100,message,status}` |
 | `players` | `{online:[{uuid,name}]}` after each join/leave |
-| `world.players` | `{t,players:[PlayerPos…]}` 5 times a second while anyone is online (ADR-018); an empty list once when the last player leaves or the agent disconnects |
+| `world.players` | `{t,players:[PlayerPos…],worlds:{name:{day,time,gameTime,rain,thunder}}}` 5 times a second while anyone is online (ADR-018): positions plus each world's day count, time of day (ticks since 06:00) and weather; an empty list once when the last player leaves or the agent disconnects |
 | `world.chunks` | `{world,chunks:[[cx,cz,hash],…]}`: chunks whose cached content changed, coalesced to one message per world per second |
 | `world.agent` | `{connected,version?,server?}` when the instance's agent connects or drops |
 | `pong` | |

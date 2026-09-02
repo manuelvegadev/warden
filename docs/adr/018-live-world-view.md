@@ -80,8 +80,9 @@ Text frames are JSON. The first must be `hello`; wardend answers `hello.ok` or c
 {"type":"hello","token":"<agentToken>","agent":"warden-agent/0.1.0","server":"Paper 26.2",
  "worlds":[{"name":"world","dimension":"overworld","viewDistance":10,"minY":-64,"maxY":319}]}
 {"type":"players","t":1725000000000,"players":[{"uuid":"…","name":"Steve","world":"world",
- "x":1.5,"y":64,"z":-3.2,"yaw":90,"pitch":0,"sneaking":false,"sprinting":false,
- "gamemode":"survival","vanished":false}]}
+ "x":1.5,"y":64,"z":-3.2,"yaw":90,"pitch":0,"sneaking":false,"sprinting":false,"pose":"standing","onGround":true,"flying":false,"inWater":false,
+ "gamemode":"survival","vanished":false}],
+ "worlds":{"world":{"day":34,"time":6000,"gameTime":822000,"rain":false,"thunder":false}}}
 ```
 
 `hello.ok` carries the hashes wardend already holds, so a restarted server does not resend chunks
@@ -123,13 +124,27 @@ is resent.
 
 | REST | Role | Description |
 |---|---|---|
-| `GET /instances/{id}/map` | viewer | `{enabled, agent:{connected, version?}, worlds:[{name,dimension,viewDistance,minY,maxY,chunks}], players:[…]}` |
+| `GET /instances/{id}/map` | viewer | `{supported, agent:{connected, version?}, worlds:[{name,dimension,viewDistance,minY,maxY,chunks}], players:[…]}` |
 | `POST /instances/{id}/map/{world}/chunks` | viewer | `{"chunks":[[cx,cz],…]}` (≤1024) → `application/octet-stream`: records `i32 cx · i32 cz · u64 hash · u32 len · gzip blob`, unknown chunks omitted |
-| `PUT /instances/{id}/map` | manager | `{"enabled":bool}` → installs or removes the agent jar and its config; a restart loads it |
 
-WebSocket (instance-scoped): `world.players` (`{t, players}` at 5 Hz while anyone is online),
+WebSocket (instance-scoped): `world.players` (`{t, players, worlds}` at 5 Hz while anyone is
+online; `worlds` carries each world's day, time of day, game time and weather, which the viewer
+turns into sky colour, fog and lighting, the star field, the sun and the moon's phase, and the
+drifting cloud layer, the way the game does, from the game's own textures and seeds; the viewer
+renders without colour management, as the game does, so the texture colours times the light are
+what reaches the screen),
 `world.chunks` (`{world, chunks:[[cx,cz,hash],…]}`, coalesced to one message per second) and
 `world.agent` (`{connected}`).
+
+The viewer's camera has three modes. Orbit, the default, works like SketchUp's: the point under the
+cursor when a drag or a wheel notch starts is the pivot for turning, the handle for dragging the
+world and the target of the zoom; a selected player carries the camera along. Fly is the game's
+spectator mode (WASD, Space and Shift, Ctrl to sprint, the wheel sets the speed, the mouse looks
+under pointer lock, or a left drag where the lock is refused), with the game's flight feel: the
+keys accelerate and the velocity decays by 0.91 each tick; unlike the game, forward follows the
+whole view direction, so looking up and flying forward climbs. Player looks
+through the selected player's eyes at the game's eye height with a wide field of view, following
+the yaw and pitch the agent reports.
 
 ## Consequences
 
@@ -138,7 +153,10 @@ WebSocket (instance-scoped): `world.players` (`{t, players}` at 5 Hz while anyon
   from where it is embedded in the daemon binary; CI and the release workflow build it first.
 - The feature is Paper-only (Purpur included). Fabric and vanilla instances show the section with an
   explanation until an agent exists for them.
-- `instance.json` gains `liveView: {enabled, agentToken}`. The token is written into
+- The agent is part of the product, not an option: wardend installs it on every instance whose
+  software loads Bukkit plugins (on create, on daemon start, before every server start), lists it
+  as a `managed` plugin and refuses to disable, update or remove it from the panel. `instance.json`
+  gains `liveView: {agentToken}`. The token is written into
   `plugins/WardenAgent/config.yml` together with the agent URL before every start, so the pair
   can never drift.
 - Rows in `map_chunks` are deleted with the instance.
