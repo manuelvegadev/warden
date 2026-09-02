@@ -7,8 +7,12 @@ group = "io.github.manuelvega.warden"
 version = "0.1.0"
 
 repositories {
+    // Paper's artifacts come from Paper's repository only: asking Maven Central first costs a request
+    // per artifact that it answers with 404, or, on a busy runner, with 429 and a failed build.
+    maven("https://repo.papermc.io/repository/maven-public/") {
+        content { includeGroupAndSubgroups("io.papermc") }
+    }
     mavenCentral()
-    maven("https://repo.papermc.io/repository/maven-public/")
 }
 
 dependencies {
