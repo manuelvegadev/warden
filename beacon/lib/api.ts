@@ -48,6 +48,45 @@ export interface Manifest {
   /** Completed server upgrades, newest last. */
   upgrades?: UpgradeRecord[];
   backups: BackupSettings;
+  /** Live world view (ADR-018); absent until it was enabled once. */
+  liveView?: { enabled: boolean };
+}
+
+/** One player's last reported position, from the Warden Agent (ADR-018). */
+export interface PlayerPos {
+  uuid: string;
+  name: string;
+  world: string;
+  x: number;
+  y: number;
+  z: number;
+  yaw: number;
+  pitch: number;
+  sneaking: boolean;
+  sprinting: boolean;
+  gamemode: string;
+  vanished: boolean;
+}
+
+export interface LiveViewWorld {
+  name: string;
+  dimension: string;
+  viewDistance: number;
+  minY: number;
+  maxY: number;
+  /** Chunks wardend holds for this world. */
+  chunks: number;
+}
+
+export interface LiveViewInfo {
+  enabled: boolean;
+  /** Paper-family software only: the agent is a Bukkit plugin. */
+  supported: boolean;
+  agent: { connected: boolean; version?: string; server?: string };
+  worlds: LiveViewWorld[];
+  players: PlayerPos[];
+  /** Millis of the last positions message. */
+  t?: number;
 }
 
 export interface BackupSettings {
@@ -405,12 +444,18 @@ export class ApiError extends Error {
 }
 
 type ApiInit = RequestInit & {
-  text?: boolean /** Absolute Beacon path; skips the /api/wardend prefix. */;
+  text?: boolean;
+  /** The response is bytes (an ArrayBuffer), not JSON. */
+  binary?: boolean;
+  /** Absolute Beacon path; skips the /api/wardend prefix. */
   own?: boolean;
 };
 
-/** Calls the BFF. JSON in/out by default; `text: true` returns the body as a string. Errors map to ApiError. */
-export async function api<T>(path: string, { text, own, ...init }: ApiInit = {}): Promise<T> {
+/**
+ * Calls the BFF. JSON in/out by default; `text: true` returns the body as a string, `binary: true` as
+ * an ArrayBuffer. Errors map to ApiError.
+ */
+export async function api<T>(path: string, { text, binary, own, ...init }: ApiInit = {}): Promise<T> {
   // FormData bodies set their own multipart Content-Type (with boundary); never override it.
   const headers = new Headers(init.headers);
   if (!(init.body instanceof FormData) && !headers.has("Content-Type")) {
@@ -423,6 +468,7 @@ export async function api<T>(path: string, { text, own, ...init }: ApiInit = {})
     throw new ApiError(res.status, e.code ?? "unknown", e.message ?? res.statusText);
   }
   if (res.status === 204) return undefined as T;
+  if (binary) return (await res.arrayBuffer()) as T;
   return (text ? await res.text() : await res.json()) as T;
 }
 
@@ -431,6 +477,20 @@ const post = <T>(path: string, body?: unknown) =>
 
 export const instances = {
   list: () => api<InstanceSummary[]>("/instances"),
+  /** Live world view (ADR-018). */
+  map: (id: string) => api<LiveViewInfo>(`/instances/${id}/map`),
+  setLiveView: (id: string, enabled: boolean) =>
+    api<{ enabled: boolean; restartRequired: boolean }>(`/instances/${id}/map`, {
+      method: "PUT",
+      body: JSON.stringify({ enabled }),
+    }),
+  /** Stored chunks among `keys`, as the binary batch `lib/liveview/format.ts` parses. */
+  mapChunks: (id: string, world: string, keys: [number, number][]) =>
+    api<ArrayBuffer>(`/instances/${id}/map/${encodeURIComponent(world)}/chunks`, {
+      method: "POST",
+      body: JSON.stringify({ chunks: keys }),
+      binary: true,
+    }),
   get: (id: string) => api<InstanceDetail>(`/instances/${id}`),
   create: (input: CreateInstanceInput) => post<{ instance: InstanceSummary; task: Task }>("/instances", input),
   /**

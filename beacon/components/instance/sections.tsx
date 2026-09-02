@@ -3,6 +3,7 @@
 import {
   Activity,
   Archive,
+  Box,
   FileCode2,
   Puzzle,
   Settings,
@@ -17,6 +18,7 @@ import { Console } from "@/components/instance/console";
 import { FilesEditor } from "@/components/instance/files-editor";
 import type { InstanceState } from "@/components/instance/instance-context";
 import { LaunchCommandCard } from "@/components/instance/launch-command-card";
+import { LiveView } from "@/components/instance/live-view";
 import { MetricsChart } from "@/components/instance/metrics-chart";
 import { PlayersTab } from "@/components/instance/players-tab";
 import { PluginsTab } from "@/components/instance/plugins-tab";
@@ -51,6 +53,8 @@ export interface Section {
   needs?: InstanceAction;
   /** Set when the section already shows what the header tiles show, so the shell drops them. */
   hidesResourceCards?: boolean;
+  /** Set when the section wants the whole width (a viewer), so the shell drops the facts sidebar. */
+  hidesSidebar?: boolean;
 }
 
 /** Single source of truth for instance sections: sidebar items, breadcrumb labels and the [section] route. */
@@ -64,6 +68,16 @@ export const SECTIONS: Section[] = [
     // The header tiles chart the same four series; showing both is the same data twice.
     hidesResourceCards: true,
     render: (s) => <MetricsChart data={s.history} memoryMb={s.manifest.memoryMb} instanceId={s.manifest.id} />,
+  },
+  {
+    slug: "map",
+    group: "Server",
+    label: "Live view",
+    icon: Box,
+    // The viewer wants the whole page; the tiles and the facts are one click away.
+    hidesResourceCards: true,
+    hidesSidebar: true,
+    render: () => <LiveView />,
   },
   {
     slug: "players",

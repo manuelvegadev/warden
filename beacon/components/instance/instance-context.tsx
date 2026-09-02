@@ -35,6 +35,11 @@ export interface InstanceState {
   canManage: boolean;
   sendCommand: (command: string) => void;
   retryInstall: () => Promise<void>;
+  /**
+   * A raw tap on every message the provider does not fold into state (today the live world view's
+   * `world.*` stream, ADR-018). Subscribers get them directly, so the shell never re-renders per message.
+   */
+  subscribe: (fn: (msg: WsMessage) => void) => () => void;
 }
 
 const StateCtx = createContext<InstanceState | null>(null);
@@ -102,6 +107,14 @@ export function InstanceProvider({
     [flushLines],
   );
 
+  const listeners = useRef(new Set<(msg: WsMessage) => void>());
+  const subscribe = useCallback((fn: (msg: WsMessage) => void) => {
+    listeners.current.add(fn);
+    return () => {
+      listeners.current.delete(fn);
+    };
+  }, []);
+
   const setStatus = useCallback(
     (next: InstanceStatus) => {
       setStatusState(next);
@@ -139,6 +152,8 @@ export function InstanceProvider({
         case "error":
           toast.error(String(msg.data));
           break;
+        default:
+          for (const fn of listeners.current) fn(msg);
       }
     },
     [pushLine, setStatus],
@@ -175,8 +190,9 @@ export function InstanceProvider({
       canManage: can(role, "settings.write"),
       sendCommand,
       retryInstall,
+      subscribe,
     }),
-    [manifest, status, metrics, history, recent, task, connected, role, sendCommand, retryInstall],
+    [manifest, status, metrics, history, recent, task, connected, role, sendCommand, retryInstall, subscribe],
   );
 
   return (

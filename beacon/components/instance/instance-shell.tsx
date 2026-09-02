@@ -2,6 +2,7 @@
 
 import { Alert, AlertDescription, AlertTitle } from "@warden/ui/components/alert";
 import { Button } from "@warden/ui/components/button";
+import { cn } from "@warden/ui/lib/utils";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback } from "react";
 import { Controls } from "@/components/instance/controls";
@@ -26,7 +27,9 @@ export function InstanceShell({ children }: { children: React.ReactNode }) {
   const address = useServerAddress(manifest.port);
   // Metrics charts the same four series as the tiles, so it asks the shell to drop them.
   const { section } = useParams<{ section?: string }>();
-  const showTiles = !(section && sectionBySlug(section)?.hidesResourceCards);
+  const current = section ? sectionBySlug(section) : undefined;
+  const showTiles = !current?.hidesResourceCards;
+  const showSidebar = !current?.hidesSidebar;
 
   return (
     <div className="grid min-w-0 grid-rows-[auto_minmax(0,1fr)]">
@@ -70,13 +73,15 @@ export function InstanceShell({ children }: { children: React.ReactNode }) {
         )}
       </header>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_280px]">
+      <div className={cn("grid grid-cols-1", showSidebar && "lg:grid-cols-[minmax(0,1fr)_280px]")}>
         <main className="page-pad min-w-0">
-          <div className="w-full max-w-5xl">{children}</div>
+          <div className={cn("w-full", showSidebar && "max-w-5xl")}>{children}</div>
         </main>
-        <div className="page-pad border-t lg:border-t-0 lg:border-l">
-          <InstanceSidebar manifest={manifest} status={status} metrics={metrics} />
-        </div>
+        {showSidebar && (
+          <div className="page-pad border-t lg:border-t-0 lg:border-l">
+            <InstanceSidebar manifest={manifest} status={status} metrics={metrics} />
+          </div>
+        )}
       </div>
     </div>
   );

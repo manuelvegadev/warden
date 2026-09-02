@@ -95,6 +95,9 @@ importers:
       shadcn:
         specifier: ^4.19.0
         version: 4.19.0(typescript@5.9.3)
+      skinview-utils:
+        specifier: ^0.7.1
+        version: 0.7.1
       skinview3d:
         specifier: ^3.4.2
         version: 3.4.2
@@ -104,6 +107,9 @@ importers:
       tailwind-merge:
         specifier: ^3.6.0
         version: 3.6.0
+      three:
+        specifier: ^0.156.1
+        version: 0.156.1
       tw-animate-css:
         specifier: ^1.4.0
         version: 1.4.0
@@ -126,6 +132,9 @@ importers:
       '@types/react-dom':
         specifier: ^19
         version: 19.2.5(@types/react@19.2.18)
+      '@types/three':
+        specifier: ^0.156.0
+        version: 0.156.0
       auth:
         specifier: 1.7.2
         version: 1.7.2(@better-fetch/fetch@1.3.1)(better-call@1.4.0(zod@3.25.76))(better-sqlite3@12.11.1)(chokidar@5.0.0)(jose@6.2.10)(kysely@0.29.5)(magicast@0.5.4)(nanostores@1.5.2)(next@16.3.3(@babel/core@7.29.7)(@types/node@22.20.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
