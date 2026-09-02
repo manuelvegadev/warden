@@ -4,7 +4,6 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -232,10 +231,7 @@ public final class ChunkTracker implements Listener {
 
     /** The binary frame of ADR-018: kind, world name, cx, cz, hash, gzip payload. */
     static ByteBuffer frame(String world, int cx, int cz, ChunkEncoder.Encoded enc) {
-        byte[] name = world.getBytes(StandardCharsets.UTF_8);
-        if (name.length > 255) {
-            name = java.util.Arrays.copyOf(name, 255);
-        }
+        byte[] name = ChunkEncoder.utf8Capped(world);
         ByteBuffer buf = ByteBuffer.allocate(1 + 1 + name.length + 4 + 4 + 8 + enc.gzip().length)
                 .order(ByteOrder.LITTLE_ENDIAN);
         buf.put((byte) 1);

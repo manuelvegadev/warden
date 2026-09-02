@@ -41,17 +41,21 @@ Build a deliberately simple viewer of our own, scoped to **what players can see*
 
 ### Why the shape of the data is what it is
 
-- **Map colours, not textures.** Mojang maintains an average colour per block for the in-game map.
-  Using it removes the whole block-model/texture system (the expensive part of any custom renderer)
-  and needs no per-version table on our side. A flags byte marks grass, foliage and water so a later
-  phase can tint by biome.
+- **Flat colours, not textures.** Each palette entry carries the block key and the game's map colour.
+  Beacon owns the colours: `scripts/block-colors.mjs` averages every block's textures from the
+  client jar into `lib/liveview/blocks.json` (with translucency and which biome tint applies), and
+  the same script reads the biome colormaps so grass, foliage and water are tinted per column biome.
+  The map colour is the fallback for blocks the table does not know (mods, newer versions).
+- **Covers repaint the block under them.** A snow layer is not sent as a block (it is not a full
+  cube) but the grass beneath it is sent as snow, as the game shows snowy grass sides. The rule
+  lives in the agent's palette so carpets can join it.
 - **A height band, not the full column.** Per chunk the agent sends the rows from the lowest ground
   level in the chunk minus 8 up to the highest block. Cliffs, river beds, tree trunks and shallow
   water render; caves and interiors do not (phase 3 lifts the cut). A typical chunk is 5–10 KB raw,
   1–2 KB gzipped.
 - **Non-cube blocks are dropped or boxed.** Blocks that are neither occluding, solid, leaves nor a
-  liquid (plants, torches, rails, snow layers) are sent as air; solid partial blocks (slabs, stairs,
-  fences, glass) are sent as full cubes with a `partial` flag.
+  liquid (plants, torches, rails, snow layers) are sent as air, subject to the cover rule above;
+  solid partial blocks (slabs, stairs, fences, glass) are sent as full cubes with a `partial` flag.
 - **Only loaded chunks near players.** That is what `ChunkSnapshot` can reach without loading
   anything, and it is exactly what "live" means. Chunks nobody has walked near since the agent was
   installed are simply absent; phase 5 may fill them from region files.
@@ -94,20 +98,26 @@ u8 kind (1 = chunk) · u8 worldNameLen · worldName (UTF-8) · i32 cx · i32 cz 
 ### Chunk payload (inside the gzip), little-endian
 
 ```
-u32 magic 0x314B4357 ("WCK1")
+u32 magic 0x324B4357 ("WCK2"; WCK1 had no block keys in the palette)
 i32 cx, i32 cz
 i16 yMin, i16 yMax            inclusive; height = yMax - yMin + 1
 u16 paletteLen                index 0 is always air
 u8  biomePaletteLen
 u8  reserved
-palette       paletteLen × { u8 r, u8 g, u8 b, u8 flags }
+palette       paletteLen × { u8 r, u8 g, u8 b, u8 flags, u8 nameLen, UTF-8 block key such as "grass_block" }
 biomePalette  biomePaletteLen × { u8 len, UTF-8 key such as "plains" }
 biomes        256 × u8, index = z*16 + x  (biome of the column at its top block)
 blocks        256 × height × u8, index = (x*16 + z)*height + (y - yMin)
 ```
 
-Palette flags: `1` grass tint · `2` foliage tint · `4` water · `8` translucent (reserved) ·
-`16` partial (solid but not a full cube).
+Palette flags are hints for blocks the viewer's colour table does not know (mods, newer
+versions): `1` grass tint · `2` foliage tint · `4` liquid · `16` partial (solid but not a full
+cube; boxed, not yet read by the viewer). Known blocks take colour, translucency and tint from
+`blocks.json`.
+
+A format change bumps the magic. Cached rows in the old format fail to decode in the viewer and
+are replaced within the agent's reconcile interval: the re-encoded chunk hashes differently, so it
+is resent.
 
 ### wardend → Beacon
 

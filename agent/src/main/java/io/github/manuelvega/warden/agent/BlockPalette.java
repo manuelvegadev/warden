@@ -6,19 +6,17 @@ import org.bukkit.Material;
 import org.bukkit.Tag;
 
 /**
- * Maps a block type to what the viewer needs: an average colour and a few flags. The colour is the
- * game's own map colour (what an in-game map shows for the block), so there is no table of ours to
- * maintain when Mojang adds blocks.
+ * Maps a block type to what the viewer needs: the block key, the game's map colour (the viewer's
+ * fallback for blocks its texture table does not know) and a few flags that are facts only the
+ * server has (liquid, leaves tag, partial shape). The viewer owns colours and translucency.
  */
 public class BlockPalette {
     /** Grass-coloured: tint by biome later. */
     public static final int FLAG_GRASS = 1;
     /** Foliage-coloured (leaves): tint by biome later. */
     public static final int FLAG_FOLIAGE = 2;
-    /** Rendered translucent. */
+    /** A liquid (water, bubble column). */
     public static final int FLAG_WATER = 4;
-    /** Reserved. */
-    public static final int FLAG_TRANSLUCENT = 8;
     /** Solid but not a full cube (slabs, stairs, fences, glass): boxed for now. */
     public static final int FLAG_PARTIAL = 16;
 
@@ -34,14 +32,12 @@ public class BlockPalette {
         WATER
     }
 
-    /** One palette entry: colour packed as 0xRRGGBB, plus flags and the kind. */
-    public record Entry(int rgb, int flags, Kind kind) {
-        public static final Entry AIR = new Entry(0, 0, Kind.AIR);
-
-        /** The palette key: colour and flags together identify a distinct entry. */
-        public int key() {
-            return (rgb << 8) | flags;
-        }
+    /**
+     * One palette entry: the block key ("grass_block"), its map colour packed as 0xRRGGBB (the viewer's
+     * fallback for blocks it has no texture colour for), flags and the kind.
+     */
+    public record Entry(String name, int rgb, int flags, Kind kind) {
+        public static final Entry AIR = new Entry("air", 0, 0, Kind.AIR);
     }
 
     private final Function<Material, Color> mapColor;
@@ -59,6 +55,15 @@ public class BlockPalette {
         this.mapColor = mapColor;
     }
 
+    /**
+     * A thin cover that repaints the block under it. A snow layer is not a block of its own in the
+     * viewer, but the grass beneath wears white in the game (its snowy side texture), so the whole
+     * cube is sent as snow. Carpets and moss carpets would fit the same rule.
+     */
+    public Material coverOf(Material above) {
+        return above == Material.SNOW ? Material.SNOW_BLOCK : null;
+    }
+
     public Entry entry(Material m) {
         Entry e = cache[m.ordinal()];
         if (e == null) {
@@ -72,20 +77,21 @@ public class BlockPalette {
         if (!m.isBlock() || m.isAir()) {
             return Entry.AIR;
         }
+        String name = m.getKey().getKey();
         if (m == Material.WATER || m == Material.BUBBLE_COLUMN) {
-            return new Entry(rgb(m), FLAG_WATER, Kind.WATER);
+            return new Entry(name, rgb(m), FLAG_WATER, Kind.WATER);
         }
         if (Tag.LEAVES.isTagged(m)) {
-            return new Entry(rgb(m), FLAG_FOLIAGE, Kind.LEAVES);
+            return new Entry(name, rgb(m), FLAG_FOLIAGE, Kind.LEAVES);
         }
         if (m == Material.GRASS_BLOCK) {
-            return new Entry(rgb(m), FLAG_GRASS, Kind.SOLID);
+            return new Entry(name, rgb(m), FLAG_GRASS, Kind.SOLID);
         }
         if (m == Material.LAVA || m.isOccluding()) {
-            return new Entry(rgb(m), 0, Kind.SOLID);
+            return new Entry(name, rgb(m), 0, Kind.SOLID);
         }
         if (m.isSolid()) {
-            return new Entry(rgb(m), FLAG_PARTIAL, Kind.SOLID);
+            return new Entry(name, rgb(m), FLAG_PARTIAL, Kind.SOLID);
         }
         return Entry.AIR;
     }

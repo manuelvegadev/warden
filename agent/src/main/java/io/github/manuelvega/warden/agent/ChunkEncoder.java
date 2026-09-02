@@ -7,6 +7,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -16,12 +17,12 @@ import org.bukkit.Material;
 import org.bukkit.block.Biome;
 
 /**
- * Turns a chunk snapshot into the "WCK1" payload described in ADR-018: a height band of one byte per
+ * Turns a chunk snapshot into the "WCK2" payload described in ADR-018: a height band of one byte per
  * block indexing a per-chunk colour palette, plus one biome per column. Runs off the main thread;
  * the snapshot is an immutable copy.
  */
 public final class ChunkEncoder {
-    public static final int MAGIC = 0x314B4357; // "WCK1" little-endian
+    public static final int MAGIC = 0x324B4357; // "WCK2" little-endian
     // One byte per block: a chunk with more distinct colours than this maps extras to the closest entry.
     private static final int MAX_PALETTE = 255;
     private static final int MAX_BIOMES = 255;
@@ -83,19 +84,24 @@ public final class ChunkEncoder {
         int height = yMax - yMin + 1;
 
         // Pass 2: block indices into a palette built as we go. The per-material index is an int array
-        // (no boxing per block); materials that share a colour and flags share a palette entry.
+        // (no boxing per block). Columns are walked top-down carrying the block above, which the cover
+        // rule (snow layers) needs and which saves a second snapshot read per block.
         List<BlockPalette.Entry> paletteList = new ArrayList<>();
         paletteList.add(BlockPalette.Entry.AIR);
         int[] indexByMaterial = new int[Material.values().length];
-        java.util.Arrays.fill(indexByMaterial, -1);
+        Arrays.fill(indexByMaterial, -1);
         byte[] blocks = new byte[256 * height];
         for (int x = 0; x < 16; x++) {
             for (int z = 0; z < 16; z++) {
                 int col = z * 16 + x;
                 int base = (x * 16 + z) * height;
                 int top = tops[col];
-                for (int y = yMin; y <= top; y++) {
-                    Material m = snap.getBlockType(x, y, z);
+                Material above = top < worldMaxY ? snap.getBlockType(x, top + 1, z) : Material.AIR;
+                for (int y = top; y >= yMin; y--) {
+                    Material raw = snap.getBlockType(x, y, z);
+                    Material cover = palette.coverOf(above);
+                    Material m = cover != null ? cover : raw;
+                    above = raw;
                     int idx = indexByMaterial[m.ordinal()];
                     if (idx < 0) {
                         BlockPalette.Entry e = palette.entry(m);
@@ -136,18 +142,19 @@ public final class ChunkEncoder {
         return new Encoded(gzip(payload), hash);
     }
 
-    /** The palette index of an entry, adding it once per (colour, flags); past the cap, the closest colour. */
+    /** Adds an entry (each material is indexed once per chunk); past the cap, the closest colour stands in. */
     private static int indexOf(List<BlockPalette.Entry> list, BlockPalette.Entry e) {
-        for (int i = 1; i < list.size(); i++) {
-            if (list.get(i).key() == e.key()) {
-                return i;
-            }
-        }
         if (list.size() >= MAX_PALETTE) {
             return nearest(list, e);
         }
         list.add(e);
         return list.size() - 1;
+    }
+
+    /** UTF-8 bytes for a u8-length string field, the wire's one string primitive. */
+    static byte[] utf8Capped(String s) {
+        byte[] bytes = s.getBytes(StandardCharsets.UTF_8);
+        return bytes.length > 255 ? Arrays.copyOf(bytes, 255) : bytes;
     }
 
     private static String biomeKey(ChunkSnapshot snap, int x, int y, int z) {
@@ -185,14 +192,18 @@ public final class ChunkEncoder {
         List<byte[]> biomeBytes = new ArrayList<>(biomeList.size());
         int biomeLen = 0;
         for (String b : biomeList) {
-            byte[] bytes = b.getBytes(StandardCharsets.UTF_8);
-            if (bytes.length > 255) {
-                bytes = java.util.Arrays.copyOf(bytes, 255);
-            }
+            byte[] bytes = utf8Capped(b);
             biomeBytes.add(bytes);
             biomeLen += 1 + bytes.length;
         }
-        int size = 4 + 4 + 4 + 2 + 2 + 2 + 1 + 1 + paletteList.size() * 4 + biomeLen + 256 + blocks.length;
+        List<byte[]> nameBytes = new ArrayList<>(paletteList.size());
+        int paletteLen = 0;
+        for (BlockPalette.Entry e : paletteList) {
+            byte[] bytes = utf8Capped(e.name());
+            nameBytes.add(bytes);
+            paletteLen += 5 + bytes.length;
+        }
+        int size = 4 + 4 + 4 + 2 + 2 + 2 + 1 + 1 + paletteLen + biomeLen + 256 + blocks.length;
         ByteBuffer buf = ByteBuffer.allocate(size).order(ByteOrder.LITTLE_ENDIAN);
         buf.putInt(MAGIC);
         buf.putInt(cx);
@@ -202,11 +213,14 @@ public final class ChunkEncoder {
         buf.putShort((short) paletteList.size());
         buf.put((byte) biomeList.size());
         buf.put((byte) 0);
-        for (BlockPalette.Entry e : paletteList) {
+        for (int i = 0; i < paletteList.size(); i++) {
+            BlockPalette.Entry e = paletteList.get(i);
             buf.put((byte) ((e.rgb() >> 16) & 0xff));
             buf.put((byte) ((e.rgb() >> 8) & 0xff));
             buf.put((byte) (e.rgb() & 0xff));
             buf.put((byte) e.flags());
+            buf.put((byte) nameBytes.get(i).length);
+            buf.put(nameBytes.get(i));
         }
         for (byte[] b : biomeBytes) {
             buf.put((byte) b.length);
