@@ -148,14 +148,17 @@ func TestAgentSession(t *testing.T) {
 	}
 
 	// Positions are republished as-is.
-	players := `{"type":"players","t":123,"players":[{"uuid":"u","name":"Steve","world":"world","x":1.5,"y":64,"z":-3,"yaw":90,"pitch":0,"sneaking":false,"sprinting":true,"gamemode":"survival","vanished":false}]}`
+	players := `{"type":"players","t":123,"players":[{"uuid":"u","name":"Steve","world":"world","x":1.5,"y":64,"z":-3,"yaw":90,"pitch":0,"sneaking":false,"sprinting":true,"gamemode":"survival","vanished":false}],"worlds":{"world":{"day":34,"time":13000,"rain":true,"thunder":false}}}`
 	c.Write(ctx, websocket.MessageText, []byte(players))
 	d := rec.wait(t, "inst world.players").(map[string]any)
 	if got := d["players"].([]PlayerPos); len(got) != 1 || got[0].Name != "Steve" || !got[0].Sprinting {
 		t.Fatalf("players %+v", d)
 	}
+	if clocks := d["worlds"].(map[string]WorldClock); clocks["world"].Time != 13000 || clocks["world"].Day != 34 || !clocks["world"].Rain {
+		t.Fatalf("clocks %+v", d)
+	}
 	snap := svc.Snapshot(ctx, "inst")
-	if len(snap.Players) != 1 || snap.At != 123 || len(snap.Worlds) != 1 || snap.Worlds[0].Chunks != 1 || !snap.Agent.Connected {
+	if len(snap.Players) != 1 || snap.At != 123 || len(snap.Worlds) != 1 || snap.Worlds[0].Chunks != 1 || !snap.Agent.Connected || snap.Clocks["world"].Time != 13000 {
 		t.Fatalf("snapshot %+v", snap)
 	}
 

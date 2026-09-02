@@ -40,8 +40,22 @@ type PlayerPos struct {
 	Pitch     float64 `json:"pitch"`
 	Sneaking  bool    `json:"sneaking"`
 	Sprinting bool    `json:"sprinting"`
+	Pose      string  `json:"pose"`
+	OnGround  bool    `json:"onGround"`
+	Flying    bool    `json:"flying"`
+	InWater   bool    `json:"inWater"`
 	Gamemode  string  `json:"gamemode"`
 	Vanished  bool    `json:"vanished"`
+}
+
+// WorldClock is a world's day count, time of day (ticks, 0 = 06:00) and weather, sent with every
+// positions message.
+type WorldClock struct {
+	Day      int64 `json:"day"`
+	Time     int64 `json:"time"`
+	GameTime int64 `json:"gameTime"` // total ticks, what the clouds scroll by
+	Rain     bool  `json:"rain"`
+	Thunder  bool  `json:"thunder"`
 }
 
 // AgentInfo is the connection state shown in the panel.
@@ -53,10 +67,11 @@ type AgentInfo struct {
 
 // Snapshot is GET /instances/{id}/map minus the manifest bits the API layer adds.
 type Snapshot struct {
-	Agent   AgentInfo   `json:"agent"`
-	Worlds  []WorldInfo `json:"worlds"`
-	Players []PlayerPos `json:"players"`
-	At      int64       `json:"t,omitempty"` // millis of the last positions message
+	Agent   AgentInfo             `json:"agent"`
+	Worlds  []WorldInfo           `json:"worlds"`
+	Players []PlayerPos           `json:"players"`
+	Clocks  map[string]WorldClock `json:"clocks,omitempty"`
+	At      int64                 `json:"t,omitempty"` // millis of the last positions message
 }
 
 type chunkRef [3]any // [cx, cz, hash] as sent to the browser
@@ -66,6 +81,7 @@ type instState struct {
 	agent     AgentInfo
 	worlds    []WorldInfo
 	players   []PlayerPos
+	clocks    map[string]WorldClock
 	playersAt int64
 	hashes    map[string]map[[2]int32]string // world → chunk → stored hash; frames that match are dropped
 	pending   map[string][]chunkRef          // world → changed chunks not yet announced
@@ -94,9 +110,10 @@ type helloMsg struct {
 }
 
 type playersMsg struct {
-	Type    string      `json:"type"`
-	T       int64       `json:"t"`
-	Players []PlayerPos `json:"players"`
+	Type    string                `json:"type"`
+	T       int64                 `json:"t"`
+	Players []PlayerPos           `json:"players"`
+	Worlds  map[string]WorldClock `json:"worlds,omitempty"`
 }
 
 // HandleAgent is the WebSocket endpoint on the agent listener. The first message must be `hello`
@@ -171,8 +188,11 @@ func (s *Service) HandleAgent(w http.ResponseWriter, r *http.Request) {
 			}
 			s.mu.Lock()
 			st.players, st.playersAt = msg.Players, msg.T
+			if msg.Worlds != nil {
+				st.clocks = msg.Worlds
+			}
 			s.mu.Unlock()
-			s.bc.Broadcast(id, "world.players", map[string]any{"t": msg.T, "players": msg.Players})
+			s.bc.Broadcast(id, "world.players", map[string]any{"t": msg.T, "players": msg.Players, "worlds": msg.Worlds})
 		case websocket.MessageBinary:
 			f, err := ParseFrame(b)
 			if err != nil {
@@ -280,6 +300,7 @@ func (s *Service) Snapshot(ctx context.Context, id string) Snapshot {
 		out.Agent = st.agent
 		out.Worlds = append(out.Worlds, st.worlds...)
 		out.Players = append(out.Players, st.players...)
+		out.Clocks = st.clocks
 		out.At = st.playersAt
 	}
 	s.mu.Unlock()
