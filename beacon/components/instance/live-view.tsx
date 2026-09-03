@@ -12,19 +12,20 @@ import { DetachControls } from "@/components/instance/detach-controls";
 import { useInstance } from "@/components/instance/instance-context";
 import { PlayerFace } from "@/components/instance/player-face";
 import { SectionCard } from "@/components/instance/section-card";
-import { useVoiceListen, useVoiceStatus, VoiceControls, VoiceListenersPill } from "@/components/instance/voice-listen";
+import { useVoice, useVoiceStatus, VoiceControls, VoicePresencePill } from "@/components/instance/voice-listen";
 import { useDetachable } from "@/hooks/use-detachable";
 import { useStoredPreference } from "@/hooks/use-stored-preference";
 import type { WsMessage } from "@/hooks/use-wardend-socket";
 import { instances, type LiveViewInfo, type PlayerPos, skins, type WorldClock } from "@/lib/api";
 import type { CameraMode } from "@/lib/liveview/camera";
 import {
-  HANDOVER_CHARGE_MS,
+  HANDOVER_FLASH_MS,
   HANDOVER_REVEAL_MS,
   HANDOVER_VEIL_MS,
   RADIUS_MAX,
   RADIUS_MIN,
 } from "@/lib/liveview/constants";
+import { playCue, preloadCue } from "@/lib/liveview/cues";
 import { chunkKey, parseBatch } from "@/lib/liveview/format";
 import type { IdleScene } from "@/lib/liveview/idle-scene";
 import type { LiveViewScene, PlayerMarker } from "@/lib/liveview/scene";
@@ -98,7 +99,7 @@ export function LiveView({ popout }: { popout?: boolean }) {
   const [clockText, setClockText] = useState("");
   // Voice (ADR-019): the players' voices while "Listen" is on; the tags of those heard light up.
   const voiceStatus = useVoiceStatus(id);
-  const voice = useVoiceListen(id, voiceStatus);
+  const voice = useVoice(id, voiceStatus);
   const voiceUpdate = voice.update;
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const idleCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -156,7 +157,8 @@ export function LiveView({ popout }: { popout?: boolean }) {
     }
     sceneRef.current?.setPlayers(next, now);
     const changed =
-      prev.length !== next.length || prev.some((p, i) => p.name !== next[i].name || p.world !== next[i].world);
+      prev.length !== next.length ||
+      prev.some((p, i) => p.name !== next[i].name || p.world !== next[i].world || p.voice !== next[i].voice);
     if (changed) setPlayers(next);
   }, []);
 
@@ -321,8 +323,18 @@ export function LiveView({ popout }: { popout?: boolean }) {
   const worldPlayers = useMemo(() => players.filter((p) => p.world === world), [players, world]);
   const idle = worldPlayers.length === 0;
   const idleSceneRef = useRef<IdleScene | null>(null);
-  // "charging": the waiting scene runs up to white; "revealing": the world fades in under the veil.
-  const [transition, setTransition] = useState<"none" | "charging" | "revealing">("none");
+  // Arriving: "charging", the waiting scene runs up to white, then "revealing", the world fades in
+  // under the veil. Leaving: "leaving", the world flashes to white, then "returning", the waiting
+  // scene fades in under it. Each pair lasts exactly as long as its beacon sound.
+  const [transition, setTransition] = useState<"none" | "charging" | "revealing" | "leaving" | "returning">("none");
+  // The lengths of the current transition's steps, fixed when it starts from the sound's length.
+  const steps = useRef({
+    charge: 0,
+    veil: HANDOVER_VEIL_MS,
+    reveal: HANDOVER_REVEAL_MS,
+    flash: HANDOVER_FLASH_MS,
+    fade: 0,
+  });
   const wasIdle = useRef(idle);
 
   // The waiting scene lives on its own canvas, shown in place of the world while nobody is in it.
@@ -336,6 +348,8 @@ export function LiveView({ popout }: { popout?: boolean }) {
       scene = new IdleScene(canvas);
       idleSceneRef.current = scene;
     });
+    void preloadCue("activate");
+    void preloadCue("deactivate");
     const ro = new ResizeObserver(() => scene?.resize());
     ro.observe(canvas);
     return () => {
@@ -346,22 +360,41 @@ export function LiveView({ popout }: { popout?: boolean }) {
     };
   }, [info?.supported]);
 
-  // The first player arriving while the waiting scene is up: charge, white out, reveal the world.
+  // The first player arriving while the waiting scene is up: the beacon activates — charge, white
+  // out, reveal the world. The last one leaving: it deactivates — flash to white, the waiting room
+  // fades in. Both are paced by their sound.
   useEffect(() => {
     const was = wasIdle.current;
     wasIdle.current = idle;
     const scene = idleSceneRef.current;
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (!(was && !idle) || !scene || reduced) return;
+    if (was === idle || !scene || reduced) return;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
-    setTransition("charging");
-    void scene.charge().then(() => {
-      if (cancelled) return;
-      setTransition("revealing");
-      scene.reset();
-      timer = setTimeout(() => setTransition("none"), HANDOVER_REVEAL_MS);
-    });
+    const st = steps.current;
+    if (!idle) {
+      const total = playCue("activate");
+      st.reveal = Math.min(HANDOVER_REVEAL_MS, total / 3);
+      st.charge = total - st.reveal;
+      st.veil = Math.min(HANDOVER_VEIL_MS, st.charge / 2);
+      setTransition("charging");
+      void scene.charge(st.charge).then(() => {
+        if (cancelled) return;
+        setTransition("revealing");
+        scene.reset();
+        timer = setTimeout(() => setTransition("none"), st.reveal);
+      });
+    } else {
+      const total = playCue("deactivate");
+      st.flash = Math.min(HANDOVER_FLASH_MS, total / 4);
+      st.fade = total - st.flash;
+      setTransition("leaving");
+      timer = setTimeout(() => {
+        if (cancelled) return;
+        setTransition("returning");
+        timer = setTimeout(() => setTransition("none"), st.fade);
+      }, st.flash);
+    }
     return () => {
       cancelled = true;
       clearTimeout(timer);
@@ -369,7 +402,7 @@ export function LiveView({ popout }: { popout?: boolean }) {
       setTransition("none");
     };
   }, [idle]);
-  const worldVisible = !idle && transition !== "charging";
+  const worldVisible = (!idle && transition !== "charging") || transition === "leaving";
   const maxRadius = Math.max(
     RADIUS_MIN,
     Math.min(RADIUS_MAX, info?.worlds.find((w) => w.name === world)?.viewDistance ?? 16),
@@ -415,8 +448,8 @@ export function LiveView({ popout }: { popout?: boolean }) {
             title={phase.badge}
           />
           <span>Live view</span>
-          {worldVisible && <VoiceControls status={voiceStatus} listen={voice} />}
-          <VoiceListenersPill status={voiceStatus} />
+          {worldVisible && <VoiceControls status={voiceStatus} voice={voice} />}
+          <VoicePresencePill status={voiceStatus} />
           {debug && (
             <span
               className="text-xs text-muted-foreground tabular-nums"
@@ -500,6 +533,7 @@ export function LiveView({ popout }: { popout?: boolean }) {
               key={p.name}
               hidden
               className="group absolute top-0 left-0"
+              data-voice={p.voice ?? ""}
               ref={(el) => {
                 if (el) markerEls.current.set(p.name, el);
                 else markerEls.current.delete(p.name);
@@ -512,6 +546,16 @@ export function LiveView({ popout }: { popout?: boolean }) {
                 title="Go to this player"
               >
                 {p.name}
+                {/* Consent (ADR-019 phase 3): shown only when the server reports it. */}
+                <span aria-hidden="true" className="ml-1 hidden text-emerald-300 group-data-[voice=allowed]:inline">
+                  ✓
+                </span>
+                <span aria-hidden="true" className="ml-1 hidden text-red-300 group-data-[voice=denied]:inline">
+                  ✕
+                </span>
+                <span aria-hidden="true" className="ml-1 hidden text-white/50 group-data-[voice=unset]:inline">
+                  ?
+                </span>
               </button>
             </div>
           ))}
@@ -543,7 +587,7 @@ export function LiveView({ popout }: { popout?: boolean }) {
             {clockText}
           </Badge>
         )}
-        {(idle || transition === "charging") && (
+        {((idle && transition !== "leaving") || transition === "charging") && (
           <div className="pointer-events-none absolute inset-x-0 bottom-8 flex justify-center">
             <div className="rounded-lg border bg-background/80 px-4 py-3 text-center backdrop-blur">
               {transition === "charging" ? (
@@ -557,15 +601,19 @@ export function LiveView({ popout }: { popout?: boolean }) {
             </div>
           </div>
         )}
-        {/* The white-out: fades in over the charge, then out over the world. */}
+        {/* The white-out: fades in over the end of the charge (or flashes in as the last player leaves), then out over what comes next. */}
         <div
           className="pointer-events-none absolute inset-0 z-20 bg-white"
           style={{
-            opacity: transition === "charging" ? 1 : 0,
+            opacity: transition === "charging" || transition === "leaving" ? 1 : 0,
             transition:
               transition === "charging"
-                ? `opacity ${HANDOVER_VEIL_MS}ms ease-in ${HANDOVER_CHARGE_MS - HANDOVER_VEIL_MS}ms`
-                : `opacity ${HANDOVER_REVEAL_MS}ms ease-out`,
+                ? `opacity ${steps.current.veil}ms ease-in ${steps.current.charge - steps.current.veil}ms`
+                : transition === "leaving"
+                  ? `opacity ${steps.current.flash}ms ease-out`
+                  : transition === "returning"
+                    ? `opacity ${steps.current.fade}ms ease-out`
+                    : `opacity ${steps.current.reveal}ms ease-out`,
           }}
           aria-hidden="true"
         />

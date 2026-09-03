@@ -50,6 +50,8 @@ export interface Manifest {
   backups: BackupSettings;
   /** Live world view (ADR-018); absent until it was enabled once. */
   liveView?: { enabled: boolean };
+  /** Voice chat (ADR-019); absent until the policy was set once. */
+  voice?: { policy: VoicePolicy };
 }
 
 /** One player's last reported position, from the Warden Agent (ADR-018). */
@@ -72,7 +74,14 @@ export interface PlayerPos {
   inWater: boolean;
   gamemode: string;
   vanished: boolean;
+  /** Whether the player lets Beacon hear and address them (ADR-019); absent under the `notify` policy. */
+  voice?: VoiceConsent;
 }
+
+export type VoiceConsent = "allowed" | "denied" | "unset";
+/** How players learn about Beacon's voice sessions: told in-game, or asked once for their consent. */
+export const VOICE_POLICIES = ["notify", "ask"] as const;
+export type VoicePolicy = (typeof VOICE_POLICIES)[number];
 
 export interface LiveViewWorld {
   name: string;
@@ -111,7 +120,7 @@ export interface VoiceStatus {
   /** The whisper distance in blocks. */
   whisper: number;
   /** How players are told about Beacon's voice sessions. */
-  policy: "notify";
+  policy: VoicePolicy;
   /** Display names of the people listening from Beacon right now. */
   listeners: string[];
   /** Display names of the people speaking from Beacon right now. */
@@ -352,6 +361,7 @@ export interface UpdateInstanceInput {
   restartPolicy?: "never" | "on-crash" | "always";
   stopTimeoutSeconds?: number;
   backups?: BackupSettings;
+  voice?: { policy: VoicePolicy };
 }
 
 export interface InstanceDetail {

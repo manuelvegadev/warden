@@ -7,6 +7,7 @@ import {
   BufferGeometry,
   Color,
   DirectionalLight,
+  DoubleSide,
   Fog,
   Group,
   LinearSRGBColorSpace,
@@ -18,10 +19,12 @@ import {
   Raycaster,
   Scene,
   SphereGeometry,
+  TorusGeometry,
   Vector3,
   WebGLRenderer,
 } from "three";
 import type { PlayerPos } from "@/lib/api";
+import type { SpeakTargetKind } from "@/lib/voice/aim";
 import { Avatar } from "./avatar";
 import { type CameraMode, CameraRig, FOV } from "./camera";
 import { fitRenderer } from "./canvas";
@@ -128,6 +131,8 @@ export class LiveViewScene {
   private idle = true;
   /** Debug: where the camera's pivot is (the point a click or a wheel notch picked). */
   private readonly pivotMarker = makePivotMarker();
+  /** Where the admin's voice comes from while talking, and how far it reaches (ADR-019 phase 3). */
+  private readonly emitter: Emitter = makeEmitter();
   private radius = 8;
   private raf = 0;
   private lastFrame = 0;
@@ -166,6 +171,7 @@ export class LiveViewScene {
     this.scene.add(this.sun);
     this.scene.add(this.terrain);
     this.scene.add(this.pivotMarker);
+    this.scene.add(this.emitter.point, this.emitter.range);
     this.terrain.visible = false;
     this.setRadius(this.radius);
     this.resize();
@@ -436,7 +442,7 @@ export class LiveViewScene {
   setCameraMode(mode: CameraMode) {
     const prev = this.rig.mode;
     if (mode === prev) return;
-    const a = this.following ? this.avatars.get(this.following) : undefined;
+    const a = this.followed();
     if (prev === "player" && a) {
       // Back out of the eyes to the opening aerial shot over the player.
       this.rig.setMode(mode);
@@ -484,7 +490,7 @@ export class LiveViewScene {
       a.update(dt);
       a.firstPerson = this.inEyes(name);
     }
-    const followed = this.following ? this.avatars.get(this.following) : undefined;
+    const followed = this.followed();
     if (followed && this.rig.mode === "orbit") {
       this.delta.copy(followed.group.position).sub(this.rig.pivot);
       this.rig.translate(this.delta);
@@ -540,6 +546,67 @@ export class LiveViewScene {
       a.eye(this.delta);
       cb(a.uuid, this.delta.x, this.delta.y, this.delta.z, this.inEyes(name));
     }
+  }
+
+  /** The world being shown, the one a locational voice is placed in. */
+  get worldName(): string {
+    return this.world;
+  }
+
+  /**
+   * Where the admin's voice should come from for the current camera mode, written into `out`: the
+   * camera itself in fly and orbit modes, the followed player's head in player mode. `none` when
+   * player mode has nobody to follow.
+   */
+  speakTarget(out: Float32Array): SpeakTargetKind {
+    switch (this.rig.mode) {
+      case "fly":
+      case "orbit":
+        out[0] = this.camera.position.x;
+        out[1] = this.camera.position.y;
+        out[2] = this.camera.position.z;
+        return "camera";
+      default: {
+        const a = this.followed();
+        if (!a?.uuid) return "none";
+        a.eye(this.delta);
+        out[0] = this.delta.x;
+        out[1] = this.delta.y;
+        out[2] = this.delta.z;
+        return "entity";
+      }
+    }
+  }
+
+  private followed(): Avatar | undefined {
+    return this.following ? this.avatars.get(this.following) : undefined;
+  }
+
+  /** The UUID of the player the camera follows, for an entity voice channel. */
+  followedUuid(): string | null {
+    const a = this.followed();
+    return a?.uuid || null;
+  }
+
+  /** Shows the emission point and the radius the voice reaches while the admin talks. */
+  setEmitter(x: number, y: number, z: number, radius: number, level: number): void {
+    const { point, range, shell, line } = this.emitter;
+    point.position.set(x, y, z);
+    range.position.set(x, y, z);
+    range.scale.setScalar(Math.max(radius, 0.01));
+    // Faint at a whisper, solid at a shout; nothing at all while silent.
+    const strength = Math.min(1, level * 3);
+    const visible = strength > 0.02;
+    point.visible = visible;
+    range.visible = visible && radius > 0.5;
+    (point.material as MeshBasicMaterial).opacity = 0.35 + 0.6 * strength;
+    line.opacity = 0.25 + 0.65 * strength;
+    shell.opacity = 0.04 + 0.1 * strength;
+  }
+
+  clearEmitter(): void {
+    this.emitter.point.visible = false;
+    this.emitter.range.visible = false;
   }
 
   /** Each player's head projected onto the screen and lifted clear of the model. */
@@ -623,6 +690,13 @@ export class LiveViewScene {
     (this.dome.material as Material).dispose();
     this.pivotMarker.geometry.dispose();
     (this.pivotMarker.material as Material).dispose();
+    this.emitter.point.geometry.dispose();
+    (this.emitter.point.material as Material).dispose();
+    this.emitter.range.traverse((o) => {
+      if (o instanceof Mesh) o.geometry.dispose();
+    });
+    this.emitter.shell.dispose();
+    this.emitter.line.dispose();
     this.celestial.dispose();
     cancelAnimationFrame(this.raf);
     for (const c of this.loaded.values()) this.dropChunk(c);
@@ -638,6 +712,54 @@ export class LiveViewScene {
 function ease(shown: RGB, target: RGB, k: number): RGB {
   for (let i = 0; i < 3; i++) shown[i] += (target[i] - shown[i]) * k;
   return shown;
+}
+
+/**
+ * Where the admin's voice leaves the scene while they talk: a bright point at the emission spot and
+ * the reach as a globe — a translucent shell with meridians and parallels drawn as thin tubes, which
+ * keep their width on screen from the emission point since the tube scales with the radius. Both
+ * fade with the voice level, so a silent microphone draws nothing.
+ */
+function makeEmitter(): Emitter {
+  const point = new Mesh(
+    new SphereGeometry(0.25, 12, 8),
+    new MeshBasicMaterial({ color: 0x38bdf8, depthTest: false, transparent: true, opacity: 0.95 }),
+  );
+  point.renderOrder = 11;
+  point.visible = false;
+  const shell = new MeshBasicMaterial({
+    color: 0x38bdf8,
+    transparent: true,
+    opacity: 0.08,
+    depthWrite: false,
+    side: DoubleSide,
+  });
+  const line = new MeshBasicMaterial({ color: 0x7dd3fc, transparent: true, opacity: 0.6, depthWrite: false });
+  const range = new Group();
+  range.add(new Mesh(new SphereGeometry(1, 48, 24), shell));
+  const tube = 0.006;
+  for (let k = 0; k < 6; k++) {
+    const meridian = new Mesh(new TorusGeometry(1, tube, 6, 128), line);
+    meridian.rotation.y = (k * Math.PI) / 6;
+    range.add(meridian);
+  }
+  for (const lat of [-60, -30, 0, 30, 60]) {
+    const rad = (lat * Math.PI) / 180;
+    const parallel = new Mesh(new TorusGeometry(Math.cos(rad), tube, 6, 128), line);
+    parallel.rotation.x = Math.PI / 2;
+    parallel.position.y = Math.sin(rad);
+    range.add(parallel);
+  }
+  range.renderOrder = 9;
+  range.visible = false;
+  return { point, range, shell, line };
+}
+
+interface Emitter {
+  point: Mesh;
+  range: Group;
+  shell: MeshBasicMaterial;
+  line: MeshBasicMaterial;
 }
 
 /** A magenta ball drawn over everything, so the pivot shows even inside a hill. */

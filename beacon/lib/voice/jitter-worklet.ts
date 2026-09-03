@@ -10,10 +10,11 @@
  * the processor resamples linearly from Opus's 48 kHz to its own rate.
  */
 
+import { OPUS_RATE } from "./frames";
+import { registerWorklet } from "./worklet";
+
 export const JITTER_PROCESSOR = "beacon-voice-jitter";
 
-/** Sample rate of the incoming audio: Opus as Simple Voice Chat sends it. */
-const INPUT_RATE = 48_000;
 /** Seconds buffered before a speaker starts playing. */
 const TARGET_S = 0.06;
 
@@ -21,7 +22,7 @@ const SOURCE = `
 class BeaconVoiceJitter extends AudioWorkletProcessor {
   constructor() {
     super();
-    this.inputRate = ${INPUT_RATE};
+    this.inputRate = ${OPUS_RATE};
     this.target = Math.round(${TARGET_S} * this.inputRate);
     this.capacity = this.inputRate * 2;
     this.ring = new Float32Array(this.capacity);
@@ -101,16 +102,7 @@ class BeaconVoiceJitter extends AudioWorkletProcessor {
 registerProcessor(${JSON.stringify(JITTER_PROCESSOR)}, BeaconVoiceJitter);
 `;
 
-const registered = new WeakSet<AudioContext>();
-
 /** Registers the processor on the context (once). */
-export async function registerJitterWorklet(ctx: AudioContext): Promise<void> {
-  if (registered.has(ctx)) return;
-  const url = URL.createObjectURL(new Blob([SOURCE], { type: "text/javascript" }));
-  try {
-    await ctx.audioWorklet.addModule(url);
-  } finally {
-    URL.revokeObjectURL(url);
-  }
-  registered.add(ctx);
+export function registerJitterWorklet(ctx: AudioContext): Promise<void> {
+  return registerWorklet(ctx, JITTER_PROCESSOR, SOURCE);
 }

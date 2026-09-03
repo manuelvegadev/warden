@@ -8,7 +8,7 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { SaveBar, SectionCard, SettingRow } from "@/components/instance/section-card";
 import { useDraft } from "@/hooks/use-draft";
-import { instances, type JavaRuntime, java, type Manifest } from "@/lib/api";
+import { instances, type JavaRuntime, java, type Manifest, type VoicePolicy } from "@/lib/api";
 import { mono } from "@/lib/utils";
 
 /** The editable subset of the manifest, as form state. */
@@ -21,6 +21,7 @@ interface Draft {
   javaRuntime: string;
   restartPolicy: Manifest["restartPolicy"];
   autostart: boolean;
+  voicePolicy: VoicePolicy;
 }
 
 const fromManifest = (m: Manifest): Draft => ({
@@ -32,10 +33,12 @@ const fromManifest = (m: Manifest): Draft => ({
   javaRuntime: m.javaRuntime || "auto",
   restartPolicy: m.restartPolicy,
   autostart: m.autostart,
+  voicePolicy: m.voice?.policy ?? "notify",
 });
 
 const PRESETS = { aikar: "Aikar (recommended)", basic: "Basic", custom: "Custom" };
 const POLICIES = { never: "Never", "on-crash": "On crash", always: "Always" };
+const VOICE_POLICY_LABELS: Record<VoicePolicy, string> = { notify: "Tell players", ask: "Ask players" };
 
 /** Instance settings (PATCH /instances/{id}), laid out like Properties: sectioned cards of rows. */
 export function SettingsForm({ manifest, running }: { manifest: Manifest; running: boolean }) {
@@ -66,6 +69,7 @@ export function SettingsForm({ manifest, running }: { manifest: Manifest; runnin
         autostart: draft.autostart,
         restartPolicy: draft.restartPolicy,
         stopTimeoutSeconds: draft.stopTimeoutSeconds,
+        voice: { policy: draft.voicePolicy },
       });
       toast.success(running ? "Saved — applies on the next restart" : "Saved");
       reset();
@@ -221,6 +225,30 @@ export function SettingsForm({ manifest, running }: { manifest: Manifest; runnin
           <div className="flex h-9 items-center justify-end">
             <Switch id="setting-autostart" checked={draft.autostart} onCheckedChange={(c) => set("autostart", c)} />
           </div>,
+        )}
+      </SectionCard>
+
+      <SectionCard title="Voice" subtitle="Voice chat from Beacon, when Simple Voice Chat is on the server (ADR-019).">
+        {row(
+          "voicePolicy",
+          "Players are…",
+          "Told in-game who listens or speaks from Beacon while it lasts, or asked once and free to refuse. Read at server start.",
+          <Select
+            items={VOICE_POLICY_LABELS}
+            value={draft.voicePolicy}
+            onValueChange={(v) => v && set("voicePolicy", v as VoicePolicy)}
+          >
+            <SelectTrigger id="setting-voicePolicy" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {Object.entries(VOICE_POLICY_LABELS).map(([v, label]) => (
+                <SelectItem key={v} value={v}>
+                  {label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>,
         )}
       </SectionCard>
 

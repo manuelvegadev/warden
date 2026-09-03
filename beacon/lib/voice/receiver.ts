@@ -1,10 +1,7 @@
-import type { VoiceFrame } from "./frames";
+import { OPUS_RATE, PACKET_US, type VoiceFrame } from "./frames";
 import { JITTER_PROCESSOR, registerJitterWorklet } from "./jitter-worklet";
 import { createSpatializer, type Renderer, type RoomPreset, type Spatializer, type SpatialSource } from "./spatial";
 
-/** Opus as Simple Voice Chat sends it: mono, 48 kHz, 20 ms packets. */
-const OPUS_RATE = 48_000;
-const PACKET_US = 20_000;
 /** A speaker whose frames stopped this long ago is torn down. */
 const IDLE_MS = 5_000;
 /** A speaker counts as speaking while a frame arrived this recently. */

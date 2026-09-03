@@ -46,6 +46,11 @@ export class WardendSocket {
     this.ws?.send(JSON.stringify(msg));
   }
 
+  /** A binary frame, as-is. */
+  sendRaw(data: ArrayBuffer): void {
+    if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(data);
+  }
+
   private async open(): Promise<void> {
     if (this.closed) return;
     const { data } = await authClient.token();
