@@ -12,14 +12,18 @@ public interface VoiceSupport {
     /** hello.ok arrived: report {@code voice.info} to wardend. */
     void onConnected();
 
+    /** Simple Voice Chat is installed and its voice server runs. */
+    boolean available();
+
     void shutdown();
 
-    static VoiceSupport detect(JavaPlugin plugin, WardendClient client, AgentConfig cfg, VoiceNotifier notifier) {
+    static VoiceSupport detect(JavaPlugin plugin, WardendClient client, AgentConfig cfg, VoiceNotifier notifier,
+            VoiceConsent consent) {
         if (plugin.getServer().getPluginManager().getPlugin("voicechat") == null) {
             return new Absent();
         }
         try {
-            VoiceSupport bridge = VoiceBridge.register(plugin, client, cfg, notifier);
+            VoiceSupport bridge = VoiceBridge.register(plugin, client, cfg, notifier, consent);
             if (bridge != null) {
                 plugin.getLogger().info("Simple Voice Chat found: voice bridge registered");
                 return bridge;
@@ -38,6 +42,11 @@ public interface VoiceSupport {
     final class Absent implements VoiceSupport {
         @Override
         public void onConnected() {}
+
+        @Override
+        public boolean available() {
+            return false;
+        }
 
         @Override
         public void shutdown() {}

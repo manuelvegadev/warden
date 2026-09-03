@@ -4,6 +4,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import org.bukkit.Bukkit;
 import org.bukkit.World;
+import org.bukkit.command.PluginCommand;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitTask;
 
@@ -33,11 +34,26 @@ public final class WardenAgentPlugin extends JavaPlugin {
             voice.onConnected();
         });
         tracker = new ChunkTracker(this, cfg, client, encoder);
-        PlayerSampler sampler = new PlayerSampler(client);
+        VoiceConsent consent = new VoiceConsent(this, cfg.voiceConsent());
+        PlayerSampler sampler = new PlayerSampler(client, consent.asks() ? consent::state : null);
         getServer().getPluginManager().registerEvents(tracker, this);
-        ActionBarNotifier notifier = new ActionBarNotifier(this);
-        getServer().getPluginManager().registerEvents(notifier, this);
-        voice = VoiceSupport.detect(this, client, cfg, notifier);
+        // How players learn about Beacon's voice sessions: the action bar always; under the ask
+        // policy, the consent dialog too.
+        ActionBarNotifier bar = new ActionBarNotifier(this);
+        getServer().getPluginManager().registerEvents(bar, this);
+        VoiceNotifier notifier = bar;
+        if (consent.asks()) {
+            ConsentPrompter prompter = new ConsentPrompter(this, consent);
+            getServer().getPluginManager().registerEvents(prompter, this);
+            notifier = VoiceNotifier.all(bar, prompter);
+        }
+        voice = VoiceSupport.detect(this, client, cfg, notifier, consent);
+        WardenCommand command = new WardenCommand(consent, () -> voice.available());
+        PluginCommand warden = getCommand("warden");
+        if (warden != null) {
+            warden.setExecutor(command);
+            warden.setTabCompleter(command);
+        }
         playersTask = getServer().getScheduler().runTaskTimer(this, sampler::tick, 20L, 4L);
         chunksTask = getServer().getScheduler().runTaskTimer(this, tracker::tick, 20L, 1L);
         client.start();

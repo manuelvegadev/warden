@@ -7,7 +7,9 @@ import com.google.gson.JsonParser;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.WebSocket;
+import java.io.ByteArrayOutputStream;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
@@ -43,6 +45,7 @@ public final class WardendClient {
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
     private final AtomicReference<WebSocket> socket = new AtomicReference<>();
     private final ConcurrentHashMap<String, Consumer<JsonObject>> handlers = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Byte, Consumer<ByteBuffer>> binaryHandlers = new ConcurrentHashMap<>();
     private volatile boolean ready; // hello.ok received on the current socket
     private volatile boolean closed;
     private int attempt;
@@ -64,6 +67,15 @@ public final class WardendClient {
      */
     public void on(String type, Consumer<JsonObject> handler) {
         handlers.put(type, handler);
+    }
+
+    /**
+     * Registers the handler for one kind of binary message from wardend (its first byte). Called on
+     * the socket thread with a little-endian buffer positioned just after the kind byte; the buffer
+     * is the handler's to keep.
+     */
+    public void onBinary(byte kind, Consumer<ByteBuffer> handler) {
+        binaryHandlers.put(kind, handler);
     }
 
     /** True once wardend accepted the hello on the live socket. */
@@ -169,6 +181,8 @@ public final class WardendClient {
 
     private final class Listener implements WebSocket.Listener {
         private final StringBuilder text = new StringBuilder();
+        // The JDK client may deliver one message in several parts.
+        private final ByteArrayOutputStream binary = new ByteArrayOutputStream();
 
         @Override
         public void onOpen(WebSocket ws) {
@@ -189,8 +203,38 @@ public final class WardendClient {
 
         @Override
         public CompletionStage<?> onBinary(WebSocket ws, ByteBuffer data, boolean last) {
+            if (last && binary.size() == 0) {
+                // The usual case, one part: hand the handler the buffer itself, no copy.
+                dispatch(data.slice().order(ByteOrder.LITTLE_ENDIAN));
+            } else {
+                byte[] part = new byte[data.remaining()];
+                data.get(part);
+                binary.write(part, 0, part.length);
+                if (last) {
+                    byte[] msg = binary.toByteArray();
+                    binary.reset();
+                    dispatch(ByteBuffer.wrap(msg).order(ByteOrder.LITTLE_ENDIAN));
+                }
+            }
             ws.request(1);
             return null;
+        }
+
+        /** Routes one whole binary message by its first byte; the handler gets the buffer positioned after it. */
+        private void dispatch(ByteBuffer msg) {
+            if (!msg.hasRemaining()) {
+                return;
+            }
+            byte kind = msg.get();
+            Consumer<ByteBuffer> handler = binaryHandlers.get(kind);
+            if (handler == null) {
+                return;
+            }
+            try {
+                handler.accept(msg);
+            } catch (RuntimeException e) {
+                log.log(Level.FINE, "binary message of kind " + kind + " rejected", e);
+            }
         }
 
         @Override
@@ -219,7 +263,7 @@ public final class WardendClient {
             } catch (RuntimeException e) {
                 return;
             }
-            String type = o.has("type") ? o.get("type").getAsString() : "";
+            String type = str(o, "type");
             switch (type) {
                 case "hello.ok" -> {
                     Map<String, JsonArray> known = new HashMap<>();
@@ -235,7 +279,7 @@ public final class WardendClient {
                     log.info("Connected to wardend");
                     onHelloOk.accept(new Known(known));
                 }
-                case "error" -> log.warning("wardend: " + (o.has("message") ? o.get("message").getAsString() : msg));
+                case "error" -> log.warning("wardend: " + (o.has("message") ? str(o, "message") : msg));
                 default -> {
                     Consumer<JsonObject> handler = handlers.get(type);
                     if (handler != null) {
@@ -244,6 +288,16 @@ public final class WardendClient {
                 }
             }
         }
+    }
+
+    /** A null-safe boolean field of a wardend message; false when absent. */
+    static boolean bool(JsonObject o, String k) {
+        return o.has(k) && !o.get(k).isJsonNull() && o.get(k).getAsBoolean();
+    }
+
+    /** A null-safe string field of a wardend message; empty when absent. */
+    static String str(JsonObject o, String k) {
+        return o.has(k) && !o.get(k).isJsonNull() ? o.get(k).getAsString() : "";
     }
 
     /** A named daemon thread factory, shared with the tracker's encode thread. */

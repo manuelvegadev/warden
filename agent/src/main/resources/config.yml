@@ -21,6 +21,7 @@ resend-seconds: 5
 # that no event reports. 0 disables it.
 reconcile-seconds: 300
 
-# Voice chat (ADR-019), when Simple Voice Chat is installed. How players learn that someone in Beacon
-# is listening: "notify" tells them in-game while it lasts. ("ask", per-player consent, comes later.)
+# Voice chat (ADR-019), when Simple Voice Chat is installed. How players are involved when someone in
+# Beacon listens or speaks: "notify" tells them in-game while it lasts; "ask" also asks each player
+# once whether they allow it (a dialog, or /warden voice allow|deny) and honours the answer.
 voice-consent: notify

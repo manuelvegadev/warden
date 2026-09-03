@@ -17,10 +17,9 @@ public record AgentConfig(String url, String token, int radius, int snapshotsPer
                 voiceConsent(c.getString("voice-consent", "notify")));
     }
 
-    /** Only {@code notify} exists in phase 1 of ADR-019; anything else falls back to it. */
+    /** {@code notify} (tell players in-game) or {@code ask} (per-player consent, ADR-019 §1); anything else means notify. */
     private static String voiceConsent(String v) {
-        // "ask" arrives with phase 3; until then every value means notify.
-        return "notify".equals(v) ? v : "notify";
+        return "ask".equals(v) ? v : "notify";
     }
 
     public boolean enabled() {

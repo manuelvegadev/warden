@@ -6,3 +6,7 @@ softdepend: [voicechat]
 description: Streams player positions and simplified chunks to wardend for the live world view in Beacon.
 author: Warden
 website: https://github.com/manuelvega/warden
+commands:
+  warden:
+    description: Your choices about Beacon, such as whether the panel may hear you and speak to you.
+    usage: /warden voice allow|deny|status

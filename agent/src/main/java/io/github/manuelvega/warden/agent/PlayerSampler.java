@@ -3,6 +3,8 @@ package io.github.manuelvega.warden.agent;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import java.util.Collection;
+import java.util.UUID;
+import java.util.function.Function;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
@@ -16,10 +18,13 @@ import org.bukkit.metadata.MetadataValue;
  */
 public final class PlayerSampler {
     private final WardendClient client;
+    /** Each player's voice consent (ADR-019), or null when nobody is asked and the field is left out. */
+    private final Function<UUID, String> consent;
     private int lastCount = -1;
 
-    public PlayerSampler(WardendClient client) {
+    public PlayerSampler(WardendClient client, Function<UUID, String> consent) {
         this.client = client;
+        this.consent = consent;
     }
 
     public void tick() {
@@ -32,10 +37,11 @@ public final class PlayerSampler {
             return;
         }
         lastCount = players.size();
-        client.sendText(encode(players, Bukkit.getWorlds()).toString());
+        client.sendText(encode(players, Bukkit.getWorlds(), consent).toString());
     }
 
-    static JsonObject encode(Collection<? extends Player> players, Collection<World> worlds) {
+    static JsonObject encode(Collection<? extends Player> players, Collection<World> worlds,
+            Function<UUID, String> consent) {
         JsonObject msg = new JsonObject();
         msg.addProperty("type", "players");
         msg.addProperty("t", System.currentTimeMillis());
@@ -73,6 +79,9 @@ public final class PlayerSampler {
             o.addProperty("inWater", p.isInWater());
             o.addProperty("gamemode", p.getGameMode().name().toLowerCase());
             o.addProperty("vanished", vanished(p));
+            if (consent != null) {
+                o.addProperty("voice", consent.apply(p.getUniqueId()));
+            }
             arr.add(o);
         }
         msg.add("players", arr);
