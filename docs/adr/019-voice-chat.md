@@ -1,6 +1,6 @@
 # ADR-019: Voice chat in Beacon — a Simple Voice Chat addon in the Warden Agent
 
-Date: 2026-09-02 · Status: accepted (phase 1 verified 2026-09-03; phases 2–4 pending) · **Extends** ADR-018 (live world view) and ADR-017 (per-instance roles).
+Date: 2026-09-02 · Status: accepted (phase 1 verified and phase 2 built 2026-09-03; phases 3–4 pending) · **Extends** ADR-018 (live world view) and ADR-017 (per-instance roles).
 
 ## Context
 
@@ -163,14 +163,35 @@ New module `lib/voice/`, consumed by `components/instance/live-view.tsx`:
   otherwise a short notice. No WASM fallback, no WebRTC.
 - **`VoiceSocket`** — the `/voice` WebSocket with the same token and backoff as `use-wardend-socket.ts`.
 - **`Receiver`** — per speaker UUID: `AudioDecoder({codec:"opus", sampleRate:48000, numberOfChannels:1})`
-  → a ~60 ms jitter buffer in an `AudioWorklet` → `PannerNode` (HRTF, `distanceModel:"linear"`,
-  `refDistance:1`, `maxDistance` = voice or whisper distance from `voice.status`) → destination. The
-  source position is `avatar.group.position` (already smoothed from the 5 Hz samples) at eye height;
-  the `AudioListener` follows `scene.camera` every frame: in **player** mode the admin hears what that
-  player hears, in **fly** what an invisible spectator would, in **orbit** the listener sits on the
-  camera (a far orbit is silent, as in the game). Group-flagged frames are dropped by default. A speaking
-  player's name tag lights up, as SVC does in-game. Global (static) speech, when it exists, plays flat,
-  outside the panner.
+  → a ~60 ms jitter buffer in an `AudioWorklet` → the elevation filter → a source of the spatial
+  renderer. The source position is the avatar's eye position (already smoothed from the 5 Hz samples);
+  the listener follows `scene.camera` every rendered frame through the scene's `onFrame` hook: in
+  **player** mode the admin hears what that player hears, with the followed player's own voice a step
+  ahead of the camera rather than inside the listener's head (the "conscience" placement belongs to
+  what the *player* hears when the admin speaks, phase 3); in **fly** what an invisible spectator would,
+  in **orbit** the listener sits on the camera (a far orbit is silent, as in the game). Falloff is
+  linear from 1 block to the server's voice distance, or the whisper distance for whispered frames,
+  both from `voice.status`. Group-flagged frames are dropped. A speaking player's name tag lights up,
+  as SVC does in-game. Global (static) speech, when it exists, plays flat, outside the renderer.
+- **Two spatial renderers** (`lib/voice/spatial.ts`), chosen in the viewer and remembered per browser.
+  The browser's `PannerNode` in HRTF mode uses one HRTF set averaged over IRCAM's LISTEN subjects at
+  15° resolution in every engine: lateral cues are fine, elevation and externalisation are poor, and
+  there is no room. **Resonance Audio** (Google, Apache-2.0, archived in 2026, native Web Audio nodes
+  only, 129 KB minified, `resonance-audio` on npm) is therefore the default: third-order ambisonics
+  decoded with the SADIE KU100 HRTFs plus a room with directional early reflections and a late reverb,
+  the cues that put a voice outside the head. Resonance keeps its room centred on the origin, so the
+  room travels with the camera: the listener sits at ear height above the room's floor and sources
+  are fed relative to it. Resonance fades the room sends out for a source beyond the walls, so the
+  outdoor room is wide and tall enough to hold anyone within voice range above or below the camera.
+  Presets: *Outdoors* (open sky, distant walls, a grass floor for the reflection that anchors a voice
+  to the ground; the default),
+  *Room*, *Hall*, *No room*. If Resonance cannot be loaded the receiver falls back to the browser's
+  panner and says so; the panner is also selectable outright.
+- **Elevation cue.** A generic HRTF cannot tell up from down. Spectral energy between 2 and 10 kHz
+  is read as height (Rajendran & Gamper, JASA 2019), so a peaking filter centred at 5 kHz is boosted
+  for voices above the listener and cut for voices below, up to ±6 dB at 45°. On by default, a
+  checkbox in the same menu. What no generic renderer gives is fine height: a player two blocks higher
+  will not be heard as such.
 - **`Transmitter`** — `getUserMedia({audio:{echoCancellation, noiseSuppression}})` → effects graph →
   `AudioEncoder({codec:"opus", sampleRate:48000, numberOfChannels:1, bitrate})` at 20 ms → kind-3 frames.
   Push-to-talk (hold **V** or the button). The **target** follows the camera mode: fly → locational at the
@@ -211,6 +232,9 @@ New module `lib/voice/`, consumed by `components/instance/live-view.tsx`:
   otherwise. The agent forwards bytes; no codec runs in the JVM.
 - The browser floor for voice is stricter than for the rest of Beacon and is enforced by feature
   detection, not by user-agent sniffing.
+- One archived third-party library in the viewer's voice chunk (`resonance-audio`, with Omnitone
+  bundled). It is Apache-2.0 and built on APIs that have not changed in a decade; if it ever breaks,
+  the browser renderer behind the same interface keeps voice working while it is vendored or replaced.
 - Privacy is a product decision made explicit: listening is `manager`-only, visible in-game for as
   long as it lasts, optionally consented per player, enforced by the agent and written to the event log.
 - Beacon links only against SVC's published addon API; the mod's proprietary licence is respected.
@@ -221,11 +245,11 @@ New module `lib/voice/`, consumed by `components/instance/live-view.tsx`:
    `voice.listen`), `internal/voice` service and `/voice` socket, roles, `voice.status`, audit events,
    consent policy `notify` with the action-bar notice, Beacon `VoiceSocket` + `Receiver` playing flat. Verified
    against a real Paper server with two clients.
-2. **3D.** Panner per speaker fed from the avatars, listener from the camera per mode, group filter,
-   name-tag indicator, whisper radius, consent icons.
+2. **3D.** Panner per speaker placed on its avatar's head from the scene's per-frame hook, listener
+   from the camera per mode, group filter, name-tag indicator, whisper radius.
 3. **Speak.** kind-3 frames, `onBinary` dispatcher, static/locational/entity channels with filter and
    volume category, push-to-talk, targets per camera mode, source marker and radius sphere, `ask`
-   policy with the Paper dialog and `/warden voice`.
+   policy with the Paper dialog and `/warden voice`, consent icons on the name tags.
 4. **Effects.** Presets and the encoder bitrate switch; local monitor.
 5. **Later, if needed.** `PlayerAudioListener` as an alternative listen mode ("hear exactly what X
    hears, groups included"); WebRTC (pion) if jitter over WebSocket proves unacceptable on real links;
