@@ -6,9 +6,11 @@
  * browser that cannot decode them.
  *
  * Playback needs a prior user gesture on the page (the autoplay policy); when the context stays
- * suspended the cue is silent and the transition still runs to the sound's length.
+ * suspended the cue is silent and the transition still runs to the sound's length. The context is
+ * the page's shared one (`lib/audio-context.ts`).
  */
 
+import { uiAudioContext } from "@/lib/audio-context";
 import { BEACON_ACTIVATE_MS, BEACON_DEACTIVATE_MS } from "./constants";
 
 export type Cue = "activate" | "deactivate";
@@ -23,14 +25,8 @@ const FALLBACK_MS: Record<Cue, number> = {
   deactivate: BEACON_DEACTIVATE_MS,
 };
 
-let ctx: AudioContext | null = null;
 const buffers = new Map<Cue, AudioBuffer | null>();
 const loading = new Map<Cue, Promise<void>>();
-
-function context(): AudioContext {
-  if (!ctx) ctx = new AudioContext();
-  return ctx;
-}
 
 /** Fetches and decodes a cue once; safe to call early, before any gesture. */
 export function preloadCue(cue: Cue): Promise<void> {
@@ -38,7 +34,7 @@ export function preloadCue(cue: Cue): Promise<void> {
   if (!p) {
     p = fetch(FILES[cue])
       .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(r.statusText))))
-      .then((b) => context().decodeAudioData(b))
+      .then((b) => uiAudioContext().decodeAudioData(b))
       .then(
         (buf) => void buffers.set(cue, buf),
         (e) => {
@@ -61,8 +57,7 @@ function cueMs(cue: Cue): number {
 export function playCue(cue: Cue): number {
   const buf = buffers.get(cue);
   if (buf) {
-    const c = context();
-    if (c.state === "suspended") void c.resume();
+    const c = uiAudioContext();
     const src = c.createBufferSource();
     src.buffer = buf;
     src.connect(c.destination);

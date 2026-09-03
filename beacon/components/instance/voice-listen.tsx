@@ -31,6 +31,7 @@ import { VoiceSocket, type VoiceSocketState, voiceSocketUrl } from "@/lib/voice/
 import { RENDERERS, type Renderer, ROOM_PRESETS, type RoomPreset } from "@/lib/voice/spatial";
 import { VOICE_UNSUPPORTED, voiceSupported } from "@/lib/voice/support";
 import { VoiceTransmitter } from "@/lib/voice/transmitter";
+import { playUiCue } from "@/lib/voice/ui-cues";
 
 /**
  * The instance's voice status (ADR-019): fetched once, then kept current from the hub's
@@ -321,19 +322,26 @@ export function useVoice(id: string, status: VoiceStatus | null): Voice {
     queue.current = queue.current.then(reconcile, reconcile);
   }, [desired, micMode, reconcile]);
 
-  const join = useCallback(() => setDesired((x) => ({ ...x, joined: true })), []);
-  const leave = useCallback(() => setDesired((x) => ({ ...x, joined: false, held: false })), []);
-  const toggleMute = useCallback(
-    () => setDesired((x) => (x.deafened ? x : { ...x, muted: !x.muted, held: false })),
-    [],
-  );
-  const toggleDeafen = useCallback(
-    () =>
-      setDesired((x) =>
-        x.deafened ? { ...x, deafened: false, muted: false } : { ...x, deafened: true, muted: true, held: false },
-      ),
-    [],
-  );
+  // The switches, each answered by its sound; they run from the click, so audio may start.
+  const join = useCallback(() => {
+    playUiCue("join");
+    setDesired((x) => ({ ...x, joined: true }));
+  }, []);
+  const leave = useCallback(() => {
+    playUiCue("leave");
+    setDesired((x) => ({ ...x, joined: false, held: false }));
+  }, []);
+  const toggleMute = useCallback(() => {
+    if (desiredRef.current.deafened) return;
+    playUiCue("mute");
+    setDesired((x) => ({ ...x, muted: !x.muted, held: false }));
+  }, []);
+  const toggleDeafen = useCallback(() => {
+    playUiCue(desiredRef.current.deafened ? "mute" : "deafen");
+    setDesired((x) =>
+      x.deafened ? { ...x, deafened: false, muted: false } : { ...x, deafened: true, muted: true, held: false },
+    );
+  }, []);
   const pressTalk = useCallback(
     () => setDesired((x) => (x.held || prefsRef.current.mic !== "ptt" ? x : { ...x, held: true })),
     [],
