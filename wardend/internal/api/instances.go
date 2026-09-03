@@ -338,6 +338,7 @@ type patchInstanceReq struct {
 	RestartPolicy *string                  `json:"restartPolicy"`
 	StopTimeoutS  *int                     `json:"stopTimeoutSeconds"`
 	Backups       *instance.BackupSettings `json:"backups"`
+	Voice         *instance.VoiceSettings  `json:"voice"`
 }
 
 func (s *server) patchInstance(w http.ResponseWriter, r *http.Request) {
@@ -349,6 +350,10 @@ func (s *server) patchInstance(w http.ResponseWriter, r *http.Request) {
 	var req patchInstanceReq
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, 400, "bad_json", err.Error())
+		return
+	}
+	if req.Voice != nil && !req.Voice.Valid() {
+		writeError(w, 400, "bad_voice_policy", "voice.policy must be notify or ask")
 		return
 	}
 	m := inst.Manifest
@@ -385,6 +390,10 @@ func (s *server) patchInstance(w http.ResponseWriter, r *http.Request) {
 	if req.Backups != nil {
 		req.Backups.Normalize()
 		m.Backups = *req.Backups
+	}
+	if req.Voice != nil {
+		// Reaches the agent through config.yml, rewritten before every start (ADR-019).
+		m.Voice = req.Voice
 	}
 	if err := inst.SaveManifest(); err != nil {
 		writeError(w, 500, "save_failed", err.Error())

@@ -78,7 +78,7 @@ Instance create/patch accept `javaRuntime` (`"auto"` or a runtime id) and `javaP
 | POST | `/system/update` | Admin. `202` task `daemon.update`: downloads the release binary for this platform into `<data>/update/`, verifies it against `SHA256SUMS`, writes `<data>/update/tag`; `wardend-update.path` (root, installed by `wardend install`) then runs `wardend update-apply`, which re-verifies against GitHub, replaces `/usr/local/bin/wardend` and restarts the service. `409 up_to_date` / `not_supported` (no installer units, unsupported platform) / `task_running`. |
 | GET | `/tasks?instance={id}` | The instance's tasks, newest first — how a page learns about a task that started before its WebSocket subscription |
 | GET | `/instances/{id}` | Full manifest + state |
-| PATCH | `/instances/{id}` | Change name, jvm, autostart, restartPolicy, javaPath, memory, ports (when stopped) |
+| PATCH | `/instances/{id}` | Change name, jvm, autostart, restartPolicy, javaPath, memory, ports (when stopped), backups, `voice: {policy}` (see Voice chat) |
 | DELETE | `/instances/{id}?purge=false` | Stops and moves to trash (`purge=true` deletes) |
 | POST | `/instances/{id}/start` | |
 | POST | `/instances/{id}/stop?timeout=60` | Clean `stop` |
@@ -174,26 +174,43 @@ The agent talks to the daemon on a separate loopback listener (`WARDEND_AGENT_LI
 ## Voice chat (ADR-019)
 | Method | Path | Description |
 |---|---|---|
-| GET | `/instances/{id}/voice` | `{available,plugin?,distance,whisper,policy,listeners:[name…],speaking:[]}`: whether Simple Voice Chat is loaded on the server (as reported by the agent), its voice and whisper distances in blocks, the consent policy, and the display names of the people listening from the panel right now. `listeners` and `speaking` are always arrays. |
+| GET | `/instances/{id}/voice` | `{available,plugin?,distance,whisper,policy,listeners:[name…],speaking:[name…]}`: whether Simple Voice Chat is loaded on the server (as reported by the agent), its voice and whisper distances in blocks, the consent policy in force, and the display names of the people listening and speaking from the panel right now. `listeners` and `speaking` are always arrays. |
+
+The consent policy is an instance setting: `PATCH /instances/{id}` with `voice: {"policy": "notify" | "ask"}`
+(`400 bad_voice_policy` otherwise) stores it in the manifest (`voice.policy`, `notify` when absent); the
+daemon writes it into the agent's `plugins/WardenAgent/config.yml` as `voice-consent` before every
+server start, which is when the agent reads it: a change applies at the next start, and `GET …/voice`
+keeps reporting the value in force until then.
 
 Audio rides its own WebSocket, not the hub: `GET /api/v1/instances/{id}/voice/ws` (no `Authorization`
 header; the first message authenticates, as on `/ws`). Client → server, in order:
-`{"type":"auth","token":"<jwt>"}` within 5 s, then `{"type":"voice.hello","listen":true}`. Server →
-client: `{"type":"auth.ok"}`, then `{"type":"voice.ok","status":{…}}` (the object above) — or
-`{"type":"error","message":"instance not found"}` / `"role manager is required on this instance"` and a
-close (listening needs `manager`, `voice.listen` in the access tables; `voice.speak`, `operator`, is
-reserved for phase 3). From then on binary messages carry the agent's voice frames verbatim and `{"type":"ping"}` is
-answered with `{"type":"pong"}`; status changes travel on the hub as `voice.status`, not on this
-socket. A slow client loses the oldest queued frames, never the newest.
+`{"type":"auth","token":"<jwt>"}` within 5 s, then `{"type":"voice.hello","listen":bool,"speak":bool}`
+with at least one true. Server → client: `{"type":"auth.ok"}`, then `{"type":"voice.ok","status":{…}}`
+(the object above) — or `{"type":"error","message":…}` and a close: `instance not found`,
+`nothing to do`, `role manager is required on this instance` (listening, `voice.listen` in the access
+tables) or `role operator is required on this instance` (speaking, `voice.speak`). A socket that asked
+to listen is a listener from `voice.ok` on; `{"type":"voice.listen","active":bool}` toggles that later.
+`{"type":"voice.speak","active":bool}` marks push-to-talk pressed and released: a *speak session*,
+open until released or the socket goes. `{"type":"ping"}` is answered with `{"type":"pong"}`. Status
+changes travel on the hub as `voice.status`, not on this socket. Binary messages: down, the agent's
+voice frames verbatim (a slow client loses the oldest queued frames, never the newest); up, speak
+bodies, accepted only from a socket that asked to speak while its session is open.
 
-Voice frame (little-endian): `u8 2 · u8 flags (1 whisper · 2 group) · speaker UUID (16 bytes, RFC 4122 order)
-· u64 seq · Opus payload` (48 kHz mono, one 20 ms frame). The agent sends them on the loopback socket
-as binary messages of kind 2 only while somebody listens: the daemon sends it
-`{"type":"voice.listen","active":true|false,"by":"<names>"}` whenever the set of listeners changes, and
-the agent reports `{"type":"voice.info","available":…,"plugin":…,"distance":…,"whisper":…,"policy":…}`
-when it connects and when the plugin starts or stops. Nothing about the audio is stored; the start and
-end of every listening session are written to the instance's events (`voice.listen.start`,
-`voice.listen.stop`, with the listener's name as `player`).
+Voice frame, agent → daemon → browser (little-endian): `u8 2 · u8 flags (1 whisper · 2 group) · speaker
+UUID (16 bytes, RFC 4122 order) · u64 seq · Opus payload` (48 kHz mono, one 20 ms frame). The agent
+sends them on the loopback socket only while somebody listens: the daemon sends it
+`{"type":"voice.listen","active":true|false,"by":"<names>"}` whenever the set of listeners changes.
+
+Speak body, browser → daemon (little-endian): `u8 3 · u8 mode (0 static · 1 locational · 2 entity) · u8
+flags (1 whisper) · u64 seq · f32 distance · mode 1: u8 worldLen · world · f64 x · f64 y · f64 z · mode 2:
+player UUID (16) · Opus payload`. The daemon validates the layout and relays it to the agent as
+`u8 3 · u8 sessionLen · session · <the body after its kind byte>`, the session being an 8-character id
+per socket; it tells the agent `{"type":"voice.session","id":…,"by":"<name>","open":true|false}` when
+a session opens and closes (and again for open sessions when the agent reconnects). The agent reports
+`{"type":"voice.info","available":…,"plugin":…,"distance":…,"whisper":…,"policy":…}` when it connects
+and when the plugin starts or stops. Nothing about the audio is stored; the start and end of every
+listening and speaking session are written to the instance's events (`voice.listen.start`,
+`voice.listen.stop`, `voice.speak.start`, `voice.speak.stop`, with the panel user's name as `player`).
 
 ## Import
 
@@ -232,13 +249,13 @@ Server → client:
 | `console.history` | `{lines:[...]}` on subscribe |
 | `metrics` | `{ts,cpu,memRss,memMax,diskUsed,netRx,netTx,tps:[1m,5m,15m],players:{online,max}}` every 2 s |
 | `state` | `{state,pid,startedAt,exitCode?}` |
-| `event` | `{kind:"player.join|player.leave|player.chat|player.advancement|player.death|server.ready|server.overloaded|voice.listen.start|voice.listen.stop", player?, text, ts}`; the `voice.*` kinds are panel actions (ADR-019), `player` is then the listener's name |
+| `event` | `{kind:"player.join|player.leave|player.chat|player.advancement|player.death|server.ready|server.overloaded|voice.listen.start|voice.listen.stop|voice.speak.start|voice.speak.stop", player?, text, ts}`; the `voice.*` kinds are panel actions (ADR-019), `player` is then the panel user's name |
 | `task.progress` | `{id,type,progress:0-100,message,status}` |
 | `players` | `{online:[{uuid,name}]}` after each join/leave |
 | `world.players` | `{t,players:[PlayerPos…],worlds:{name:{day,time,gameTime,rain,thunder}}}` 5 times a second while anyone is online (ADR-018): positions plus each world's day count, time of day (ticks since 06:00) and weather; an empty list once when the last player leaves or the agent disconnects |
 | `world.chunks` | `{world,chunks:[[cx,cz,hash],…]}`: chunks whose cached content changed, coalesced to one message per world per second |
 | `world.agent` | `{connected,version?,server?}` when the instance's agent connects or drops |
-| `voice.status` | `{available,plugin?,distance,whisper,policy,listeners:[name…],speaking:[]}` when the voice plugin's state or the set of listeners changes (ADR-019); the same object as `GET /instances/{id}/voice` |
+| `voice.status` | `{available,plugin?,distance,whisper,policy,listeners:[name…],speaking:[name…]}` when the voice plugin's state or the set of listeners or speakers changes (ADR-019); the same object as `GET /instances/{id}/voice` |
 | `pong` | |
 
 ## SQLite schema (`<data>/wardend.db`)

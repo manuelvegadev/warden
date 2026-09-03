@@ -2,13 +2,16 @@
 //
 // The agent forwards every Opus frame a player speaks as a kind-2 binary frame on its loopback
 // socket; this service fans those frames out, unchanged, to the browsers listening to the instance
-// over /api/v1/instances/{id}/voice/ws. It tells the agent when to start and stop forwarding, so a
-// server nobody listens to costs nothing, and it writes the start and end of every listening
-// session to the instance's event log. No audio is ever stored.
+// over /api/v1/instances/{id}/voice/ws, and carries the browsers' own voice back to the agent as
+// kind-3 frames. It tells the agent when to start and stop forwarding and when a speak session
+// opens and closes, so a server nobody listens to costs nothing, and it writes the start and end of
+// every listening and speaking session to the instance's event log. No audio is ever stored.
 package voice
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -29,6 +32,8 @@ import (
 const (
 	EvListenStart mc.EventKind = "voice.listen.start"
 	EvListenStop  mc.EventKind = "voice.listen.stop"
+	EvSpeakStart  mc.EventKind = "voice.speak.start"
+	EvSpeakStop   mc.EventKind = "voice.speak.stop"
 )
 
 // Info is what the agent reports about Simple Voice Chat on the server (`voice.info`): whether the
@@ -45,7 +50,7 @@ type Info struct {
 type Status struct {
 	Info
 	Listeners []string `json:"listeners"` // display names of the people listening right now
-	Speaking  []string `json:"speaking"`  // reserved for phase 3; always present, never null
+	Speaking  []string `json:"speaking"`  // display names of the people with push-to-talk pressed
 }
 
 // The agent's voice frame: `u8 2 · u8 flags · UUID (16) · u64 seq · opus`. Only validated here;
@@ -53,6 +58,13 @@ type Status struct {
 const (
 	frameKind   = 2
 	frameHeader = 1 + 1 + 16 + 8
+)
+
+// The browser's speak body: `u8 3 · u8 mode · u8 flags · u64 seq · f32 distance · mode-specific ·
+// opus`, relayed to the agent behind the session id (ADR-019 §2).
+const (
+	speakKind   = 3
+	speakHeader = 1 + 1 + 1 + 8 + 4
 )
 
 var errBadFrame = errors.New("malformed voice frame")
@@ -64,9 +76,35 @@ func validFrame(kind byte, b []byte) error {
 	return nil
 }
 
-// AgentLink sends control messages to an instance's agent (the world service).
+// validSpeakBody checks the layout of a browser speak frame without decoding it: the mode-specific
+// part is sized from the mode, and at least one Opus byte must follow.
+func validSpeakBody(b []byte) error {
+	if len(b) < speakHeader+1 || b[0] != speakKind {
+		return errBadFrame
+	}
+	n := speakHeader
+	switch b[1] {
+	case 0:
+	case 1:
+		if len(b) < n+1 {
+			return errBadFrame
+		}
+		n += 1 + int(b[n]) + 3*8
+	case 2:
+		n += 16
+	default:
+		return errBadFrame
+	}
+	if len(b) <= n {
+		return errBadFrame
+	}
+	return nil
+}
+
+// AgentLink sends control messages and speak frames to an instance's agent (the world service).
 type AgentLink interface {
 	SendToAgent(instanceID string, msg any) error
+	SendBinaryToAgent(instanceID string, raw []byte) error
 }
 
 // Events persists audit events (the store).
@@ -81,13 +119,23 @@ type listenMsg struct {
 	By     string `json:"by"`
 }
 
-type instState struct {
-	info      Info
-	listeners map[*client]struct{}
-	fanout    []*client // the listeners as a slice, replaced (never mutated) on every change
+// sessionMsg is what the agent receives when a speak session opens or closes.
+type sessionMsg struct {
+	Type string `json:"type"`
+	ID   string `json:"id"`
+	By   string `json:"by"`
+	Open bool   `json:"open"`
 }
 
-// Service owns the listeners of every instance.
+type instState struct {
+	info      Info
+	clients   map[*client]struct{} // every socket on the instance
+	listeners map[*client]struct{}
+	speakers  map[*client]struct{} // open speak sessions
+	fanout    []*client            // the listeners as a slice, replaced (never mutated) on every change
+}
+
+// Service owns the sockets of every instance.
 type Service struct {
 	events   Events
 	bc       bus.Broadcaster
@@ -107,7 +155,7 @@ func NewService(events Events, bc bus.Broadcaster, agent AgentLink, verifier *au
 func (s *Service) state(id string) *instState {
 	st := s.inst[id]
 	if st == nil {
-		st = &instState{listeners: map[*client]struct{}{}}
+		st = &instState{clients: map[*client]struct{}{}, listeners: map[*client]struct{}{}, speakers: map[*client]struct{}{}}
 		s.inst[id] = st
 	}
 	return st
@@ -126,10 +174,17 @@ func (s *Service) status(st *instState) Status {
 		return out
 	}
 	out.Info = st.info
-	for c := range st.listeners {
-		out.Listeners = append(out.Listeners, c.name)
+	out.Listeners = names(st.listeners)
+	out.Speaking = names(st.speakers)
+	return out
+}
+
+func names(set map[*client]struct{}) []string {
+	out := make([]string, 0, len(set))
+	for c := range set {
+		out = append(out, c.name)
 	}
-	sort.Strings(out.Listeners)
+	sort.Strings(out)
 	return out
 }
 
@@ -176,13 +231,23 @@ func (s *Service) OnAgentBinary(id string, kind byte, raw []byte) {
 	}
 }
 
-// OnAgentConnected re-tells a (re)connected agent whether anyone is listening.
+// OnAgentConnected re-tells a (re)connected agent who is listening and which speak sessions are open.
 func (s *Service) OnAgentConnected(id string) {
 	s.mu.RLock()
-	msg, send := listenMessage(s.status(s.inst[id]).Listeners)
+	st := s.inst[id]
+	msg, send := listenMessage(s.status(st).Listeners)
+	var sessions []sessionMsg
+	if st != nil {
+		for c := range st.speakers {
+			sessions = append(sessions, c.sessionMsg(true))
+		}
+	}
 	s.mu.RUnlock()
 	if send {
 		s.tellAgent(id, msg)
+	}
+	for _, m := range sessions {
+		s.tellAgent(id, m)
 	}
 }
 
@@ -194,8 +259,14 @@ func listenMessage(names []string) (listenMsg, bool) {
 	return listenMsg{Type: "voice.listen", Active: true, By: strings.Join(names, ", ")}, true
 }
 
-func (s *Service) tellAgent(id string, msg listenMsg) {
-	if err := s.agent.SendToAgent(id, msg); err != nil {
+// tellAgent sends a control message; an agent that is away is not an error, it will be told again
+// when it connects.
+func (s *Service) tellAgent(id string, msg any) {
+	s.toAgent(id, s.agent.SendToAgent(id, msg))
+}
+
+func (s *Service) toAgent(id string, err error) {
+	if err != nil {
 		slog.Debug("voice: agent unreachable", "instance", id, "err", err)
 	}
 }
@@ -231,6 +302,55 @@ func (s *Service) setListening(id string, c *client, on bool) {
 	s.bc.Broadcast(id, "voice.status", status)
 }
 
+// setSpeaking opens or closes the browser's speak session: the agent opens or flushes the channel
+// the frames feed, the change is an audit event, and the name shows in the status.
+func (s *Service) setSpeaking(id string, c *client, on bool) {
+	s.mu.Lock()
+	st := s.state(id)
+	if _, has := st.speakers[c]; has == on {
+		s.mu.Unlock()
+		return
+	}
+	if on {
+		st.speakers[c] = struct{}{}
+	} else {
+		delete(st.speakers, c)
+	}
+	status := s.status(st)
+	s.mu.Unlock()
+
+	s.tellAgent(id, c.sessionMsg(on))
+	kind, verb := EvSpeakStop, "stopped"
+	if on {
+		kind, verb = EvSpeakStart, "started"
+	}
+	s.audit(id, &mc.Event{Kind: kind, Player: c.name, Text: c.name + " " + verb + " speaking from Beacon"})
+	s.bc.Broadcast(id, "voice.status", status)
+}
+
+// relaySpeak forwards one browser speak body to the agent behind the client's session id.
+func (s *Service) relaySpeak(id string, c *client, body []byte) {
+	if err := validSpeakBody(body); err != nil {
+		slog.Debug("browser speak frame", "instance", id, "user", c.name, "err", err)
+		return
+	}
+	s.mu.RLock()
+	st := s.inst[id]
+	open := false
+	if st != nil {
+		_, open = st.speakers[c]
+	}
+	s.mu.RUnlock()
+	if !open {
+		return
+	}
+	raw := make([]byte, 0, 2+len(c.session)+len(body)-1)
+	raw = append(raw, speakKind, byte(len(c.session)))
+	raw = append(raw, c.session...)
+	raw = append(raw, body[1:]...)
+	s.toAgent(id, s.agent.SendBinaryToAgent(id, raw))
+}
+
 // audit records a session boundary the way the instance records a parsed server event.
 func (s *Service) audit(id string, ev *mc.Event) {
 	now := time.Now().UTC()
@@ -240,7 +360,7 @@ func (s *Service) audit(id string, ev *mc.Event) {
 	s.bc.Broadcast(id, "event", ev.Payload(now))
 }
 
-// Forget drops a deleted instance and closes its listeners.
+// Forget drops a deleted instance and closes its sockets.
 func (s *Service) Forget(id string) {
 	s.mu.Lock()
 	st := s.inst[id]
@@ -249,18 +369,41 @@ func (s *Service) Forget(id string) {
 	if st == nil {
 		return
 	}
-	for c := range st.listeners {
+	for c := range st.clients {
 		c.conn.Close(websocket.StatusNormalClosure, "instance deleted")
 	}
+}
+
+func (s *Service) attach(id string, c *client) {
+	s.mu.Lock()
+	s.state(id).clients[c] = struct{}{}
+	s.mu.Unlock()
+}
+
+func (s *Service) detach(id string, c *client) {
+	s.setListening(id, c, false)
+	s.setSpeaking(id, c, false)
+	s.mu.Lock()
+	if st := s.inst[id]; st != nil {
+		delete(st.clients, c)
+	}
+	s.mu.Unlock()
 }
 
 // --- the browser socket ---
 
 type client struct {
-	conn   *websocket.Conn
-	name   string
-	frames *queue
-	ctrl   chan []byte
+	conn      *websocket.Conn
+	name      string
+	session   string // the speak session id the agent knows this socket by
+	canListen bool
+	canSpeak  bool
+	frames    *queue
+	ctrl      chan []byte
+}
+
+func (c *client) sessionMsg(open bool) sessionMsg {
+	return sessionMsg{Type: "voice.session", ID: c.session, By: c.name, Open: open}
 }
 
 // control queues a text message. The channel is deep enough for a burst of pongs; a client that
@@ -277,6 +420,8 @@ func (c *client) control(b []byte) {
 type inbound struct {
 	Type   string `json:"type"`
 	Listen bool   `json:"listen,omitempty"`
+	Speak  bool   `json:"speak,omitempty"`
+	Active bool   `json:"active,omitempty"`
 }
 
 var pong = []byte(`{"type":"pong"}`)
@@ -292,10 +437,20 @@ func displayName(p *auth.Principal) string {
 	}
 }
 
+func newSessionID() string {
+	b := make([]byte, 4)
+	if _, err := rand.Read(b); err != nil {
+		panic(err) // the OS entropy source is gone; nothing sensible to do
+	}
+	return hex.EncodeToString(b)
+}
+
 // HandleWS is GET /api/v1/instances/{id}/voice/ws. The first message must be
-// {"type":"auth","token"} within 5 s, the second {"type":"voice.hello","listen":true}; then the
-// socket carries kind-2 frames as binary messages and JSON text for pings and errors. Status
-// changes travel on the hub (`voice.status`), which every viewer already holds open.
+// {"type":"auth","token"} within 5 s, the second {"type":"voice.hello","listen":bool,"speak":bool}
+// with at least one true; each capability is checked against its role. Then the socket carries
+// kind-2 frames down as binary messages, kind-3 speak bodies up, and JSON text for the listen and
+// speak toggles, pings and errors. Status changes travel on the hub (`voice.status`), which every
+// viewer already holds open.
 func (s *Service) HandleWS(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	conn, principal, ok := ws.AcceptAuthenticated(w, r, s.verifier, s.origins)
@@ -324,28 +479,39 @@ func (s *Service) HandleWS(w http.ResponseWriter, r *http.Request) {
 		refuse("instance not found")
 		return
 	}
-	if !hello.Listen {
-		refuse("listen is required")
+	if !hello.Listen && !hello.Speak {
+		refuse("nothing to do")
 		return
 	}
-	if !principal.Can(id, auth.ActionVoiceListen) {
+	if hello.Listen && !principal.Can(id, auth.ActionVoiceListen) {
 		refuse("role manager is required on this instance")
 		return
 	}
+	if hello.Speak && !principal.Can(id, auth.ActionVoiceSpeak) {
+		refuse("role operator is required on this instance")
+		return
+	}
 
-	c := &client{conn: conn, name: displayName(principal), frames: newQueue(64), ctrl: make(chan []byte, 16)}
+	c := &client{
+		conn: conn, name: displayName(principal), session: newSessionID(),
+		canListen: hello.Listen, canSpeak: hello.Speak,
+		frames: newQueue(64), ctrl: make(chan []byte, 16),
+	}
 	okMsg, _ := json.Marshal(map[string]any{"type": "voice.ok", "status": s.Status(id)})
 	c.control(okMsg)
-	s.setListening(id, c, true)
+	s.attach(id, c)
+	if hello.Listen {
+		s.setListening(id, c, true)
+	}
 	defer func() {
-		s.setListening(id, c, false)
+		s.detach(id, c)
 		conn.Close(websocket.StatusNormalClosure, "bye")
 	}()
-	slog.Info("voice: listener joined", "instance", id, "user", c.name)
+	slog.Info("voice: joined", "instance", id, "user", c.name, "listen", hello.Listen, "speak", hello.Speak)
 
 	go c.writer(ctx)
-	c.reader(ctx)
-	slog.Info("voice: listener left", "instance", id, "user", c.name)
+	s.reader(ctx, id, c)
+	slog.Info("voice: left", "instance", id, "user", c.name)
 }
 
 func (c *client) writer(ctx context.Context) {
@@ -375,19 +541,34 @@ func (c *client) writer(ctx context.Context) {
 	}
 }
 
-// reader answers pings and ignores everything else until phase 3 adds speaking.
-func (c *client) reader(ctx context.Context) {
+// reader takes the browser's messages: speak bodies, the listen and speak toggles, pings.
+func (s *Service) reader(ctx context.Context, id string, c *client) {
 	for {
 		typ, b, err := c.conn.Read(ctx)
 		if err != nil {
 			return
 		}
-		if typ != websocket.MessageText {
+		if typ == websocket.MessageBinary {
+			if c.canSpeak {
+				s.relaySpeak(id, c, b)
+			}
 			continue
 		}
 		var msg inbound
-		if json.Unmarshal(b, &msg) == nil && msg.Type == "ping" {
+		if json.Unmarshal(b, &msg) != nil {
+			continue
+		}
+		switch msg.Type {
+		case "ping":
 			c.control(pong)
+		case "voice.listen":
+			if c.canListen {
+				s.setListening(id, c, msg.Active)
+			}
+		case "voice.speak":
+			if c.canSpeak {
+				s.setSpeaking(id, c, msg.Active)
+			}
 		}
 	}
 }

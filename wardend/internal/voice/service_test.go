@@ -23,11 +23,13 @@ import (
 	"github.com/manuelvega/warden/wardend/internal/mc"
 )
 
-// fakeAgent records what the service tells the agent.
+// fakeAgent records what the service tells the agent: control messages and speak frames.
 type fakeAgent struct {
-	mu   sync.Mutex
-	msgs []listenMsg
-	down bool
+	mu     sync.Mutex
+	msgs   []listenMsg
+	sess   []sessionMsg
+	frames [][]byte
+	down   bool
 }
 
 func (a *fakeAgent) SendToAgent(_ string, msg any) error {
@@ -36,7 +38,24 @@ func (a *fakeAgent) SendToAgent(_ string, msg any) error {
 	if a.down {
 		return context.DeadlineExceeded
 	}
-	a.msgs = append(a.msgs, msg.(listenMsg))
+	switch m := msg.(type) {
+	case listenMsg:
+		a.msgs = append(a.msgs, m)
+	case sessionMsg:
+		a.sess = append(a.sess, m)
+	default:
+		panic("unexpected agent message")
+	}
+	return nil
+}
+
+func (a *fakeAgent) SendBinaryToAgent(_ string, raw []byte) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.down {
+		return context.DeadlineExceeded
+	}
+	a.frames = append(a.frames, raw)
 	return nil
 }
 
@@ -48,6 +67,32 @@ func (a *fakeAgent) last(t *testing.T) listenMsg {
 		t.Fatal("the agent was never told anything")
 	}
 	return a.msgs[len(a.msgs)-1]
+}
+
+func (a *fakeAgent) lastSession(t *testing.T) sessionMsg {
+	t.Helper()
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if len(a.sess) == 0 {
+		t.Fatal("the agent got no voice.session")
+	}
+	return a.sess[len(a.sess)-1]
+}
+
+// wait polls until cond holds under the lock, or fails after 3 s.
+func (a *fakeAgent) wait(t *testing.T, what string, cond func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		a.mu.Lock()
+		ok := cond()
+		a.mu.Unlock()
+		if ok {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("timed out waiting for %s", what)
 }
 
 type fakeEvents struct {
@@ -387,4 +432,181 @@ func TestSocketGatingAndRelay(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 	}
 	t.Fatal("the agent was not told to stop after the last listener left")
+}
+
+func TestSpeakSessions(t *testing.T) {
+	agent := &fakeAgent{}
+	events := &fakeEvents{}
+	rec := &recorder{}
+	s := NewService(events, rec, agent, nil, nil)
+	c := &client{name: "Ana", session: "a1b2c3d4", canSpeak: true, frames: newQueue(4), ctrl: make(chan []byte, 16)}
+	s.attach("srv", c)
+
+	// Frames before the session is open are dropped.
+	body := append([]byte{3, 0, 0}, make([]byte, 12)...) // static, header only
+	body = append(body, 0xAA)
+	s.relaySpeak("srv", c, body)
+	if len(agent.frames) != 0 {
+		t.Fatal("a frame outside a session must not reach the agent")
+	}
+
+	s.setSpeaking("srv", c, true)
+	if m := agent.lastSession(t); m.Type != "voice.session" || m.ID != "a1b2c3d4" || m.By != "Ana" || !m.Open {
+		t.Fatalf("open: agent got %+v", m)
+	}
+	if st := rec.lastStatus(t); !slices.Equal(st.Speaking, []string{"Ana"}) || st.Listeners == nil {
+		t.Fatalf("status %+v", st)
+	}
+	s.setSpeaking("srv", c, true) // idempotent
+	if len(agent.sess) != 1 {
+		t.Fatalf("%d session messages, want 1", len(agent.sess))
+	}
+
+	// A valid body is relayed behind the session id, the kind byte replaced by the prefix.
+	s.relaySpeak("srv", c, body)
+	want := append([]byte{3, 8}, []byte("a1b2c3d4")...)
+	want = append(want, body[1:]...)
+	if len(agent.frames) != 1 || string(agent.frames[0]) != string(want) {
+		t.Fatalf("relayed %x, want %x", agent.frames, want)
+	}
+	// Locational: the world name sizes the body; entity: a UUID does.
+	loc := append([]byte{3, 1, 1}, make([]byte, 12)...)
+	loc = append(loc, 5)
+	loc = append(loc, []byte("world")...)
+	loc = append(loc, make([]byte, 24)...)
+	s.relaySpeak("srv", c, loc) // no opus byte: dropped
+	loc = append(loc, 0xBB)
+	s.relaySpeak("srv", c, loc)
+	ent := append([]byte{3, 2, 0}, make([]byte, 12+16)...)
+	s.relaySpeak("srv", c, append(ent, 0xCC))
+	s.relaySpeak("srv", c, append([]byte{3, 7, 0}, make([]byte, 20)...)) // bad mode
+	s.relaySpeak("srv", c, []byte{3, 0})                                 // short
+	if len(agent.frames) != 3 {
+		t.Fatalf("%d frames relayed, want 3", len(agent.frames))
+	}
+
+	// The agent reconnecting learns the open session again.
+	s.OnAgentConnected("srv")
+	if len(agent.sess) != 2 || !agent.sess[1].Open || agent.sess[1].ID != "a1b2c3d4" {
+		t.Fatalf("reconnect: %+v", agent.sess)
+	}
+
+	// Leaving closes the session.
+	s.detach("srv", c)
+	if m := agent.lastSession(t); m.Open {
+		t.Fatalf("close: agent got %+v", m)
+	}
+	if st := rec.lastStatus(t); len(st.Speaking) != 0 || st.Speaking == nil {
+		t.Fatalf("status after leaving %+v", st)
+	}
+	events.mu.Lock()
+	defer events.mu.Unlock()
+	kinds := make([]string, 0, len(events.evs))
+	for _, ev := range events.evs {
+		kinds = append(kinds, string(ev.Kind)+":"+ev.Player)
+	}
+	if want := []string{"voice.speak.start:Ana", "voice.speak.stop:Ana"}; !slices.Equal(kinds, want) {
+		t.Fatalf("audit %v, want %v", kinds, want)
+	}
+}
+
+func TestSocketSpeakOnly(t *testing.T) {
+	iss := newIssuer(t)
+	defer iss.srv.Close()
+	verifier, err := auth.NewVerifier(context.Background(), auth.Options{JWKSURL: iss.srv.URL + "/api/auth/jwks", Issuer: iss.srv.URL})
+	if err != nil {
+		t.Fatal(err)
+	}
+	agent := &fakeAgent{}
+	rec := &recorder{}
+	s := NewService(&fakeEvents{}, rec, agent, verifier, nil)
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/instances/{id}/voice/ws", s.HandleWS)
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	url := "ws" + strings.TrimPrefix(srv.URL, "http") + "/api/v1/instances/srv/voice/ws"
+	operator := func() string {
+		return iss.token(t, map[string]any{"role": "operator", "acl": map[string]string{"srv": "operator"}})
+	}
+
+	// An operator may speak but not listen.
+	c := dial(t, url)
+	send(t, c, map[string]any{"type": "auth", "token": operator()})
+	recvText(t, c)
+	send(t, c, map[string]any{"type": "voice.hello", "listen": true, "speak": true})
+	if m := recvText(t, c); m.Type != "error" || !strings.Contains(m.Message, "role manager is required") {
+		t.Fatalf("got %+v, want the listen role error", m)
+	}
+
+	// Neither flag: nothing to do.
+	c = dial(t, url)
+	send(t, c, map[string]any{"type": "auth", "token": operator()})
+	recvText(t, c)
+	send(t, c, map[string]any{"type": "voice.hello"})
+	if m := recvText(t, c); m.Type != "error" || m.Message != "nothing to do" {
+		t.Fatalf("got %+v, want nothing to do", m)
+	}
+
+	// Speak only: accepted, no listener registered; push-to-talk opens a session, frames flow.
+	c = dial(t, url)
+	defer c.Close(websocket.StatusNormalClosure, "")
+	send(t, c, map[string]any{"type": "auth", "token": operator()})
+	recvText(t, c)
+	send(t, c, map[string]any{"type": "voice.hello", "speak": true})
+	if m := recvText(t, c); m.Type != "voice.ok" {
+		t.Fatalf("got %+v, want voice.ok", m)
+	}
+	if len(agent.msgs) != 0 {
+		t.Fatal("a speak-only socket must not register as a listener")
+	}
+	// A listen toggle from a socket that did not ask for it is ignored.
+	send(t, c, map[string]any{"type": "voice.listen", "active": true})
+	send(t, c, map[string]any{"type": "voice.speak", "active": true})
+	agent.wait(t, "the session", func() bool { return len(agent.sess) == 1 && agent.sess[0].Open && agent.sess[0].By == "Ana" })
+	if len(agent.msgs) != 0 {
+		t.Fatal("the listen toggle must be ignored without the listen capability")
+	}
+	body := append([]byte{3, 0, 0}, make([]byte, 12)...)
+	body = append(body, 0xEE)
+	if err := c.Write(context.Background(), websocket.MessageBinary, body); err != nil {
+		t.Fatal(err)
+	}
+	agent.wait(t, "the frame", func() bool { return len(agent.frames) == 1 })
+	id := agent.sess[0].ID
+	want := append([]byte{3, byte(len(id))}, []byte(id)...)
+	want = append(want, body[1:]...)
+	if string(agent.frames[0]) != string(want) {
+		t.Fatalf("relayed %x, want %x", agent.frames[0], want)
+	}
+	send(t, c, map[string]any{"type": "voice.speak", "active": false})
+	agent.wait(t, "the close", func() bool { return len(agent.sess) == 2 && !agent.sess[1].Open })
+	if st := rec.lastStatus(t); len(st.Speaking) != 0 {
+		t.Fatalf("status %+v", st)
+	}
+}
+
+func TestSocketListenToggle(t *testing.T) {
+	iss := newIssuer(t)
+	defer iss.srv.Close()
+	verifier, err := auth.NewVerifier(context.Background(), auth.Options{JWKSURL: iss.srv.URL + "/api/auth/jwks", Issuer: iss.srv.URL})
+	if err != nil {
+		t.Fatal(err)
+	}
+	agent := &fakeAgent{}
+	s := NewService(&fakeEvents{}, &recorder{}, agent, verifier, nil)
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/v1/instances/{id}/voice/ws", s.HandleWS)
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	c := dial(t, "ws"+strings.TrimPrefix(srv.URL, "http")+"/api/v1/instances/srv/voice/ws")
+	defer c.Close(websocket.StatusNormalClosure, "")
+	send(t, c, map[string]any{"type": "auth", "token": iss.token(t, map[string]any{"role": "operator", "acl": map[string]string{"srv": "manager"}})})
+	recvText(t, c)
+	send(t, c, map[string]any{"type": "voice.hello", "listen": true, "speak": true})
+	recvText(t, c)
+	agent.wait(t, "listening on", func() bool { return len(agent.msgs) == 1 && agent.msgs[0].Active })
+	send(t, c, map[string]any{"type": "voice.listen", "active": false})
+	agent.wait(t, "listening off", func() bool { return len(agent.msgs) == 2 && !agent.msgs[1].Active })
+	send(t, c, map[string]any{"type": "voice.listen", "active": true})
+	agent.wait(t, "listening on again", func() bool { return len(agent.msgs) == 3 && agent.msgs[2].Active })
 }

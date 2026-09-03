@@ -131,6 +131,20 @@ func TestAgentSinkRouting(t *testing.T) {
 		t.Fatalf("agent got %s", b)
 	}
 
+	// Binary control frames reach the agent as they are.
+	if err := svc.SendBinaryToAgent("inst", []byte{3, 1, 'x', 9}); err != nil {
+		t.Fatal(err)
+	}
+	rctx2, cancel2 := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel2()
+	typ, b, err = c.Read(rctx2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if typ != websocket.MessageBinary || string(b) != string([]byte{3, 1, 'x', 9}) {
+		t.Fatalf("agent got %v %x", typ, b)
+	}
+
 	// The agent leaving is reported.
 	c.Close(websocket.StatusNormalClosure, "bye")
 	vs.wait(t, "the disconnect hook", func() bool { return vs.disconnected == 1 })

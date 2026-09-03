@@ -29,6 +29,7 @@ type Manifest struct {
 	Plugins       []InstalledPlugin `json:"plugins"`
 	Backups       BackupSettings    `json:"backups"`
 	LiveView      *LiveView         `json:"liveView,omitempty"` // ADR-018; nil = never enabled
+	Voice         *VoiceSettings    `json:"voice,omitempty"`    // ADR-019; nil = notify
 	Upgrades      []UpgradeRecord   `json:"upgrades,omitempty"` // newest last
 	CreatedAt     time.Time         `json:"createdAt"`
 }

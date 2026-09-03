@@ -23,6 +23,34 @@ type LiveView struct {
 	AgentToken string `json:"agentToken,omitempty"`
 }
 
+// VoiceSettings is the instance's voice chat configuration (ADR-019): how players learn that
+// somebody in Beacon listens or speaks. `notify` tells them in-game; `ask` asks each player once.
+type VoiceSettings struct {
+	Policy string `json:"policy"`
+}
+
+// Voice policies the agent understands.
+const (
+	VoicePolicyNotify = "notify"
+	VoicePolicyAsk    = "ask"
+)
+
+// Valid reports whether the policy is one the agent understands.
+func (v *VoiceSettings) Valid() bool {
+	return v != nil && (v.Policy == VoicePolicyNotify || v.Policy == VoicePolicyAsk)
+}
+
+// VoicePolicy is the configured consent policy, `notify` when never set. It reaches the agent
+// through config.yml, rewritten before every start.
+func (i *Instance) VoicePolicy() string {
+	i.mu.RLock()
+	defer i.mu.RUnlock()
+	if i.Manifest.Voice == nil || i.Manifest.Voice.Policy == "" {
+		return VoicePolicyNotify
+	}
+	return i.Manifest.Voice.Policy
+}
+
 // agentDeps is what an instance needs to install the agent: where it should connect, the jar, and
 // which software can load it.
 type agentDeps struct {
@@ -151,10 +179,12 @@ func (i *Instance) installAgent() error {
 	return i.writeAgentConfig(deps.url)
 }
 
-// writeAgentConfig writes the two managed keys of plugins/WardenAgent/config.yml (the URL and the
-// token) and keeps every other line: the tuning keys and their defaults belong to the plugin.
+// writeAgentConfig writes the managed keys of plugins/WardenAgent/config.yml (the URL, the token
+// and the voice consent policy) and keeps every other line: the tuning keys and their defaults
+// belong to the plugin.
 func (i *Instance) writeAgentConfig(url string) error {
 	lv := i.LiveView()
+	policy := i.VoicePolicy()
 	dir := filepath.Join(i.pluginsDir(), "WardenAgent")
 	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return err
@@ -162,12 +192,13 @@ func (i *Instance) writeAgentConfig(url string) error {
 	path := filepath.Join(dir, "config.yml")
 	existing, _ := os.ReadFile(path)
 	var b strings.Builder
-	b.WriteString("# url and token are written by wardend before every start (ADR-018); the other keys are yours.\n")
+	b.WriteString("# url, token and voice-consent are written by wardend before every start (ADR-018, ADR-019); the other keys are yours.\n")
 	fmt.Fprintf(&b, "url: %s\n", url)
 	fmt.Fprintf(&b, "token: %q\n", lv.AgentToken)
+	fmt.Fprintf(&b, "voice-consent: %s\n", policy)
 	for _, line := range strings.Split(string(existing), "\n") {
 		t := strings.TrimSpace(line)
-		if t == "" || strings.HasPrefix(t, "#") || strings.HasPrefix(t, "url:") || strings.HasPrefix(t, "token:") {
+		if t == "" || strings.HasPrefix(t, "#") || strings.HasPrefix(t, "url:") || strings.HasPrefix(t, "token:") || strings.HasPrefix(t, "voice-consent:") {
 			continue
 		}
 		b.WriteString(line)

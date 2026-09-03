@@ -119,6 +119,19 @@ func (s *Service) SetSink(sink AgentSink) { s.sink = sink }
 // SendToAgent writes one JSON text message to the instance's agent. coder/websocket serialises
 // concurrent writes itself.
 func (s *Service) SendToAgent(id string, msg any) error {
+	b, err := json.Marshal(msg)
+	if err != nil {
+		return err
+	}
+	return s.writeToAgent(id, websocket.MessageText, b)
+}
+
+// SendBinaryToAgent writes one binary frame to the instance's agent, as it is (ADR-019 kind 3).
+func (s *Service) SendBinaryToAgent(id string, raw []byte) error {
+	return s.writeToAgent(id, websocket.MessageBinary, raw)
+}
+
+func (s *Service) writeToAgent(id string, typ websocket.MessageType, b []byte) error {
 	s.mu.Lock()
 	st := s.inst[id]
 	var conn *websocket.Conn
@@ -129,13 +142,9 @@ func (s *Service) SendToAgent(id string, msg any) error {
 	if conn == nil {
 		return errNoAgent
 	}
-	b, err := json.Marshal(msg)
-	if err != nil {
-		return err
-	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	return conn.Write(ctx, websocket.MessageText, b)
+	return conn.Write(ctx, typ, b)
 }
 
 var errNoAgent = errors.New("no agent connected")

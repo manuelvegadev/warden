@@ -106,6 +106,38 @@ func TestAgentIsInstalledWhereverItCanRun(t *testing.T) {
 		t.Fatalf("rebuilt jar not installed: %d bytes, want %d", len(got), len(rebuilt))
 	}
 
+	// The consent policy is a managed line too: notify by default, rewritten at the next start, the rest kept.
+	if !strings.Contains(string(cfg), "voice-consent: notify\n") {
+		t.Fatalf("config.yml lacks the default policy:\n%s", cfg)
+	}
+	cfgPath := filepath.Join(loaded.ServerDir(), "plugins", "WardenAgent", "config.yml")
+	os.WriteFile(cfgPath, append([]byte("radius: 7\n"), cfg...), 0o640)
+	if (&VoiceSettings{Policy: "bogus"}).Valid() || (*VoiceSettings)(nil).Valid() {
+		t.Fatal("an unknown policy was accepted")
+	}
+	// Set the way the PATCH handler does; the config follows at the next start.
+	loaded.Manifest.Voice = &VoiceSettings{Policy: VoicePolicyAsk}
+	if err := loaded.SaveManifest(); err != nil {
+		t.Fatal(err)
+	}
+	if msg := loaded.refreshAgent(); msg != "" {
+		t.Fatalf("refresh: %s", msg)
+	}
+	cfg, _ = os.ReadFile(cfgPath)
+	if !strings.Contains(string(cfg), "voice-consent: ask\n") || strings.Contains(string(cfg), "voice-consent: notify") || !strings.Contains(string(cfg), "radius: 7\n") {
+		t.Fatalf("policy not rewritten in place:\n%s", cfg)
+	}
+	if loaded.VoicePolicy() != VoicePolicyAsk {
+		t.Fatalf("policy %q", loaded.VoicePolicy())
+	}
+	reloaded := NewManager(root, nil)
+	if err := reloaded.LoadAll(); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := reloaded.Get("alpha"); got.VoicePolicy() != VoicePolicyAsk {
+		t.Fatal("policy not persisted in the manifest")
+	}
+
 	// Software without plugins gets nothing: no jar, no token.
 	van, err := m2.Create(&Manifest{ID: "van-one", Name: "V", Software: "vanilla", MCVersion: "26.2", Port: 25566, RconPort: 25576, CreatedAt: time.Now()})
 	if err != nil {
