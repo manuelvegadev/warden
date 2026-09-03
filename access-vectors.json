@@ -22,15 +22,17 @@
         "config.write",
         "plugins.write",
         "backups.write",
-        "settings.write"
+        "settings.write",
+        "voice.listen",
+        "voice.speak"
       ]
     },
     {
       "name": "operator runs the server but does not reconfigure it",
       "acl": { "survival": "operator" },
       "instance": "survival",
-      "allowed": ["read", "power", "console.send", "players.action", "access.write"],
-      "denied": ["ops.write", "config.write", "plugins.write", "backups.write", "settings.write"]
+      "allowed": ["read", "power", "console.send", "players.action", "access.write", "voice.speak"],
+      "denied": ["ops.write", "config.write", "plugins.write", "backups.write", "settings.write", "voice.listen"]
     },
     {
       "name": "manager may do everything on the instance",
@@ -46,7 +48,9 @@
         "config.write",
         "plugins.write",
         "backups.write",
-        "settings.write"
+        "settings.write",
+        "voice.listen",
+        "voice.speak"
       ]
     },
     {

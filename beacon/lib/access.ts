@@ -43,7 +43,9 @@ export type InstanceAction =
   | "config.write" // server.properties, raw properties, config files
   | "plugins.write"
   | "backups.write"
-  | "settings.write"; // instance settings, upgrade, eula, install
+  | "settings.write" // instance settings, upgrade, eula, install
+  | "voice.listen" // hear the players from the live view (ADR-019)
+  | "voice.speak"; // talk to the players from the live view
 
 const NEEDS: Record<InstanceAction, InstanceRole> = {
   read: "viewer",
@@ -56,6 +58,8 @@ const NEEDS: Record<InstanceAction, InstanceRole> = {
   "plugins.write": "manager",
   "backups.write": "manager",
   "settings.write": "manager",
+  "voice.listen": "manager",
+  "voice.speak": "operator",
 };
 
 export const can = (role: InstanceRole | undefined, action: InstanceAction): boolean => atLeast(role, NEEDS[action]);

@@ -45,6 +45,8 @@ const (
 	ActionPluginsWrite  Action = "plugins.write"  //
 	ActionBackupsWrite  Action = "backups.write"  //
 	ActionSettingsWrite Action = "settings.write" // instance settings, upgrade, eula, install
+	ActionVoiceListen   Action = "voice.listen"   // hear the players' voice chat from the panel (ADR-019)
+	ActionVoiceSpeak    Action = "voice.speak"    // talk to players from the panel (ADR-019)
 )
 
 var needs = map[Action]InstanceRole{
@@ -58,6 +60,8 @@ var needs = map[Action]InstanceRole{
 	ActionPluginsWrite:  InstManager,
 	ActionBackupsWrite:  InstManager,
 	ActionSettingsWrite: InstManager,
+	ActionVoiceListen:   InstManager,  // hearing players is more than reading their chat
+	ActionVoiceSpeak:    InstOperator, // `say` with a microphone
 }
 
 // stronger returns whichever role grants more.
