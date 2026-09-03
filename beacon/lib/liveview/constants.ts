@@ -16,3 +16,7 @@ export const SKY_DOME_RADIUS = 1500;
 export const HANDOVER_CHARGE_MS = 3000;
 export const HANDOVER_VEIL_MS = 900;
 export const HANDOVER_REVEAL_MS = 700;
+
+/** A player's eyes above their feet, standing and sneaking (the game's values): the camera in player mode and where a voice comes from. */
+export const EYE_HEIGHT = 1.62;
+export const EYE_HEIGHT_SNEAKING = 1.27;

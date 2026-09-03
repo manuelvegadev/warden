@@ -65,6 +65,8 @@ export interface SceneOptions {
   onFollow: (name: string | null) => void;
   /** Every frame: where each player's name tag goes on screen. */
   onMarkers: (markers: PlayerMarker[]) => void;
+  /** Every rendered frame, after the markers: what needs the camera and the avatars where they are now. */
+  onFrame?: () => void;
   skinUrl: (name: string) => string;
 }
 
@@ -505,7 +507,40 @@ export class LiveViewScene {
     if (this.idle) return;
     this.renderer.render(this.scene, this.camera);
     this.opts.onMarkers(this.markers());
+    this.opts.onFrame?.();
   };
+
+  /**
+   * The camera as an audio listener: position, forward and up, nine numbers into `out`. Scene
+   * coordinates are the game's, so a speaker placed by `heads` is heard where the avatar is drawn.
+   */
+  listenerPose(out: Float32Array): void {
+    const c = this.camera;
+    out[0] = c.position.x;
+    out[1] = c.position.y;
+    out[2] = c.position.z;
+    c.getWorldDirection(this.delta);
+    out[3] = this.delta.x;
+    out[4] = this.delta.y;
+    out[5] = this.delta.z;
+    this.delta.set(0, 1, 0).applyQuaternion(c.quaternion);
+    out[6] = this.delta.x;
+    out[7] = this.delta.y;
+    out[8] = this.delta.z;
+  }
+
+  /**
+   * Every player shown in the current world, by UUID, at eye height, where their voice comes from.
+   * `self` marks the player whose eyes the camera looks through: their mouth is the listener's own
+   * position, which the caller will want to treat differently.
+   */
+  heads(cb: (uuid: string, x: number, y: number, z: number, self: boolean) => void): void {
+    for (const [name, a] of this.avatars) {
+      if (!a.uuid) continue;
+      a.eye(this.delta);
+      cb(a.uuid, this.delta.x, this.delta.y, this.delta.z, this.inEyes(name));
+    }
+  }
 
   /** Each player's head projected onto the screen and lifted clear of the model. */
   private markers(): PlayerMarker[] {

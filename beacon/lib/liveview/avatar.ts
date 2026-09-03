@@ -7,6 +7,7 @@ import { FlyingAnimation, IdleAnimation, PlayerObject, RunningAnimation, Walking
 import { CanvasTexture, Group, type Material, MathUtils, type Mesh, NearestFilter, type Texture, Vector3 } from "three";
 import type { PlayerPos } from "@/lib/api";
 import { lookDirection } from "./camera";
+import { EYE_HEIGHT, EYE_HEIGHT_SNEAKING } from "./constants";
 
 /** Model units are skin pixels: 32 tall. A player is 1.8 blocks. */
 const SCALE = 1.8 / 32;
@@ -42,6 +43,8 @@ export const pixelTexture = (canvas: HTMLCanvasElement) => crisp(new CanvasTextu
 
 export class Avatar {
   readonly group = new Group();
+  /** The player's UUID from the last sample; what the voice receiver keys speakers by. */
+  uuid = "";
   readonly player = new PlayerObject();
   private readonly walk = new WalkingAnimation();
   private readonly run = new RunningAnimation();
@@ -120,6 +123,7 @@ export class Avatar {
 
   /** New sample from the server. */
   setPosition(p: PlayerPos, now: number) {
+    this.uuid = p.uuid;
     const next = new Vector3(p.x, p.y, p.z);
     if (this.lastSampleAt === 0) {
       this.group.position.copy(next);
@@ -267,9 +271,11 @@ export class Avatar {
     }
   }
 
-  /** The eyes, for a camera looking through them: 1.62 blocks up, 1.27 when sneaking (the game's values). */
+  /** The eyes, for a camera looking through them and for the voice. */
   eye(out = new Vector3()): Vector3 {
-    return out.copy(this.group.position).setY(this.group.position.y + (this.last.sneaking ? 1.27 : 1.62));
+    return out
+      .copy(this.group.position)
+      .setY(this.group.position.y + (this.last.sneaking ? EYE_HEIGHT_SNEAKING : EYE_HEIGHT));
   }
 
   /** Where the player looks, smoothed like the head. */

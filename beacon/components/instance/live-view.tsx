@@ -12,12 +12,7 @@ import { DetachControls } from "@/components/instance/detach-controls";
 import { useInstance } from "@/components/instance/instance-context";
 import { PlayerFace } from "@/components/instance/player-face";
 import { SectionCard } from "@/components/instance/section-card";
-import {
-  useVoiceListen,
-  useVoiceStatus,
-  VoiceListenButton,
-  VoiceListenersPill,
-} from "@/components/instance/voice-listen";
+import { useVoiceListen, useVoiceStatus, VoiceControls, VoiceListenersPill } from "@/components/instance/voice-listen";
 import { useDetachable } from "@/hooks/use-detachable";
 import { useStoredPreference } from "@/hooks/use-stored-preference";
 import type { WsMessage } from "@/hooks/use-wardend-socket";
@@ -103,7 +98,8 @@ export function LiveView({ popout }: { popout?: boolean }) {
   const [clockText, setClockText] = useState("");
   // Voice (ADR-019): the players' voices while "Listen" is on; the tags of those heard light up.
   const voiceStatus = useVoiceStatus(id);
-  const voice = useVoiceListen(id);
+  const voice = useVoiceListen(id, voiceStatus);
+  const voiceUpdate = voice.update;
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const idleCanvasRef = useRef<HTMLCanvasElement>(null);
   // Name tags: an HTML layer over the canvas, moved every frame without going through React. A tag
@@ -262,6 +258,9 @@ export function LiveView({ popout }: { popout?: boolean }) {
         onUnload: (w, keys) => worker?.postMessage({ type: "unload", world: w, keys } satisfies WorkerRequest),
         onFollow: setFollowing,
         onMarkers: placeMarkers,
+        onFrame: () => {
+          if (scene) voiceUpdate(scene);
+        },
         skinUrl: skins.full,
       });
       sceneRef.current = scene;
@@ -293,7 +292,7 @@ export function LiveView({ popout }: { popout?: boolean }) {
       sceneRef.current = null;
       workerRef.current = null;
     };
-  }, [id, info?.supported, applyWorld, placeMarkers]);
+  }, [id, info?.supported, applyWorld, placeMarkers, voiceUpdate]);
 
   useEffect(() => applyWorld(world), [world, applyWorld]);
 
@@ -416,7 +415,7 @@ export function LiveView({ popout }: { popout?: boolean }) {
             title={phase.badge}
           />
           <span>Live view</span>
-          {worldVisible && <VoiceListenButton status={voiceStatus} listen={voice} />}
+          {worldVisible && <VoiceControls status={voiceStatus} listen={voice} />}
           <VoiceListenersPill status={voiceStatus} />
           {debug && (
             <span
