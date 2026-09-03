@@ -17,7 +17,17 @@ type Frame struct {
 	Blob  []byte // gzip payload, stored as-is
 }
 
+// frameChunk is the kind byte of a chunk frame (ADR-018). Other kinds belong to other services
+// (voice frames, ADR-019) and are handed to the AgentSink unparsed.
 const frameChunk = 1
+
+// kind is the first byte of a binary message, 0 for an empty one.
+func kind(b []byte) byte {
+	if len(b) == 0 {
+		return 0
+	}
+	return b[0]
+}
 
 // MaxFrame bounds an agent message; a mountain chunk is tens of KB, so this is generous.
 const MaxFrame = 4 << 20

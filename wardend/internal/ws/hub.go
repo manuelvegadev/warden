@@ -5,9 +5,7 @@ package ws
 import (
 	"context"
 	"encoding/json"
-	"log/slog"
 	"net/http"
-	"net/url"
 	"sync"
 	"time"
 
@@ -20,7 +18,6 @@ type Message struct {
 	Type     string          `json:"type"`
 	Instance string          `json:"instance,omitempty"`
 	Data     json.RawMessage `json:"data,omitempty"`
-	Token    string          `json:"token,omitempty"`
 	Streams  []string        `json:"streams,omitempty"`
 }
 
@@ -47,13 +44,7 @@ type Hub struct {
 }
 
 func NewHub(verifier *auth.Verifier, mgr *instance.Manager, allowedOrigins []string) *Hub {
-	var pats []string
-	for _, o := range allowedOrigins {
-		if u, err := url.Parse(o); err == nil && u.Host != "" {
-			pats = append(pats, u.Host)
-		}
-	}
-	return &Hub{verifier: verifier, mgr: mgr, origins: pats, clients: map[*client]struct{}{}}
+	return &Hub{verifier: verifier, mgr: mgr, origins: OriginPatterns(allowedOrigins), clients: map[*client]struct{}{}}
 }
 
 // Broadcast implements bus.Broadcaster.
@@ -95,27 +86,11 @@ func (h *Hub) RevokeUser(userID string) int {
 }
 
 func (h *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{OriginPatterns: h.origins})
-	if err != nil {
-		slog.Debug("ws accept", "err", err)
+	conn, principal, ok := AcceptAuthenticated(w, r, h.verifier, h.origins)
+	if !ok {
 		return
 	}
 	ctx := r.Context()
-
-	// First message must be auth within 5 s.
-	authCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	var first Message
-	err = readJSON(authCtx, conn, &first)
-	cancel()
-	if err != nil || first.Type != "auth" || first.Token == "" {
-		conn.Close(websocket.StatusPolicyViolation, "auth required")
-		return
-	}
-	principal, err := h.verifier.Verify(ctx, first.Token)
-	if err != nil {
-		conn.Close(websocket.StatusPolicyViolation, "invalid token")
-		return
-	}
 
 	c := &client{conn: conn, principal: principal, send: make(chan outbound, 256), subs: map[string]bool{}}
 	h.mu.Lock()
@@ -153,7 +128,7 @@ func (c *client) writer(ctx context.Context) {
 func (c *client) reader(ctx context.Context, h *Hub) {
 	for {
 		var msg Message
-		if err := readJSON(ctx, c.conn, &msg); err != nil {
+		if err := ReadJSON(ctx, c.conn, &msg); err != nil {
 			return
 		}
 		switch msg.Type {
@@ -202,12 +177,4 @@ func (c *client) reader(ctx context.Context, h *Hub) {
 			}
 		}
 	}
-}
-
-func readJSON(ctx context.Context, conn *websocket.Conn, v any) error {
-	_, b, err := conn.Read(ctx)
-	if err != nil {
-		return err
-	}
-	return json.Unmarshal(b, v)
 }

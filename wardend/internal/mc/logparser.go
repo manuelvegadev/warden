@@ -3,6 +3,7 @@ package mc
 import (
 	"regexp"
 	"strings"
+	"time"
 )
 
 // EventKind enumerates the events the daemon extracts from the server stdout.
@@ -22,6 +23,11 @@ type Event struct {
 	Kind   EventKind
 	Player string
 	Text   string
+}
+
+// Payload is the `event` WebSocket message (docs/api.md), the one shape every emitter shares.
+func (e *Event) Payload(at time.Time) map[string]any {
+	return map[string]any{"kind": e.Kind, "player": e.Player, "text": e.Text, "ts": at}
 }
 
 // Prefixes: Paper "[12:00:01 INFO]: " and vanilla "[12:00:01] [Server thread/INFO]: ".

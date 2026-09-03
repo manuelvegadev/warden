@@ -17,6 +17,7 @@ import (
 	"github.com/manuelvega/warden/wardend/internal/skins"
 	"github.com/manuelvega/warden/wardend/internal/store"
 	"github.com/manuelvega/warden/wardend/internal/tasks"
+	"github.com/manuelvega/warden/wardend/internal/voice"
 	"github.com/manuelvega/warden/wardend/internal/world"
 )
 
@@ -32,6 +33,7 @@ type Deps struct {
 	Store    *store.Store
 	Skins    *skins.Service
 	World    *world.Service // live world view (ADR-018)
+	Voice    *voice.Service // voice chat relay (ADR-019)
 	WS       http.Handler
 	// Sessions closes a user's live WebSocket connections when Beacon revokes their access.
 	Sessions interface{ RevokeUser(string) int }
@@ -42,12 +44,14 @@ type Deps struct {
 
 type server struct{ Deps }
 
-// NewRouter mounts the API. Everything under /api/v1 except /health and /ws requires a Beacon JWT (ADR-009).
+// NewRouter mounts the API. Everything under /api/v1 except /health and the WebSockets requires a Beacon JWT (ADR-009).
 func NewRouter(d Deps) http.Handler {
 	s := &server{Deps: d}
 	root := http.NewServeMux()
 	root.HandleFunc("GET /api/v1/health", s.health)
 	root.Handle("GET /api/v1/ws", d.WS) // authenticates via first message
+	// More specific than the /api/v1/ subtree below, so the mux routes it here (ADR-019).
+	root.HandleFunc("GET /api/v1/instances/{id}/voice/ws", d.Voice.HandleWS) // authenticates via first message
 
 	mux := http.NewServeMux()
 	root.Handle("/api/v1/", d.Verifier.Middleware(mux))
@@ -113,6 +117,9 @@ func NewRouter(d Deps) http.Handler {
 	// Live world view (ADR-018)
 	read("GET /api/v1/instances/{id}/map", s.getMap)
 	read("POST /api/v1/instances/{id}/map/{world}/chunks", s.postMapChunks)
+
+	// Voice chat (ADR-019)
+	read("GET /api/v1/instances/{id}/voice", s.getVoice)
 
 	// Configuration and access lists. server.properties and the config files are manager-only: they
 	// carry rcon.password.

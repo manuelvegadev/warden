@@ -242,7 +242,7 @@ func (i *Instance) handleEvent(ev *mc.Event) {
 		i.bc.Broadcast(i.Manifest.ID, "players", i.Status().Players)
 	}
 	now := time.Now().UTC()
-	i.bc.Broadcast(i.Manifest.ID, "event", map[string]any{"kind": ev.Kind, "player": ev.Player, "text": ev.Text, "ts": now})
+	i.bc.Broadcast(i.Manifest.ID, "event", ev.Payload(now))
 	i.mu.RLock()
 	sink := i.sink
 	i.mu.RUnlock()

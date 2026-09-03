@@ -3,6 +3,7 @@ package world
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"sync"
@@ -58,6 +59,16 @@ type WorldClock struct {
 	Thunder  bool  `json:"thunder"`
 }
 
+// AgentSink receives the parts of the agent stream the world service does not consume itself:
+// text messages of any type but `players`, binary frames of any kind but chunks, and the agent's
+// comings and goings. The voice relay (ADR-019) is the sink today; messages are handed over raw.
+type AgentSink interface {
+	OnAgentConnected(instanceID string)
+	OnAgentDisconnected(instanceID string)
+	OnAgentText(instanceID, typ string, raw []byte)
+	OnAgentBinary(instanceID string, kind byte, raw []byte)
+}
+
 // AgentInfo is the connection state shown in the panel.
 type AgentInfo struct {
 	Connected bool   `json:"connected"`
@@ -93,6 +104,7 @@ type Service struct {
 	store  *store.Store
 	bc     bus.Broadcaster
 	tokens Tokens
+	sink   AgentSink
 	mu     sync.Mutex
 	inst   map[string]*instState
 }
@@ -100,6 +112,33 @@ type Service struct {
 func NewService(st *store.Store, bc bus.Broadcaster, tokens Tokens) *Service {
 	return &Service{store: st, bc: bc, tokens: tokens, inst: map[string]*instState{}}
 }
+
+// SetSink wires the consumer of the non-world parts of the stream; call it before serving.
+func (s *Service) SetSink(sink AgentSink) { s.sink = sink }
+
+// SendToAgent writes one JSON text message to the instance's agent. coder/websocket serialises
+// concurrent writes itself.
+func (s *Service) SendToAgent(id string, msg any) error {
+	s.mu.Lock()
+	st := s.inst[id]
+	var conn *websocket.Conn
+	if st != nil {
+		conn = st.conn
+	}
+	s.mu.Unlock()
+	if conn == nil {
+		return errNoAgent
+	}
+	b, err := json.Marshal(msg)
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	return conn.Write(ctx, websocket.MessageText, b)
+}
+
+var errNoAgent = errors.New("no agent connected")
 
 type helloMsg struct {
 	Type   string      `json:"type"`
@@ -179,8 +218,20 @@ func (s *Service) HandleAgent(w http.ResponseWriter, r *http.Request) {
 		}
 		switch typ {
 		case websocket.MessageText:
+			var env struct {
+				Type string `json:"type"`
+			}
+			if json.Unmarshal(b, &env) != nil {
+				continue
+			}
+			if env.Type != "players" {
+				if s.sink != nil {
+					s.sink.OnAgentText(id, env.Type, b)
+				}
+				continue
+			}
 			var msg playersMsg
-			if json.Unmarshal(b, &msg) != nil || msg.Type != "players" {
+			if json.Unmarshal(b, &msg) != nil {
 				continue
 			}
 			if msg.Players == nil {
@@ -194,6 +245,12 @@ func (s *Service) HandleAgent(w http.ResponseWriter, r *http.Request) {
 			s.mu.Unlock()
 			s.bc.Broadcast(id, "world.players", map[string]any{"t": msg.T, "players": msg.Players, "worlds": msg.Worlds})
 		case websocket.MessageBinary:
+			if k := kind(b); k != frameChunk {
+				if s.sink != nil {
+					s.sink.OnAgentBinary(id, k, b)
+				}
+				continue
+			}
 			f, err := ParseFrame(b)
 			if err != nil {
 				slog.Debug("agent frame", "instance", id, "err", err)
@@ -242,6 +299,9 @@ func (s *Service) attach(id string, conn *websocket.Conn, hello helloMsg, hashes
 	}
 	s.inst[id] = st
 	go s.bc.Broadcast(id, "world.agent", st.agent)
+	if s.sink != nil {
+		go s.sink.OnAgentConnected(id)
+	}
 	return st
 }
 
@@ -259,6 +319,9 @@ func (s *Service) detach(id string, st *instState) {
 	slog.Info("agent disconnected", "instance", id)
 	s.bc.Broadcast(id, "world.agent", st.agent)
 	s.bc.Broadcast(id, "world.players", map[string]any{"t": time.Now().UnixMilli(), "players": []PlayerPos{}})
+	if s.sink != nil {
+		s.sink.OnAgentDisconnected(id)
+	}
 }
 
 // announce coalesces chunk changes into one `world.chunks` message per world per second.

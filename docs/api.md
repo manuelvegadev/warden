@@ -171,6 +171,30 @@ Creation body:
 
 The agent talks to the daemon on a separate loopback listener (`WARDEND_AGENT_LISTEN`, default `127.0.0.1:8481`, plain HTTP): `GET /agent/v1` upgrades to a WebSocket authenticated by the per-instance token in `instance.json` (`liveView.agentToken`). Protocol in ADR-018.
 
+## Voice chat (ADR-019)
+| Method | Path | Description |
+|---|---|---|
+| GET | `/instances/{id}/voice` | `{available,plugin?,distance,whisper,policy,listeners:[name…],speaking:[]}`: whether Simple Voice Chat is loaded on the server (as reported by the agent), its voice and whisper distances in blocks, the consent policy, and the display names of the people listening from the panel right now. `listeners` and `speaking` are always arrays. |
+
+Audio rides its own WebSocket, not the hub: `GET /api/v1/instances/{id}/voice/ws` (no `Authorization`
+header; the first message authenticates, as on `/ws`). Client → server, in order:
+`{"type":"auth","token":"<jwt>"}` within 5 s, then `{"type":"voice.hello","listen":true}`. Server →
+client: `{"type":"auth.ok"}`, then `{"type":"voice.ok","status":{…}}` (the object above) — or
+`{"type":"error","message":"instance not found"}` / `"role manager is required on this instance"` and a
+close (listening needs `manager`, `voice.listen` in the access tables; `voice.speak`, `operator`, is
+reserved for phase 3). From then on binary messages carry the agent's voice frames verbatim and `{"type":"ping"}` is
+answered with `{"type":"pong"}`; status changes travel on the hub as `voice.status`, not on this
+socket. A slow client loses the oldest queued frames, never the newest.
+
+Voice frame (little-endian): `u8 2 · u8 flags (1 whisper · 2 group) · speaker UUID (16 bytes, RFC 4122 order)
+· u64 seq · Opus payload` (48 kHz mono, one 20 ms frame). The agent sends them on the loopback socket
+as binary messages of kind 2 only while somebody listens: the daemon sends it
+`{"type":"voice.listen","active":true|false,"by":"<names>"}` whenever the set of listeners changes, and
+the agent reports `{"type":"voice.info","available":…,"plugin":…,"distance":…,"whisper":…,"policy":…}`
+when it connects and when the plugin starts or stops. Nothing about the audio is stored; the start and
+end of every listening session are written to the instance's events (`voice.listen.start`,
+`voice.listen.stop`, with the listener's name as `player`).
+
 ## Import
 
 `POST /instances/import` streams the upload to `<data>/imports/` and answers as soon as it is on disk; the `import` task then unpacks it into `server/` (a single wrapper folder such as `myserver/…` is unwrapped; `__MACOSX`, `.DS_Store` and friends are dropped; entries are confined to `server/`, symlinks and special files are skipped, and the expansion is capped at 64 GiB / 2 M entries), works out what it is and finishes like an install (Java runtime, `eula.txt`, network properties). The archive is deleted afterwards.
@@ -208,12 +232,13 @@ Server → client:
 | `console.history` | `{lines:[...]}` on subscribe |
 | `metrics` | `{ts,cpu,memRss,memMax,diskUsed,netRx,netTx,tps:[1m,5m,15m],players:{online,max}}` every 2 s |
 | `state` | `{state,pid,startedAt,exitCode?}` |
-| `event` | `{kind:"player.join|player.leave|player.chat|player.advancement|player.death|server.ready|server.overloaded", player?, text, ts}` |
+| `event` | `{kind:"player.join|player.leave|player.chat|player.advancement|player.death|server.ready|server.overloaded|voice.listen.start|voice.listen.stop", player?, text, ts}`; the `voice.*` kinds are panel actions (ADR-019), `player` is then the listener's name |
 | `task.progress` | `{id,type,progress:0-100,message,status}` |
 | `players` | `{online:[{uuid,name}]}` after each join/leave |
 | `world.players` | `{t,players:[PlayerPos…],worlds:{name:{day,time,gameTime,rain,thunder}}}` 5 times a second while anyone is online (ADR-018): positions plus each world's day count, time of day (ticks since 06:00) and weather; an empty list once when the last player leaves or the agent disconnects |
 | `world.chunks` | `{world,chunks:[[cx,cz,hash],…]}`: chunks whose cached content changed, coalesced to one message per world per second |
 | `world.agent` | `{connected,version?,server?}` when the instance's agent connects or drops |
+| `voice.status` | `{available,plugin?,distance,whisper,policy,listeners:[name…],speaking:[]}` when the voice plugin's state or the set of listeners changes (ADR-019); the same object as `GET /instances/{id}/voice` |
 | `pong` | |
 
 ## SQLite schema (`<data>/wardend.db`)

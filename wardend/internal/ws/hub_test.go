@@ -111,7 +111,7 @@ func TestHubAuthAndBroadcast(t *testing.T) {
 
 	// Bad token → closed.
 	bad := dial(t, url)
-	send(t, bad, Message{Type: "auth", Token: "nope"})
+	send(t, bad, map[string]any{"type": "auth", "token": "nope"})
 	if _, _, err := bad.Read(context.Background()); err == nil {
 		t.Fatal("expected close on invalid token")
 	}
@@ -123,7 +123,7 @@ func TestHubAuthAndBroadcast(t *testing.T) {
 	}
 	c := dial(t, url)
 	defer c.Close(websocket.StatusNormalClosure, "")
-	send(t, c, Message{Type: "auth", Token: iss.token(t, "admin")})
+	send(t, c, map[string]any{"type": "auth", "token": iss.token(t, "admin")})
 	if m := recv(t, c); m.Type != "auth.ok" {
 		t.Fatalf("got %s, want auth.ok", m.Type)
 	}

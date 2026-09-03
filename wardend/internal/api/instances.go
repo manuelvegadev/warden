@@ -409,6 +409,9 @@ func (s *server) deleteInstance(w http.ResponseWriter, r *http.Request) {
 	if s.World != nil {
 		s.World.Forget(r.PathValue("id"))
 	}
+	if s.Voice != nil {
+		s.Voice.Forget(r.PathValue("id"))
+	}
 	if s.Store != nil {
 		_ = s.Store.DeleteChunks(r.Context(), r.PathValue("id"))
 	}

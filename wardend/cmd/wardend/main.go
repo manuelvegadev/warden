@@ -26,6 +26,7 @@ import (
 	"github.com/manuelvega/warden/wardend/internal/store"
 	"github.com/manuelvega/warden/wardend/internal/tasks"
 	"github.com/manuelvega/warden/wardend/internal/tlsconf"
+	"github.com/manuelvega/warden/wardend/internal/voice"
 	"github.com/manuelvega/warden/wardend/internal/world"
 	"github.com/manuelvega/warden/wardend/internal/ws"
 )
@@ -111,6 +112,9 @@ func main() {
 	sk := skins.New(cfg.DataDir, mj)
 	// Live world view (ADR-018): the agent plugin dials a plain loopback listener; the panel reads the cache.
 	wv := world.NewService(st, hub, mgr)
+	// Voice chat (ADR-019): the agent's voice frames are relayed to listening browsers.
+	vc := voice.NewService(st, hub, wv, verifier, cfg.AllowedOrigins)
+	wv.SetSink(vc)
 	mgr.SetAgent(cfg.AgentURL(), agent.Jar, reg.TraitsOf)
 	agentMux := http.NewServeMux()
 	agentMux.HandleFunc("GET /agent/v1", wv.HandleAgent)
@@ -137,7 +141,7 @@ func main() {
 
 	srv := &http.Server{
 		Addr:              cfg.Listen,
-		Handler:           api.NewRouter(api.Deps{Config: cfg, Manager: mgr, Verifier: verifier, Catalog: reg, Tasks: tm, Java: jm, Metrics: sampler, Store: st, Skins: sk, World: wv, WS: hub, Sessions: hub, Version: version, StartedAt: time.Now().UTC()}),
+		Handler:           api.NewRouter(api.Deps{Config: cfg, Manager: mgr, Verifier: verifier, Catalog: reg, Tasks: tm, Java: jm, Metrics: sampler, Store: st, Skins: sk, World: wv, Voice: vc, WS: hub, Sessions: hub, Version: version, StartedAt: time.Now().UTC()}),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
