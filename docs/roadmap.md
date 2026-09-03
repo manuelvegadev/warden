@@ -65,6 +65,13 @@
 - [ ] Phase 4: event and telemetry overlays from the agent
 - [ ] Phase 5 (optional): offline import of unvisited chunks from region files
 
+## Phase 7 — Voice chat (ADR-019)
+- [x] Phase 1 (verified 2026-09-03 against a real Paper 26.2 server with Simple Voice Chat 2.6.21: a player heard from the panel, the in-game notice shown): the Warden Agent as a Simple Voice Chat addon (`softdepend`, `VoiceBridge`, `voice.info`, mic frames as loopback kind-2 frames gated by `voice.listen`), `internal/voice` service with the `/instances/{id}/voice` WebSocket (binary, drop-oldest), `voice.listen`/`voice.speak` roles, `voice.status` on the hub, `voice.*` audit events, `notify` policy with the in-game action bar (chat line and note at start/end), Beacon receiver playing flat (WebCodecs Opus; Safari 26+ / Chrome 94+ by feature detection)
+- [ ] Phase 2: 3D in the viewer — one `PannerNode` per speaker fed from the smoothed avatars, listener from the camera per mode (player / fly / orbit), linear falloff at the server's voice and whisper distances, group audio dropped, speaking name tags, consent icons
+- [ ] Phase 3: speak from Beacon — kind-3 frames, `onBinary` dispatcher, static / locational / entity channels with consent filter and the `beacon` volume category, push-to-talk, target per camera mode (camera, orbit pivot, followed player, everyone), source marker and radius sphere, `ask` policy with the Paper dialog and `/warden voice allow|deny|status`
+- [ ] Phase 4: effects presets before encoding (clean, conscience, divine, PA) with the bitrate switch and a local monitor
+- [ ] Later: `PlayerAudioListener` mode, WebRTC if WebSocket jitter proves unacceptable, SVC server settings from the instance settings
+
 ## Backlog (optional, unscheduled)
 - [ ] Server-list appearance follow-ups, from the cleanup pass over the MOTD/icon work. None block anything; each was judged not worth its blast radius at the time:
   - `hasIcon` on the instance detail (or properties) response. Beacon currently learns whether an instance has an icon by requesting `GET /instances/{id}/icon` and treating the 404 as "no" — a guaranteed 404 in the network panel for the common case. The daemon knows it for free; this is an API contract change, so it wants its own commit.
