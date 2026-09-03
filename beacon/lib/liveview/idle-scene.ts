@@ -28,7 +28,6 @@ import {
 } from "three";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { capturePointer, fitRenderer, releasePointer } from "./canvas";
-import { HANDOVER_CHARGE_MS } from "./constants";
 
 /** The mark and its core are the brand's; the room is darker than the site's surface, it is lit from within. */
 const MARK = BRAND.tileMark;
@@ -53,7 +52,6 @@ const ROOM = 4;
  * then running away, the rate of growth itself growing all the time. The light's curve is steeper,
  * so it stays quiet while the spin is already winding up and only blows out at the end.
  */
-const CHARGE_SECONDS = HANDOVER_CHARGE_MS / 1000;
 const CHARGE_SPIN = 22;
 const CHARGE_SPIN_STEEPNESS = 4;
 const CHARGE_LIGHT = 400;
@@ -76,7 +74,7 @@ export class IdleScene {
   private readonly core: Mesh;
   /** 0 at rest, 1 when the charge has whited the screen out. */
   private chargeLevel = 0;
-  private charging: { start: number; resolve: () => void } | null = null;
+  private charging: { start: number; ms: number; resolve: () => void } | null = null;
   private raf = 0;
   private lastFrame = 0;
   private disposed = false;
@@ -143,9 +141,9 @@ export class IdleScene {
    * Runs the block up to a white-out: faster and faster, brighter and brighter, and resolves once
    * the screen is white, so the world can be shown underneath. `reset` puts it back for next time.
    */
-  charge(): Promise<void> {
+  charge(ms: number): Promise<void> {
     return new Promise((resolve) => {
-      this.charging = { start: performance.now(), resolve };
+      this.charging = { start: performance.now(), ms, resolve };
     });
   }
 
@@ -158,7 +156,7 @@ export class IdleScene {
   private stepCharge(t: number) {
     const c = this.charging;
     if (!c) return;
-    this.chargeLevel = Math.min(1, (t - c.start) / 1000 / CHARGE_SECONDS);
+    this.chargeLevel = Math.min(1, (t - c.start) / c.ms);
     this.applyCharge();
     if (this.chargeLevel >= 1) {
       this.charging = null;

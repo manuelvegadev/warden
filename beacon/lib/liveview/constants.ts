@@ -10,12 +10,17 @@ export const RADIUS_MAX = 32;
 export const SKY_DOME_RADIUS = 1500;
 
 /**
- * The hand-over from the waiting scene to the world: the charge runs the block up to white, the veil
- * only fades in over the last part of it, then the world fades in under the veil.
+ * The hand-over between the waiting scene and the world is paced by the game's beacon sounds
+ * (`lib/liveview/cues.ts`); these are their measured lengths, used when they cannot be decoded.
+ * Arriving: the charge runs the block up to white over the sound minus the reveal, the veil fades
+ * in over the last part of the charge, then the world fades in under the veil for the reveal.
+ * Leaving: a flash to white over the onset, then the waiting room fades in over the sound's decay.
  */
-export const HANDOVER_CHARGE_MS = 3000;
+export const BEACON_ACTIVATE_MS = 2953;
+export const BEACON_DEACTIVATE_MS = 3501;
 export const HANDOVER_VEIL_MS = 900;
 export const HANDOVER_REVEAL_MS = 700;
+export const HANDOVER_FLASH_MS = 250;
 
 /** A player's eyes above their feet, standing and sneaking (the game's values): the camera in player mode and where a voice comes from. */
 export const EYE_HEIGHT = 1.62;
