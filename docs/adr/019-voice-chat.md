@@ -1,6 +1,6 @@
 # ADR-019: Voice chat in Beacon — a Simple Voice Chat addon in the Warden Agent
 
-Date: 2026-09-02 · Status: accepted (phase 1 verified and phase 2 built 2026-09-03; phases 3–4 pending) · **Extends** ADR-018 (live world view) and ADR-017 (per-instance roles).
+Date: 2026-09-02 · Status: accepted (phases 1–2 verified, phase 3 built 2026-09-03; phase 4 pending) · **Extends** ADR-018 (live world view) and ADR-017 (per-instance roles).
 
 ## Context
 
@@ -111,21 +111,27 @@ Text (JSON):
 
 | Direction | Message |
 |---|---|
-| agent → wardend | `{"type":"voice.info","available":true,"plugin":"2.6.21","distance":48,"whisper":6,"policy":"ask"}` on hello and whenever SVC starts or stops |
-| wardend → agent | `{"type":"voice.listen","active":true,"by":"Manuel"}` — start/stop forwarding mic frames; the name feeds the in-game notice |
-| wardend → agent | `{"type":"voice.session","id":"…","by":"Manuel","mode":"static|locational|entity","open":true}` — open/close a speak channel |
-| agent → wardend | `{"type":"players", …, "players":[{…,"voice":"allowed"}]}` — one more field per player |
+| agent → wardend | `{"type":"voice.info","available":true,"plugin":"2.6.21","distance":48,"whisper":24,"policy":"notify|ask"}` on hello and whenever SVC starts or stops |
+| wardend → agent | `{"type":"voice.listen","active":true,"by":"Manuel, Ana"}` — start/stop forwarding mic frames; the names feed the in-game notice |
+| wardend → agent | `{"type":"voice.session","id":"a1b2c3d4","by":"Manuel","open":true}` — a speak session begins/ends (push-to-talk pressed/released); the channel kind travels in the frames, so a session may switch between static, locational and entity without a new message |
+| agent → wardend | `{"type":"players", …, "players":[{…,"voice":"allowed|denied|unset"}]}` — the player's consent, one more field per player (absent when the policy is `notify`) |
 
-Binary, little-endian, first byte is the `kind` `frame.go` already dispatches on:
+Binary, little-endian, first byte is the `kind` the world service dispatches on:
 
 ```
-kind 2  voice (agent → wardend)  u8 2 · u8 flags (1 whisper · 2 group) · UUID speaker (16) · u64 seq · opus
-kind 3  speak (wardend → agent)  u8 3 · u8 sessionLen · session · u8 mode · u64 seq · f32 distance
-                                 · mode 1: u8 worldLen · world · f64 x,y,z   · mode 2: UUID player
-                                 · opus
+kind 2  voice (agent → wardend)  u8 2 · u8 flags (1 whisper · 2 group) · UUID speaker (16, RFC 4122 order) · u64 seq · opus
+kind 3  speak (wardend → agent)  u8 3 · u8 sessionLen · session (ASCII) · body
+        body = u8 mode (0 static · 1 locational · 2 entity) · u8 flags (1 whisper) · u64 seq · f32 distance
+               · mode 1: u8 worldLen · world (UTF-8) · f64 x · f64 y · f64 z
+               · mode 2: UUID player (16, RFC 4122 order)
+               · opus
 ```
 
-`ParseFrame` turns its single `!= frameChunk` compare into a switch; `MaxFrame` stays.
+The browser sends the same `body` behind a bare `u8 3`; wardend inserts the session id and forwards
+the rest untouched. The agent keeps one SVC channel per session and recreates it when the mode or
+the entity changes (`flush()` on the old one); position and distance are applied on every frame
+(`updateLocation`, `setDistance`, `setWhispering` for entity channels), so the source follows the
+camera at frame rate with no separate stream.
 
 ### 3. wardend: a dedicated voice socket, not the hub
 
@@ -133,10 +139,14 @@ The browser hub (`internal/ws/hub.go`) writes text only, drops on a full 256-slo
 every stream of an instance to every subscriber. Audio needs binary frames, a queue that drops the
 *oldest* frame under backpressure and a fan-out limited to the people who pressed "Listen".
 
-- `GET /api/v1/instances/{id}/voice` upgrades to a WebSocket, authenticated like the hub (first message
-  `{"type":"auth","token"}`), then `{"type":"voice.hello","listen":true}`. Handled by a new
-  `internal/voice` service modelled on `world.HandleAgent`, registered with the instance route helpers
-  so the role is named at the route.
+- `GET /api/v1/instances/{id}/voice/ws` upgrades to a WebSocket, authenticated like the hub (first
+  message `{"type":"auth","token"}`), then `{"type":"voice.hello","listen":bool,"speak":bool}` — at
+  least one true; each capability is checked against its role. Handled by `internal/voice`, modelled
+  on `world.HandleAgent`. Later text messages: `{"type":"voice.listen","active":bool}` toggles
+  listening (the in-game notice and the agent's forwarding follow); `{"type":"voice.speak","active":bool}`
+  marks push-to-talk pressed and released (a speak session: `voice.session` to the agent, an audit
+  event, the name in `status.speaking`); `{"type":"ping"}`/`pong`. Binary: kind-2 frames down to
+  listeners, kind-3 bodies up from speakers.
 - Roles (`auth.needs`, mirrored in `beacon/lib/access.ts` and `access-vectors.json`):
   `ActionVoiceSpeak` → `operator` (it is `say` with a microphone); `ActionVoiceListen` → `manager`
   (hearing players is more than reading their chat). One table entry each if the owner disagrees.
@@ -144,14 +154,15 @@ every stream of an instance to every subscriber. Audio needs binary frames, a qu
   the agent `voice.listen` when the set goes from empty to non-empty and back, relays kind-2 frames to
   every listener and kind-3 frames from a speaker to the agent, and rewrites nothing.
 - Browser ↔ wardend frames mirror the agent's: kind 2 downstream as-is; upstream kind 3 without the
-  session length (one session per socket), wardend adds the id.
+  session id, which wardend adds (a short id per socket) before relaying to the agent.
 - `voice.status` on the existing hub, `{available, listeners:[names], speaking:[names]}`, so every
   viewer of the instance sees that someone is listening, not only the person who is.
 - Audit: the `events` table and `GET /instances/{id}/events` gain the kinds `voice.listen.start`,
-  `voice.listen.stop`, `voice.speak.start`, `voice.speak.stop` with the admin's name in `text`. They
+  `voice.listen.stop`, `voice.speak.start`, `voice.speak.stop` with the admin's name in `player`. They
   show in the Events stream like a join or a kick.
 - `GET /instances/{id}/voice` (plain GET, `viewer`) answers `{available, plugin, distance, whisper,
-  policy, listeners, speaking}`; `PATCH /instances/{id}` accepts `voice: {policy}`.
+  policy, listeners, speaking}`; `PATCH /instances/{id}` accepts `voice: {policy}`, which wardend
+  writes into the agent's `config.yml` as `voice-consent` before the next start.
 - Nothing is recorded. Frames are relayed and forgotten; the daemon holds no audio.
 
 ### 4. Beacon
@@ -194,9 +205,14 @@ New module `lib/voice/`, consumed by `components/instance/live-view.tsx`:
   will not be heard as such.
 - **`Transmitter`** — `getUserMedia({audio:{echoCancellation, noiseSuppression}})` → effects graph →
   `AudioEncoder({codec:"opus", sampleRate:48000, numberOfChannels:1, bitrate})` at 20 ms → kind-3 frames.
-  Push-to-talk (hold **V** or the button). The **target** follows the camera mode: fly → locational at the
-  camera; orbit → locational at the orbit pivot (`rig.pivot`), the point the admin is looking at; player →
-  entity channel on the followed player. A fourth choice, **Everyone**, uses the static channel. The
+  The controls follow Discord: **Join voice** opens the session (the socket, the receiver, the
+  microphone, so the permission prompt happens once, up front); **mute** turns the microphone off and
+  keeps the listening; **deafen** turns the listening off and mutes with it — one cannot talk without
+  hearing; **leave** ends it. The microphone works in two modes, a stored preference: **push-to-talk**
+  (hold **V** or the microphone button) or **open mic** (on until muted). The **target** follows the
+  camera mode: fly and orbit → locational at the camera, where the admin is, not where the camera
+  points; player → entity channel on the followed player. A fourth choice, **Everyone**, uses the
+  static channel. The
   viewer draws the source and a translucent sphere with the current radius while transmitting, so the
   admin sees who can hear before speaking; the radius is a slider capped by the instance setting.
 - **Effects presets** (browser-side, before encoding; the mod plays what it receives):
