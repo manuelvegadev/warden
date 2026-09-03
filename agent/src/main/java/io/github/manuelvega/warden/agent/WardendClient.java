@@ -17,6 +17,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -41,6 +42,7 @@ public final class WardendClient {
     private final ExecutorService sender = Executors.newSingleThreadExecutor(daemon("warden-agent-send"));
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
     private final AtomicReference<WebSocket> socket = new AtomicReference<>();
+    private final ConcurrentHashMap<String, Consumer<JsonObject>> handlers = new ConcurrentHashMap<>();
     private volatile boolean ready; // hello.ok received on the current socket
     private volatile boolean closed;
     private int attempt;
@@ -54,6 +56,14 @@ public final class WardendClient {
 
     public void start() {
         timer.execute(this::connect);
+    }
+
+    /**
+     * Registers the handler for one wardend message type ({@code hello.ok} and {@code error} are
+     * built in). Called on the socket thread with the parsed message.
+     */
+    public void on(String type, Consumer<JsonObject> handler) {
+        handlers.put(type, handler);
     }
 
     /** True once wardend accepted the hello on the live socket. */
@@ -226,7 +236,12 @@ public final class WardendClient {
                     onHelloOk.accept(new Known(known));
                 }
                 case "error" -> log.warning("wardend: " + (o.has("message") ? o.get("message").getAsString() : msg));
-                default -> { }
+                default -> {
+                    Consumer<JsonObject> handler = handlers.get(type);
+                    if (handler != null) {
+                        handler.accept(o);
+                    }
+                }
             }
         }
     }

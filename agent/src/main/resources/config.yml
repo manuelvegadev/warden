@@ -20,3 +20,7 @@ resend-seconds: 5
 # Every so often the chunks around players are re-encoded and compared by hash, catching changes
 # that no event reports. 0 disables it.
 reconcile-seconds: 300
+
+# Voice chat (ADR-019), when Simple Voice Chat is installed. How players learn that someone in Beacon
+# is listening: "notify" tells them in-game while it lasts. ("ask", per-player consent, comes later.)
+voice-consent: notify

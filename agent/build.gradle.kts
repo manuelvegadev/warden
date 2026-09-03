@@ -11,6 +11,12 @@ repositories {
     // artifacts included). Asking Maven Central for those costs a request per artifact that it
     // answers with 404, or, on a busy runner, with 429 and a failed build, so it is never asked.
     maven("https://repo.papermc.io/repository/maven-public/")
+    // Simple Voice Chat's addon API (ADR-019). Only its own group is asked for here.
+    maven("https://maven.maxhenkel.de/repository/public") {
+        content {
+            includeGroup("de.maxhenkel.voicechat")
+        }
+    }
     mavenCentral {
         content {
             excludeGroupAndSubgroups("io.papermc")
@@ -24,6 +30,8 @@ dependencies {
     // Provided by the server at runtime. Compiled against 26.2; only APIs that exist since 1.21 are used.
     compileOnly("io.papermc.paper:paper-api:26.2.build.121-stable")
     testImplementation("io.papermc.paper:paper-api:26.2.build.121-stable")
+    // Simple Voice Chat's addon API: present at runtime only when the plugin is installed (softdepend).
+    compileOnly("de.maxhenkel.voicechat:voicechat-api:2.6.20")
     testImplementation(platform("org.junit:junit-bom:5.12.2"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")

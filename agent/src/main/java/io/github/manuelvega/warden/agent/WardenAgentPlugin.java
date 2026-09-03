@@ -9,11 +9,13 @@ import org.bukkit.scheduler.BukkitTask;
 
 /**
  * Entry point. Reads config.yml (written by wardend), opens the socket and schedules the two main-thread
- * jobs: positions every 4 ticks, chunk planning and snapshots every tick.
+ * jobs: positions every 4 ticks, chunk planning and snapshots every tick. Registers the voice bridge
+ * when Simple Voice Chat is present (ADR-019).
  */
 public final class WardenAgentPlugin extends JavaPlugin {
     private WardendClient client;
     private ChunkTracker tracker;
+    private VoiceSupport voice;
     private BukkitTask playersTask;
     private BukkitTask chunksTask;
 
@@ -26,10 +28,16 @@ public final class WardenAgentPlugin extends JavaPlugin {
             return;
         }
         ChunkEncoder encoder = new ChunkEncoder(new BlockPalette());
-        client = new WardendClient(getLogger(), cfg, () -> hello(cfg), known -> tracker.setKnown(known));
+        client = new WardendClient(getLogger(), cfg, () -> hello(cfg), known -> {
+            tracker.setKnown(known);
+            voice.onConnected();
+        });
         tracker = new ChunkTracker(this, cfg, client, encoder);
         PlayerSampler sampler = new PlayerSampler(client);
         getServer().getPluginManager().registerEvents(tracker, this);
+        ActionBarNotifier notifier = new ActionBarNotifier(this);
+        getServer().getPluginManager().registerEvents(notifier, this);
+        voice = VoiceSupport.detect(this, client, cfg, notifier);
         playersTask = getServer().getScheduler().runTaskTimer(this, sampler::tick, 20L, 4L);
         chunksTask = getServer().getScheduler().runTaskTimer(this, tracker::tick, 20L, 1L);
         client.start();
@@ -43,6 +51,9 @@ public final class WardenAgentPlugin extends JavaPlugin {
         }
         if (chunksTask != null) {
             chunksTask.cancel();
+        }
+        if (voice != null) {
+            voice.shutdown();
         }
         if (tracker != null) {
             tracker.shutdown();
