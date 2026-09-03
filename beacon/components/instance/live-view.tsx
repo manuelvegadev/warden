@@ -12,6 +12,12 @@ import { DetachControls } from "@/components/instance/detach-controls";
 import { useInstance } from "@/components/instance/instance-context";
 import { PlayerFace } from "@/components/instance/player-face";
 import { SectionCard } from "@/components/instance/section-card";
+import {
+  useVoiceListen,
+  useVoiceStatus,
+  VoiceListenButton,
+  VoiceListenersPill,
+} from "@/components/instance/voice-listen";
 import { useDetachable } from "@/hooks/use-detachable";
 import { useStoredPreference } from "@/hooks/use-stored-preference";
 import type { WsMessage } from "@/hooks/use-wardend-socket";
@@ -95,6 +101,9 @@ export function LiveView({ popout }: { popout?: boolean }) {
   const [debug, setDebug] = useState(false);
   const [stats, setStats] = useState({ chunks: 0, pending: 0 });
   const [clockText, setClockText] = useState("");
+  // Voice (ADR-019): the players' voices while "Listen" is on; the tags of those heard light up.
+  const voiceStatus = useVoiceStatus(id);
+  const voice = useVoiceListen(id);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const idleCanvasRef = useRef<HTMLCanvasElement>(null);
   // Name tags: an HTML layer over the canvas, moved every frame without going through React. A tag
@@ -287,6 +296,26 @@ export function LiveView({ popout }: { popout?: boolean }) {
   }, [id, info?.supported, applyWorld, placeMarkers]);
 
   useEffect(() => applyWorld(world), [world, applyWorld]);
+
+  // Who is being heard, a few times a second while listening. The tags are an imperative layer
+  // (moved every frame without React), so the highlight is a data attribute on them, not state.
+  useEffect(() => {
+    const mark = (heard: Set<string>) => {
+      for (const p of playersRef.current) {
+        const el = markerEls.current.get(p.name);
+        if (el) el.dataset.speaking = heard.has(p.uuid) ? "true" : "false";
+      }
+    };
+    if (!voice.listening) {
+      mark(new Set());
+      return;
+    }
+    const timer = setInterval(() => mark(voice.speaking()), 150);
+    return () => {
+      clearInterval(timer);
+      mark(new Set());
+    };
+  }, [voice.listening, voice.speaking]);
   useEffect(() => sceneRef.current?.setCameraMode(cameraMode), [cameraMode]);
   useEffect(() => sceneRef.current?.setDebug(debug), [debug]);
 
@@ -387,6 +416,8 @@ export function LiveView({ popout }: { popout?: boolean }) {
             title={phase.badge}
           />
           <span>Live view</span>
+          {worldVisible && <VoiceListenButton status={voiceStatus} listen={voice} />}
+          <VoiceListenersPill status={voiceStatus} />
           {debug && (
             <span
               className="text-xs text-muted-foreground tabular-nums"
@@ -469,7 +500,7 @@ export function LiveView({ popout }: { popout?: boolean }) {
             <div
               key={p.name}
               hidden
-              className="absolute top-0 left-0"
+              className="group absolute top-0 left-0"
               ref={(el) => {
                 if (el) markerEls.current.set(p.name, el);
                 else markerEls.current.delete(p.name);
@@ -477,7 +508,7 @@ export function LiveView({ popout }: { popout?: boolean }) {
             >
               <button
                 type="button"
-                className="font-minecraft pointer-events-auto bg-black/30 px-1 py-0.5 text-[17px] leading-none whitespace-nowrap text-white"
+                className="font-minecraft pointer-events-auto bg-black/30 px-1 py-0.5 text-[17px] leading-none whitespace-nowrap text-white group-data-[speaking=true]:bg-emerald-500/50 group-data-[speaking=true]:shadow-[0_0_0_2px_rgb(52_211_153/0.9)]"
                 onClick={() => sceneRef.current?.follow(p.name)}
                 title="Go to this player"
               >

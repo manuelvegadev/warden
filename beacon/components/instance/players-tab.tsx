@@ -3,6 +3,7 @@
 import { Badge } from "@warden/ui/components/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@warden/ui/components/table";
 import { badgeTone } from "@warden/ui/lib/badge-tone";
+import { Headphones } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { PlayerFace } from "@/components/instance/player-face";
@@ -24,7 +25,7 @@ export function PlayersTab({ id, online, canManage }: { id: string; online: stri
       .then(setPlayers)
       .catch((e) => toast.error(e.message));
     instances
-      .events(id, ["player.join", "player.leave", "player.advancement", "player.chat"], 50)
+      .events(id, Object.keys(EVENTS), 50)
       .then(setEvents)
       .catch(() => {});
   }, [id]);
@@ -77,13 +78,14 @@ export function PlayersTab({ id, online, canManage }: { id: string; online: stri
           </TableBody>
         </Table>
       </SectionCard>
-      <SectionCard title="Recent activity" subtitle="Joins, leaves, chat and advancements.">
+      <SectionCard title="Recent activity" subtitle="Joins, leaves, chat, advancements and voice sessions from Beacon.">
         <ul className="grid gap-1 px-5 py-3 text-xs text-muted-foreground">
           {events.length === 0 && <li>No activity yet.</li>}
           {events.map((e) => (
             <li key={`${e.ts}-${e.kind}-${e.player}`}>
               <span className="tabular-nums">{new Date(e.ts).toLocaleTimeString()}</span> ·{" "}
-              <span className="text-foreground">{e.player}</span> {describe(e)}
+              {EVENTS[e.kind]?.icon && <Headphones className="inline size-3 align-[-2px]" aria-hidden="true" />}{" "}
+              <span className="text-foreground">{e.player}</span> {(EVENTS[e.kind]?.describe ?? ((ev) => ev.text))(e)}
             </li>
           ))}
         </ul>
@@ -100,17 +102,12 @@ export function PlayersTab({ id, online, canManage }: { id: string; online: stri
   );
 }
 
-function describe(e: ServerEvent) {
-  switch (e.kind) {
-    case "player.join":
-      return "joined";
-    case "player.leave":
-      return "left";
-    case "player.advancement":
-      return `earned “${e.text}”`;
-    case "player.chat":
-      return `said “${e.text}”`;
-    default:
-      return e.text;
-  }
-}
+/** The event kinds the activity list shows: what to fetch, how each reads, which carry the voice icon. */
+const EVENTS: Record<string, { describe: (e: ServerEvent) => string; icon?: true }> = {
+  "player.join": { describe: () => "joined" },
+  "player.leave": { describe: () => "left" },
+  "player.advancement": { describe: (e) => `earned “${e.text}”` },
+  "player.chat": { describe: (e) => `said “${e.text}”` },
+  "voice.listen.start": { describe: () => "started listening to voice chat from Beacon", icon: true },
+  "voice.listen.stop": { describe: () => "stopped listening to voice chat from Beacon", icon: true },
+};

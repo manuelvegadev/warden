@@ -100,6 +100,24 @@ export interface LiveViewInfo {
   t?: number;
 }
 
+/** Voice chat (ADR-019): whether Simple Voice Chat is on the server and who is on the voice socket. */
+export interface VoiceStatus {
+  /** Simple Voice Chat is installed and its addon API answered the agent. */
+  available: boolean;
+  /** Simple Voice Chat's version, when available. */
+  plugin?: string;
+  /** The server's voice distance in blocks (audio falls off linearly to it). */
+  distance: number;
+  /** The whisper distance in blocks. */
+  whisper: number;
+  /** How players are told about Beacon's voice sessions. */
+  policy: "notify";
+  /** Display names of the people listening from Beacon right now. */
+  listeners: string[];
+  /** Display names of the people speaking from Beacon right now. */
+  speaking: string[];
+}
+
 export interface BackupSettings {
   enabled: boolean;
   everyHours: number;
@@ -492,6 +510,8 @@ export const instances = {
   list: () => api<InstanceSummary[]>("/instances"),
   /** Live world view (ADR-018). */
   map: (id: string) => api<LiveViewInfo>(`/instances/${id}/map`),
+  /** Voice chat status (ADR-019). */
+  voice: (id: string) => api<VoiceStatus>(`/instances/${id}/voice`),
   /** Stored chunks among `keys`, as the binary batch `lib/liveview/format.ts` parses. */
   mapChunks: (id: string, world: string, keys: [number, number][]) =>
     api<ArrayBuffer>(`/instances/${id}/map/${encodeURIComponent(world)}/chunks`, {

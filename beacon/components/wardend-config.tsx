@@ -9,9 +9,14 @@ export function WardendConfigProvider({ wsUrl, children }: { wsUrl: string; chil
   return <WardendConfig.Provider value={{ wsUrl }}>{children}</WardendConfig.Provider>;
 }
 
-/** wardend WebSocket endpoint. The JWT is sent as the first message (see useWardendSocket), never in the URL. */
+/** wardend's public origin as a WebSocket URL (`ws://host:port`), the base of every socket endpoint. */
+export function useWardendBaseUrl() {
+  return useContext(WardendConfig).wsUrl;
+}
+
+/** The hub endpoint. The JWT is sent as the first message (see useWardendSocket), never in the URL. */
 export function useWardendWsUrl() {
-  return `${useContext(WardendConfig).wsUrl}/api/v1/ws`;
+  return `${useWardendBaseUrl()}/api/v1/ws`;
 }
 
 /**
