@@ -14,7 +14,9 @@
     "format": "biome format --write .",
     "mc:data": "node scripts/mc-data.mjs",
     "test": "node --import ./scripts/test-resolve.mjs --test \"lib/**/*.test.ts\"",
-    "block-colors": "node scripts/block-colors.mjs"
+    "block-colors": "node scripts/block-colors.mjs",
+    "mc:assets": "node scripts/mc-assets.mjs",
+    "postinstall": "node scripts/mc-assets.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

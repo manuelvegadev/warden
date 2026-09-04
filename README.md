@@ -56,7 +56,7 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md): English everywhere, Conventional Commi
 # wardend (daemon)
 cd wardend && make run                      # http://localhost:8080/api/v1/health
 # Beacon (panel)
-pnpm install                                 # once, at the root (pnpm workspace: beacon, landing, packages/ui)
+pnpm install                                 # once, at the root (pnpm workspace: beacon, landing, packages/ui); also fetches the game art for the live view into beacon/data/mc-assets (pnpm mc:assets to refresh)
 cp beacon/.env.example beacon/.env.local     # fill in BETTER_AUTH_SECRET and WARDEND_PANEL_KEY
 cd beacon && pnpm auth:migrate && pnpm dev   # http://localhost:3000
 # Landing page
