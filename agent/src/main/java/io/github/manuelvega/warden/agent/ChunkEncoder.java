@@ -15,6 +15,7 @@ import java.util.zip.GZIPOutputStream;
 import org.bukkit.ChunkSnapshot;
 import org.bukkit.Material;
 import org.bukkit.block.Biome;
+import org.bukkit.block.data.Waterlogged;
 
 /**
  * Turns a chunk snapshot into the "WCK2" payload described in ADR-018: a height band of one byte per
@@ -22,7 +23,7 @@ import org.bukkit.block.Biome;
  * the snapshot is an immutable copy.
  */
 public final class ChunkEncoder {
-    public static final int MAGIC = 0x324B4357; // "WCK2" little-endian
+    public static final int MAGIC = 0x344B4357; // "WCK4" little-endian
     // One byte per block: a chunk with more distinct colours than this maps extras to the closest entry.
     private static final int MAX_PALETTE = 255;
     private static final int MAX_BIOMES = 255;
@@ -55,14 +56,20 @@ public final class ChunkEncoder {
                 int top = Integer.MIN_VALUE;
                 int ground = Integer.MIN_VALUE;
                 for (; y >= worldMinY; y--) {
-                    BlockPalette.Entry e = palette.entry(snap.getBlockType(x, y, z));
-                    if (e.kind() == BlockPalette.Kind.AIR) {
+                    Material m = snap.getBlockType(x, y, z);
+                    BlockPalette.Kind kind = palette.entry(m).kind();
+                    // A bodyless block that holds water is drawn (as that water), so it can be the
+                    // top of the column: a seagrass at the surface, say. Pass 2 starts at this top.
+                    if (kind == BlockPalette.Kind.AIR && holdsWater(snap, x, y, z, m)) {
+                        kind = BlockPalette.Kind.WATER;
+                    }
+                    if (kind == BlockPalette.Kind.AIR) {
                         continue;
                     }
                     if (top == Integer.MIN_VALUE) {
                         top = y;
                     }
-                    if (e.kind() == BlockPalette.Kind.SOLID) {
+                    if (kind == BlockPalette.Kind.SOLID) {
                         ground = y;
                         break;
                     }
@@ -83,30 +90,52 @@ public final class ChunkEncoder {
         int yMax = Math.max(yMin, maxTop);
         int height = yMax - yMin + 1;
 
-        // Pass 2: block indices into a palette built as we go. The per-material index is an int array
-        // (no boxing per block). Columns are walked top-down carrying the block above, which the cover
-        // rule (snow layers) needs and which saves a second snapshot read per block.
+        // Pass 2: block indices into a palette built as we go. The index per material and orientation
+        // is an int array (no boxing per block). Columns are walked top-down carrying the block above,
+        // which the cover rule (snow layers) needs and which saves a second snapshot read per block.
         List<BlockPalette.Entry> paletteList = new ArrayList<>();
         paletteList.add(BlockPalette.Entry.AIR);
-        int[] indexByMaterial = new int[Material.values().length];
-        Arrays.fill(indexByMaterial, -1);
+        // Keyed by material, orientation and whether the cell holds water.
+        int[] indexByKey = new int[Material.values().length * BlockPalette.ORIENTS * 2];
+        Arrays.fill(indexByKey, -1);
         byte[] blocks = new byte[256 * height];
+        // The server's light, one byte per cell of the band: sky level in the high nibble, block light
+        // (torches, lava) in the low one. The viewer lights every face with the cell it looks into.
+        byte[] light = new byte[256 * height];
         for (int x = 0; x < 16; x++) {
             for (int z = 0; z < 16; z++) {
                 int col = z * 16 + x;
                 int base = (x * 16 + z) * height;
                 int top = tops[col];
+                for (int y = yMin; y <= yMax; y++) {
+                    light[base + (y - yMin)] =
+                            (byte) ((snap.getBlockSkyLight(x, y, z) << 4) | (snap.getBlockEmittedLight(x, y, z) & 15));
+                }
                 Material above = top < worldMaxY ? snap.getBlockType(x, top + 1, z) : Material.AIR;
                 for (int y = top; y >= yMin; y--) {
                     Material raw = snap.getBlockType(x, y, z);
                     Material cover = palette.coverOf(above);
                     Material m = cover != null ? cover : raw;
                     above = raw;
-                    int idx = indexByMaterial[m.ordinal()];
+                    // A block with no body of its own may still hold water in its cell (seagrass and
+                    // kelp always, a coral fan or a sea pickle when its state says so). It keeps its
+                    // key; the flag says the cell holds water, which the viewer draws for now.
+                    boolean wet = cover == null
+                            && palette.entry(m).kind() == BlockPalette.Kind.AIR
+                            && holdsWater(snap, x, y, z, m);
+                    // Only blocks whose look turns with them pay for the block data read.
+                    int orient = cover == null && palette.oriented(m)
+                            ? BlockPalette.orientOf(snap.getBlockData(x, y, z))
+                            : BlockPalette.ORIENT_NONE;
+                    int key = (m.ordinal() * BlockPalette.ORIENTS + orient) * 2 + (wet ? 1 : 0);
+                    int idx = indexByKey[key];
                     if (idx < 0) {
-                        BlockPalette.Entry e = palette.entry(m);
+                        BlockPalette.Entry e = palette.entry(m).turned(orient);
+                        if (wet) {
+                            e = e.waterlogged();
+                        }
                         idx = e.kind() == BlockPalette.Kind.AIR ? 0 : indexOf(paletteList, e);
-                        indexByMaterial[m.ordinal()] = idx;
+                        indexByKey[key] = idx;
                     }
                     if (idx != 0) {
                         blocks[base + (y - yMin)] = (byte) idx;
@@ -137,9 +166,22 @@ public final class ChunkEncoder {
             }
         }
 
-        byte[] payload = serialize(snap.getX(), snap.getZ(), yMin, yMax, paletteList, biomeList, biomes, blocks);
+        byte[] payload =
+                serialize(snap.getX(), snap.getZ(), yMin, yMax, paletteList, biomeList, biomes, blocks, light);
         long hash = Fnv64.hash(payload, 0, payload.length);
         return new Encoded(gzip(payload), hash);
+    }
+
+    /**
+     * Whether the cell holds water besides the block standing in it: kelp and seagrass always, a
+     * coral fan or a sea pickle when its block data says waterlogged. Only the blocks that can be
+     * waterlogged pay for the block data read.
+     */
+    private boolean holdsWater(ChunkSnapshot snap, int x, int y, int z, Material m) {
+        return palette.inWater(m)
+                || (palette.mayHoldWater(m)
+                        && snap.getBlockData(x, y, z) instanceof Waterlogged w
+                        && w.isWaterlogged());
     }
 
     /** Adds an entry (each material is indexed once per chunk); past the cap, the closest colour stands in. */
@@ -188,7 +230,7 @@ public final class ChunkEncoder {
     }
 
     static byte[] serialize(int cx, int cz, int yMin, int yMax, List<BlockPalette.Entry> paletteList,
-            List<String> biomeList, byte[] biomes, byte[] blocks) {
+            List<String> biomeList, byte[] biomes, byte[] blocks, byte[] light) {
         List<byte[]> biomeBytes = new ArrayList<>(biomeList.size());
         int biomeLen = 0;
         for (String b : biomeList) {
@@ -201,9 +243,9 @@ public final class ChunkEncoder {
         for (BlockPalette.Entry e : paletteList) {
             byte[] bytes = utf8Capped(e.name());
             nameBytes.add(bytes);
-            paletteLen += 5 + bytes.length;
+            paletteLen += 6 + bytes.length;
         }
-        int size = 4 + 4 + 4 + 2 + 2 + 2 + 1 + 1 + paletteLen + biomeLen + 256 + blocks.length;
+        int size = 4 + 4 + 4 + 2 + 2 + 2 + 1 + 1 + paletteLen + biomeLen + 256 + blocks.length + light.length;
         ByteBuffer buf = ByteBuffer.allocate(size).order(ByteOrder.LITTLE_ENDIAN);
         buf.putInt(MAGIC);
         buf.putInt(cx);
@@ -219,6 +261,7 @@ public final class ChunkEncoder {
             buf.put((byte) ((e.rgb() >> 8) & 0xff));
             buf.put((byte) (e.rgb() & 0xff));
             buf.put((byte) e.flags());
+            buf.put((byte) e.orient());
             buf.put((byte) nameBytes.get(i).length);
             buf.put(nameBytes.get(i));
         }
@@ -228,6 +271,7 @@ public final class ChunkEncoder {
         }
         buf.put(biomes);
         buf.put(blocks);
+        buf.put(light);
         return buf.array();
     }
 

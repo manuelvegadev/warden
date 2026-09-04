@@ -14,6 +14,7 @@ import java.util.zip.GZIPInputStream;
 import org.bukkit.ChunkSnapshot;
 import org.bukkit.Color;
 import org.bukkit.Material;
+import org.bukkit.block.data.Waterlogged;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -33,6 +34,9 @@ class ChunkEncoderTest {
                     case "getZ" -> -2;
                     case "getHighestBlockYAt" -> highest((int) args[0], (int) args[1]);
                     case "getBlockType" -> block((int) args[0], (int) args[1], (int) args[2]);
+                    // Daylight everywhere but one lit cell, so the light array can be checked.
+                    case "getBlockSkyLight" -> 15;
+                    case "getBlockEmittedLight" -> (int) args[0] == 5 && (int) args[1] == 66 && (int) args[2] == 5 ? 14 : 0;
                     case "getBiome" -> null; // encoder falls back to "unknown"
                     case "toString" -> "flatWorld";
                     default -> throw new UnsupportedOperationException(method.getName());
@@ -92,11 +96,18 @@ class ChunkEncoderTest {
                 Material.OAK_LEAVES, 0x007c00,
                 Material.WATER, 0x4040ff,
                 Material.SAND, 0xf7e9a3,
+                Material.SEAGRASS, 0x009900,
                 Material.SNOW_BLOCK, 0xf9fefe);
         return new BlockPalette(m -> {
             Integer c = colors.get(m);
             return c == null ? null : Color.fromRGB(c);
         }) {
+            // Block data needs a server too: nothing in this world is turned.
+            @Override
+            public boolean oriented(Material m) {
+                return false;
+            }
+
             // Tag lookups and keys need a server; classify by constant instead.
             @Override
             public Entry entry(Material m) {
@@ -109,8 +120,12 @@ class ChunkEncoderTest {
                 if (m == Material.GRASS_BLOCK) {
                     return new Entry("grass_block", 0x7fb238, BlockPalette.FLAG_GRASS, Kind.SOLID);
                 }
-                if (m == Material.SHORT_GRASS || m == Material.SNOW || m == Material.AIR) {
+                if (m == Material.SNOW || m == Material.AIR) {
                     return Entry.AIR;
+                }
+                // Bodyless blocks: not drawn, but the key is kept for a cell that holds water.
+                if (m == Material.SHORT_GRASS || m == Material.SEAGRASS || m == Material.FIRE_CORAL_FAN) {
+                    return new Entry(m.name().toLowerCase(), 0x009900, 0, Kind.AIR);
                 }
                 Integer c = colors.get(m);
                 return new Entry(m.name().toLowerCase(), c == null ? 0x808080 : c, 0, Kind.SOLID);
@@ -145,17 +160,17 @@ class ChunkEncoderTest {
         b.get(); // reserved
         // air, grass, stone, snow block, leaves, log, water, sand — first seen walking each column top-down
         assertEquals(8, paletteLen);
-        int[][] pal = new int[paletteLen][4];
+        int[][] pal = new int[paletteLen][5];
         String[] names = new String[paletteLen];
         for (int i = 0; i < paletteLen; i++) {
-            for (int k = 0; k < 4; k++) {
+            for (int k = 0; k < 5; k++) { // r, g, b, flags, orientation
                 pal[i][k] = b.get() & 0xff;
             }
             byte[] nb = new byte[b.get() & 0xff];
             b.get(nb);
             names[i] = new String(nb, java.nio.charset.StandardCharsets.UTF_8);
         }
-        assertArrayEquals(new int[] {0, 0, 0, 0}, pal[0]);
+        assertArrayEquals(new int[] {0, 0, 0, 0, 0}, pal[0]);
         assertEquals("air", names[0]);
         assertEquals("grass_block", names[1]);
         assertEquals("stone", names[2]);
@@ -169,7 +184,12 @@ class ChunkEncoderTest {
         int height = yMax - yMin + 1;
         byte[] blocks = new byte[256 * height];
         b.get(blocks);
+        // The light array follows: sky in the high nibble, block light in the low one.
+        byte[] light = new byte[256 * height];
+        b.get(light);
         assertEquals(0, b.remaining());
+        assertEquals(0xf0, light[0] & 0xff, "daylight, no block light");
+        assertEquals(0xfe, light[(5 * 16 + 5) * height + (66 - yMin)] & 0xff, "the lit cell");
 
         // Column (0,0): grass at 64 with a plant on top that must be air; stone below.
         int base = 0;
@@ -198,6 +218,96 @@ class ChunkEncoderTest {
         assertEquals(0, blocks[base + (65 - yMin)]);
     }
 
+    /**
+     * Sand floor to y=61, water 62..64, a waterlogged coral fan on the floor at 62, seagrass under
+     * the surface at 63 and more seagrass in the surface cell itself at 64.
+     */
+    private static ChunkSnapshot seaWorld() {
+        Object waterlogged = Proxy.newProxyInstance(Waterlogged.class.getClassLoader(), new Class<?>[] {Waterlogged.class},
+                (proxy, method, args) -> switch (method.getName()) {
+                    case "isWaterlogged" -> true;
+                    case "toString" -> "waterlogged";
+                    default -> throw new UnsupportedOperationException(method.getName());
+                });
+        return (ChunkSnapshot) Proxy.newProxyInstance(ChunkSnapshot.class.getClassLoader(), new Class<?>[] {ChunkSnapshot.class},
+                (proxy, method, args) -> switch (method.getName()) {
+                    case "getX" -> 0;
+                    case "getZ" -> 0;
+                    case "getHighestBlockYAt" -> 65;
+                    case "getBlockType" -> sea((int) args[0], (int) args[1], (int) args[2]);
+                    case "getBlockData" -> waterlogged;
+                    case "getBlockSkyLight" -> 15;
+                    case "getBlockEmittedLight" -> 0;
+                    case "getBiome" -> null;
+                    case "toString" -> "seaWorld";
+                    default -> throw new UnsupportedOperationException(method.getName());
+                });
+    }
+
+    private static Material sea(int x, int y, int z) {
+        if (y <= 61 && y >= MIN_Y) {
+            return Material.SAND;
+        }
+        if (y == 62 && x == 1 && z == 1) {
+            return Material.FIRE_CORAL_FAN;
+        }
+        if (y == 63 && x == 0 && z == 0) {
+            return Material.SEAGRASS;
+        }
+        if (y == 64 && x == 2 && z == 2) {
+            return Material.SEAGRASS; // the topmost cell of the column, where the water surface is
+        }
+        return y <= 64 ? Material.WATER : Material.AIR;
+    }
+
+    @Test
+    void blocksThatHoldWaterKeepTheirKeyAndCarryTheFlag() throws IOException {
+        ChunkEncoder enc = new ChunkEncoder(palette());
+        byte[] payload = gunzip(enc.encode(seaWorld(), MIN_Y, MAX_Y).gzip());
+        ByteBuffer b = ByteBuffer.wrap(payload).order(ByteOrder.LITTLE_ENDIAN);
+        b.position(12);
+        int yMin = b.getShort();
+        int yMax = b.getShort();
+        int height = yMax - yMin + 1;
+        int paletteLen = b.getShort() & 0xffff;
+        b.get(); // biome count
+        b.get(); // reserved
+        int[] flags = new int[paletteLen];
+        String[] names = new String[paletteLen];
+        for (int i = 0; i < paletteLen; i++) {
+            b.get();
+            b.get();
+            b.get(); // r, g, b
+            flags[i] = b.get() & 0xff;
+            b.get(); // orientation
+            byte[] key = new byte[b.get() & 0xff];
+            b.get(key);
+            names[i] = new String(key, java.nio.charset.StandardCharsets.UTF_8);
+        }
+        int biomeLen = b.get() & 0xff;
+        b.position(b.position() + biomeLen); // the single biome name
+        b.position(b.position() + 256); // one biome index per column
+        byte[] blocks = new byte[256 * height];
+        b.get(blocks);
+        // Both keep their own key and carry the flag that says their cell holds water.
+        int grass = blocks[(0 * 16 + 0) * height + (63 - yMin)] & 0xff;
+        assertNotEquals(0, grass, "seagrass is sent, not dropped as a hole in the sea");
+        assertEquals("seagrass", names[grass]);
+        assertEquals(BlockPalette.FLAG_WATERLOGGED, flags[grass]);
+        int fan = blocks[(1 * 16 + 1) * height + (62 - yMin)] & 0xff;
+        assertNotEquals(0, fan, "a waterlogged coral fan is sent, not dropped");
+        assertEquals("fire_coral_fan", names[fan]);
+        assertEquals(BlockPalette.FLAG_WATERLOGGED, flags[fan]);
+        // Seagrass in the column's topmost cell counts as the top, so pass 2 reaches it.
+        int surface = blocks[(2 * 16 + 2) * height + (64 - yMin)] & 0xff;
+        assertNotEquals(0, surface, "seagrass at the water surface is not skipped");
+        assertEquals("seagrass", names[surface]);
+        // The water around them is still plain water, a separate entry.
+        int water = blocks[(0 * 16 + 0) * height + (64 - yMin)] & 0xff;
+        assertEquals(BlockPalette.FLAG_WATER, flags[water]);
+        assertEquals(64, yMax, "the band stops at the sea's surface");
+    }
+
     @Test
     void hashChangesWithContent() {
         ChunkEncoder enc = new ChunkEncoder(palette());
@@ -210,6 +320,8 @@ class ChunkEncoderTest {
                     case "getZ" -> -2;
                     case "getHighestBlockYAt" -> 64;
                     case "getBlockType" -> (int) args[1] <= 64 ? Material.STONE : Material.AIR;
+                    case "getBlockSkyLight" -> 15;
+                    case "getBlockEmittedLight" -> 0;
                     case "getBiome" -> null;
                     default -> throw new UnsupportedOperationException(method.getName());
                 });
