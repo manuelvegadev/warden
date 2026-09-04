@@ -60,27 +60,29 @@ describe("meshChunk", () => {
     const m = meshChunk(flat(0, 0), none, TABLES);
     // Opaque: 252 grass tops + 4 pool floors (stone under water) + 4 sides × 16 columns × 9 rows (56..64)
     // + the 8 grass walls around the pool, which water does not hide.
-    const opaqueQuads = m.indices.length / 6;
+    const opaqueQuads = m.opaque.indices.length / 6;
     assert.equal(opaqueQuads, 256 + 4 * 16 * 9 + 8);
-    assert.equal(m.positions.length, opaqueQuads * 12);
-    assert.equal(m.colors.length, opaqueQuads * 16);
+    assert.equal(m.opaque.positions.length, opaqueQuads * 12);
+    assert.equal(m.opaque.colors.length, opaqueQuads * 16);
     // Translucent: 4 water tops; the pool is enclosed by grass on every side, so no side faces.
-    assert.equal(m.transIndices.length / 6, 4);
-    assert.equal(m.transColors[3], Math.round(0.55 * 255));
-    assert.equal(m.colors[3], 255);
+    assert.equal(m.trans.indices.length / 6, 4);
+    assert.equal(m.trans.colors[3], Math.round(0.55 * 255));
+    assert.equal(m.opaque.colors[3], 255);
   });
 
   it("winds every face counter-clockwise seen from outside", () => {
     const m = meshChunk(flat(0, 0), none, TABLES);
     // Outward normal of each quad's first triangle, compared with the face direction its position implies.
     let checked = 0;
-    for (let q = 0; q < m.positions.length / 12; q++) {
+    for (let q = 0; q < m.opaque.positions.length / 12; q++) {
       const v = (k: number) => [
-        m.positions[q * 12 + k * 3],
-        m.positions[q * 12 + k * 3 + 1],
-        m.positions[q * 12 + k * 3 + 2],
+        m.opaque.positions[q * 12 + k * 3],
+        m.opaque.positions[q * 12 + k * 3 + 1],
+        m.opaque.positions[q * 12 + k * 3 + 2],
       ];
-      const [a, b, c] = [m.indices[q * 6], m.indices[q * 6 + 1], m.indices[q * 6 + 2]].map((i) => v(i - q * 4));
+      const [a, b, c] = [m.opaque.indices[q * 6], m.opaque.indices[q * 6 + 1], m.opaque.indices[q * 6 + 2]].map((i) =>
+        v(i - q * 4),
+      );
       const ab = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
       const ac = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
       const n = [ab[1] * ac[2] - ab[2] * ac[1], ab[2] * ac[0] - ab[0] * ac[2], ab[0] * ac[1] - ab[1] * ac[0]];
@@ -104,7 +106,7 @@ describe("meshChunk", () => {
     const east = flat(1, 0);
     const m = meshChunk(flat(0, 0), (dx, dz) => (dx === 1 && dz === 0 ? east : undefined), TABLES);
     // One side (16 columns × 9 rows) is now hidden.
-    assert.equal(m.indices.length / 6, 256 + 3 * 16 * 9 + 8);
+    assert.equal(m.opaque.indices.length / 6, 256 + 3 * 16 * 9 + 8);
   });
 
   it("shades tops brighter than sides and darkens occluded corners", () => {
@@ -134,8 +136,8 @@ describe("meshChunk", () => {
     const east = sheet(1, WATER_FIRST.names, WATER_FIRST.palette, 3, 2);
     const m = meshChunk(west, (dx, dz) => (dx === 1 && dz === 0 ? east : undefined), ICE_TABLES);
     // No translucent face on the shared border at x = 16.
-    for (let q = 0; q < m.transPositions.length / 12; q++) {
-      const xs = [0, 3, 6, 9].map((k) => m.transPositions[q * 12 + k]);
+    for (let q = 0; q < m.trans.positions.length / 12; q++) {
+      const xs = [0, 3, 6, 9].map((k) => m.trans.positions[q * 12 + k]);
       assert.ok(!xs.every((x) => x === 16), "a translucent face leaked onto the chunk border");
     }
   });
@@ -144,20 +146,20 @@ describe("meshChunk", () => {
     // The chunk-edge water sides (y 60..62) must precede the ice tops (y 63).
     const m = meshChunk(sheet(0, WATER_FIRST.names, WATER_FIRST.palette, 3, 2), none, ICE_TABLES);
     let last = -Infinity;
-    for (let q = 0; q < m.transPositions.length / 12; q++) {
+    for (let q = 0; q < m.trans.positions.length / 12; q++) {
       const y =
-        m.transPositions[q * 12 + 1] +
-        m.transPositions[q * 12 + 4] +
-        m.transPositions[q * 12 + 7] +
-        m.transPositions[q * 12 + 10];
+        m.trans.positions[q * 12 + 1] +
+        m.trans.positions[q * 12 + 4] +
+        m.trans.positions[q * 12 + 7] +
+        m.trans.positions[q * 12 + 10];
       assert.ok(y >= last, `quad ${q} at y ${y / 4} after ${last / 4}`);
       last = y;
       // Indices still address this quad's own four vertices.
       for (let k = 0; k < 6; k++)
-        assert.ok(m.transIndices[q * 6 + k] >= q * 4 && m.transIndices[q * 6 + k] < q * 4 + 4);
+        assert.ok(m.trans.indices[q * 6 + k] >= q * 4 && m.trans.indices[q * 6 + k] < q * 4 + 4);
     }
     // One translucent shell: the ice tops and the chunk-edge sides of ice and water. No ice-water interface.
-    assert.equal(m.transIndices.length / 6, 256 + 4 * 16 * 3);
+    assert.equal(m.trans.indices.length / 6, 256 + 4 * 16 * 3);
   });
 
   it("tints by the column's biome and falls back to the map colour for unknown blocks", () => {
@@ -184,8 +186,8 @@ describe("meshChunk", () => {
     const side = quad(m, (xs, ys, zs) => xs.every((x) => x === 0) && within(ys, 58, 59) && within(zs, 5, 6));
     assert.deepEqual(side, [Math.round(112 * 0.6), Math.round(112 * 0.6), Math.round(112 * 0.6)]);
     // The unknown liquid is translucent through its flag, with the table's water alpha.
-    assert.equal(m.transIndices.length / 6, 4);
-    assert.equal(m.transColors[3], Math.round(0.55 * 255));
+    assert.equal(m.trans.indices.length / 6, 4);
+    assert.equal(m.trans.colors[3], Math.round(0.55 * 255));
   });
 });
 
@@ -194,11 +196,11 @@ function quadColors(
   m: ReturnType<typeof meshChunk>,
   pred: (xs: number[], ys: number[], zs: number[]) => boolean,
 ): number[] | null {
-  for (let q = 0; q < m.positions.length / 12; q++) {
-    const xs = [0, 3, 6, 9].map((k) => m.positions[q * 12 + k]);
-    const ys = [1, 4, 7, 10].map((k) => m.positions[q * 12 + k]);
-    const zs = [2, 5, 8, 11].map((k) => m.positions[q * 12 + k]);
-    if (pred(xs, ys, zs)) return Array.from(m.colors.subarray(q * 16, q * 16 + 16));
+  for (let q = 0; q < m.opaque.positions.length / 12; q++) {
+    const xs = [0, 3, 6, 9].map((k) => m.opaque.positions[q * 12 + k]);
+    const ys = [1, 4, 7, 10].map((k) => m.opaque.positions[q * 12 + k]);
+    const zs = [2, 5, 8, 11].map((k) => m.opaque.positions[q * 12 + k]);
+    if (pred(xs, ys, zs)) return Array.from(m.opaque.colors.subarray(q * 16, q * 16 + 16));
   }
   return null;
 }

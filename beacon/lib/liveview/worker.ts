@@ -49,14 +49,15 @@ function emit(cx: number, cz: number) {
   const chunk = chunks.get(chunkKey(cx, cz));
   if (!chunk) return;
   const mesh = meshChunk(chunk.data, (dx, dz) => chunks.get(chunkKey(cx + dx, cz + dz))?.data, tables as BlockTables);
-  post({ type: "mesh", world, cx, cz, hash: chunk.hash, mesh, sky: skyOf(chunk.data) }, [
-    mesh.positions.buffer,
-    mesh.colors.buffer,
-    mesh.indices.buffer,
-    mesh.transPositions.buffer,
-    mesh.transColors.buffer,
-    mesh.transIndices.buffer,
-  ]);
+  post(
+    { type: "mesh", world, cx, cz, hash: chunk.hash, mesh, sky: skyOf(chunk.data) },
+    [mesh.opaque, mesh.trans].flatMap((p) => [
+      p.positions.buffer,
+      p.colors.buffer,
+      p.mapShade.buffer,
+      p.indices.buffer,
+    ]),
+  );
 }
 
 async function load(msg: Extract<WorkerRequest, { type: "load" }>) {

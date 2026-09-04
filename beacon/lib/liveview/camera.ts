@@ -1,11 +1,13 @@
-// The camera and its three ways of moving. Orbit is the default and works like SketchUp's: the point
+// The camera and its five ways of moving. Orbit is the default and works like SketchUp's: the point
 // under the cursor when a drag starts is the pivot for turning, the handle for dragging the world
 // and the target of the wheel zoom. Fly is the game's spectator mode: WASD, Space and Shift, the
-// mouse looks. Player puts the camera in a player's eyes; that pose is set by the scene each frame.
-import { MathUtils, type PerspectiveCamera, type Quaternion, Vector3 } from "three";
+// mouse looks. Eyes puts the camera in a player's eyes; that pose is set by the scene each frame.
+// Isometric is Minecraft Dungeons' shot: locked over the followed player from a fixed 45° tilt, a
+// drag turns around them, the wheel zooms. Map is a world map: straight down through an
+// orthographic camera, north up, no perspective; a drag pans, the wheel zooms.
+import { MathUtils, OrthographicCamera, type PerspectiveCamera, type Quaternion, Vector3 } from "three";
+import { CAMERA_TRAITS, type CameraMode, type CameraTraits } from "./camera-modes";
 import { capturePointer, releasePointer } from "./canvas";
-
-export type CameraMode = "orbit" | "fly" | "player";
 
 export interface CameraRigOptions {
   /** The world point under a screen position (−1..1 both axes), or null when only sky is there. */
@@ -42,9 +44,23 @@ const FLY_SPEED_STEP = 1.2;
 const FLY_SPRINT = 2;
 const FLY_INPUT = 0.98;
 const FLY_FRICTION = 0.91;
-/** The field of view: the panel's, and a wide one for looking through a player's eyes. */
-export const FOV = 55;
-export const PLAYER_FOV = 90;
+/** Isometric: a fixed 45° tilt (the game's), the default diagonal heading, and the zoom range in blocks. */
+const ISOMETRIC_PITCH = MathUtils.degToRad(-45);
+const ISOMETRIC_YAW = MathUtils.degToRad(45);
+const ISOMETRIC_DISTANCE = 24;
+const ISOMETRIC_DISTANCE_MIN = 8;
+const ISOMETRIC_DISTANCE_MAX = 64;
+
+/**
+ * Map: half the height of the view in blocks (the zoom). It opens close enough to tell a player
+ * apart as they walk, can come in to a few blocks, and cannot go out past the chunks the viewer
+ * loads (`setMapExtent`): beyond them there is only sky to see. The camera sits well above any build.
+ */
+const MAP_HALF = 24;
+const MAP_HALF_MIN = 8;
+const MAP_HEIGHT = 256;
+/** Chunks of the loaded radius the map keeps out of view, hiding what is still loading after a pan. */
+const MAP_MARGIN_CHUNKS = 3;
 
 interface Drag {
   button: number;
@@ -62,8 +78,17 @@ interface Drag {
 
 export class CameraRig {
   mode: CameraMode = "orbit";
+  /** The map's camera; `active` is whichever of the two renders in the current mode. */
+  readonly ortho = new OrthographicCamera(-1, 1, 1, -1, 0.1, 2000);
+  private aspect = 1;
+  private distance = ISOMETRIC_DISTANCE;
+  private mapHalf = MAP_HALF;
+  /** The side of the loaded square of chunks, in blocks: the most the map may show at once; unbounded until the scene says. */
+  private mapExtent = Number.POSITIVE_INFINITY;
+  /** 2·tan(fov/2), the perspective camera's blocks per pixel at unit distance and unit height; refreshed with the fov. */
+  private fovScale = 0;
   /** Yaw turns left with positive values, pitch looks up; the camera's rotation is derived from them. */
-  private yaw = 0;
+  private yaw = ISOMETRIC_YAW;
   private pitch = 0;
   /** The point the orbit camera turns around when nothing is picked; also what the scene calls the focus. */
   readonly pivot = new Vector3();
@@ -98,19 +123,86 @@ export class CameraRig {
     canvas.addEventListener("keyup", this.onKey, { signal });
     canvas.addEventListener("blur", () => this.keys.clear(), { signal });
     document.addEventListener("mousemove", this.onLockedMove, { signal });
+    // The map camera always looks straight down with north up: its rotation is set once here.
+    this.ortho.up.set(0, 0, -1);
+    this.ortho.position.set(0, MAP_HEIGHT, 0);
+    this.ortho.lookAt(0, 0, 0);
+    this.setFov(CAMERA_TRAITS[this.mode].fov);
     this.updateCursorStyle();
+  }
+
+  get traits(): CameraTraits {
+    return CAMERA_TRAITS[this.mode];
+  }
+
+  /** The camera that renders: the orthographic one on the map, the perspective one everywhere else. */
+  get active(): PerspectiveCamera | OrthographicCamera {
+    return this.traits.ortho ? this.ortho : this.camera;
+  }
+
+  /** The view's aspect ratio changed. */
+  resize(aspect: number) {
+    this.aspect = aspect;
+    this.updateOrtho();
+  }
+
+  /** The chunk radius the scene loads; the map's zoom stops a margin short of its edge. */
+  setMapRadius(chunks: number) {
+    this.mapExtent = (2 * Math.max(2, chunks - MAP_MARGIN_CHUNKS) + 1) * 16;
+    this.updateOrtho();
+  }
+
+  /** The widest the map may open: the loaded square just fits the view's shorter side. */
+  private mapHalfMax(): number {
+    return this.mapExtent / 2 / Math.min(1, this.aspect || 1);
+  }
+
+  /** Blocks per pixel of the active camera at `distance` from it (the map is the same at any distance). */
+  worldPerPixel(viewHeight: number, distance: number): number {
+    if (this.traits.ortho) return (2 * this.mapHalf) / viewHeight;
+    return (this.fovScale / viewHeight) * distance;
+  }
+
+  private setFov(fov: number) {
+    this.camera.fov = fov;
+    this.camera.updateProjectionMatrix();
+    this.fovScale = 2 * Math.tan(MathUtils.degToRad(fov / 2));
   }
 
   setMode(mode: CameraMode) {
     if (mode === this.mode) return;
+    const prevDistance = this.camera.position.distanceTo(this.pivot);
     this.mode = mode;
     this.drag = null;
     this.keys.clear();
     this.velocity.set(0, 0, 0);
     if (mode !== "fly" && document.pointerLockElement === this.canvas) document.exitPointerLock();
-    this.camera.fov = mode === "player" ? PLAYER_FOV : FOV;
-    this.camera.updateProjectionMatrix();
+    this.setFov(this.traits.fov);
+    if (mode === "isometric") {
+      this.pitch = ISOMETRIC_PITCH;
+      this.distance = MathUtils.clamp(prevDistance, ISOMETRIC_DISTANCE_MIN, ISOMETRIC_DISTANCE_MAX);
+      this.aim();
+    } else if (mode === "map") {
+      this.mapHalf = MAP_HALF;
+      this.updateOrtho();
+      this.aim();
+    }
     this.updateCursorStyle();
+  }
+
+  /**
+   * Isometric and map: puts the camera where the mode says it goes relative to `target`, which
+   * becomes the pivot. The scene calls it every frame with the followed player, or without one to
+   * stay over the pivot.
+   */
+  aim(target = this.pivot) {
+    this.pivot.copy(target);
+    if (this.mode === "isometric") {
+      this.applyRotation();
+      this.camera.position.copy(this.pivot).addScaledVector(this.forward(this.tmp), -this.distance);
+    } else if (this.mode === "map") {
+      this.ortho.position.set(this.pivot.x, this.pivot.y + MAP_HEIGHT, this.pivot.z);
+    }
   }
 
   /** Points the camera at `direction`. */
@@ -126,8 +218,12 @@ export class CameraRig {
     return out.set(-Math.sin(this.yaw) * c, Math.sin(this.pitch), -Math.cos(this.yaw) * c);
   }
 
-  /** Puts the camera at `offset` from `point`, looking at the point, which becomes the pivot. */
+  /** Puts the camera at `offset` from `point`, looking at the point, which becomes the pivot; an aimed mode ignores the offset. */
   jumpTo(point: Vector3, offset: Vector3) {
+    if (this.traits.aimed) {
+      this.aim(point);
+      return;
+    }
     this.pivot.copy(point);
     this.camera.position.copy(point).add(offset);
     this.setLook(this.tmp2.copy(point).sub(this.camera.position));
@@ -214,7 +310,7 @@ export class CameraRig {
 
   private onPointerDown = (ev: PointerEvent) => {
     this.canvas.focus();
-    if (this.mode === "player") return;
+    if (this.mode === "eyes") return;
     if (this.mode === "fly" && ev.button === 0 && document.pointerLockElement !== this.canvas) {
       // Refused in some embeddings (and without a real click): the left-drag look takes over then.
       try {
@@ -224,7 +320,7 @@ export class CameraRig {
       }
     }
     const [nx, ny] = this.ndc(ev);
-    // Orbit grabs whatever is under the cursor; a flight's drag only looks around.
+    // Orbit grabs whatever is under the cursor; the other modes turn or pan around their own pivot.
     const pivot = this.mode === "orbit" ? this.pickPivot(nx, ny) : this.pivot.clone();
     this.pivot.copy(pivot);
     const quaternion = this.camera.quaternion.clone();
@@ -258,6 +354,21 @@ export class CameraRig {
     if (this.mode === "fly") {
       // Without pointer lock (denied, or an embedded page) a left drag looks around.
       if (document.pointerLockElement !== this.canvas) this.look(d.yaw - dx * LOOK_SPEED, d.pitch - dy * LOOK_SPEED);
+      return;
+    }
+    if (this.mode === "isometric") {
+      // Any drag turns around the player; the tilt is the game's and stays.
+      this.yaw = d.yaw - dx * ORBIT_SPEED;
+      this.aim();
+      return;
+    }
+    if (this.mode === "map") {
+      // A left drag pans: the point under the cursor follows it across the map (north is up).
+      if (d.button !== 0) return;
+      const wpp = this.worldPerPixel(this.canvas.clientHeight || 1, 0);
+      this.pivot.set(d.pivot.x - dx * wpp, d.pivot.y, d.pivot.z - dy * wpp);
+      this.aim();
+      this.opts.onUserMove();
       return;
     }
     if (d.button === 0) this.pan(d, ev);
@@ -314,6 +425,20 @@ export class CameraRig {
       this.flySpeed = MathUtils.clamp(this.flySpeed * FLY_SPEED_STEP ** -notches, FLY_SPEED_MIN, FLY_SPEED_MAX);
       return;
     }
+    if (this.mode === "isometric") {
+      this.distance = MathUtils.clamp(
+        this.distance * ZOOM_STEP ** notches,
+        ISOMETRIC_DISTANCE_MIN,
+        ISOMETRIC_DISTANCE_MAX,
+      );
+      this.aim();
+      return;
+    }
+    if (this.mode === "map") {
+      this.mapHalf = this.mapHalf * ZOOM_STEP ** notches;
+      this.updateOrtho();
+      return;
+    }
     if (this.mode !== "orbit") return;
     if (!this.zoomTarget || !this.zoomTargetAt) {
       const [nx, ny] = this.ndc(ev);
@@ -347,9 +472,19 @@ export class CameraRig {
     else this.keys.delete("ShiftLeft");
   }
 
+  private updateOrtho() {
+    this.mapHalf = MathUtils.clamp(this.mapHalf, MAP_HALF_MIN, this.mapHalfMax());
+    const o = this.ortho;
+    o.left = -this.mapHalf * this.aspect;
+    o.right = this.mapHalf * this.aspect;
+    o.top = this.mapHalf;
+    o.bottom = -this.mapHalf;
+    o.updateProjectionMatrix();
+  }
+
   private updateCursorStyle() {
     this.canvas.style.cursor =
-      this.mode === "player" ? "default" : this.mode === "fly" ? "crosshair" : this.drag ? "grabbing" : "grab";
+      this.mode === "eyes" ? "default" : this.mode === "fly" ? "crosshair" : this.drag ? "grabbing" : "grab";
   }
 }
 

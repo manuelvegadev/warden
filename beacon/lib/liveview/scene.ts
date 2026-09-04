@@ -26,14 +26,17 @@ import {
 import type { PlayerPos } from "@/lib/api";
 import type { SpeakTargetKind } from "@/lib/voice/aim";
 import { Avatar } from "./avatar";
-import { type CameraMode, CameraRig, FOV } from "./camera";
+import { CameraRig } from "./camera";
+import { CAMERA_TRAITS, type CameraMode, FOV } from "./camera-modes";
 import { fitRenderer } from "./canvas";
 import { Celestial } from "./celestial";
-import { RADIUS_MAX, RADIUS_MIN, SKY_DOME_RADIUS } from "./constants";
+import { EYE_HEIGHT, RADIUS_MAX, RADIUS_MIN, SKY_DOME_RADIUS } from "./constants";
 import { horizontalFog } from "./fog";
 import { chunkKey, parseChunkKey } from "./format";
-import type { MeshData } from "./mesher";
+import { Glow } from "./glow";
+import type { MeshData, MeshPart } from "./mesher";
 import { DEFAULT_SKY, dayTime, fogColor, type RGB, skyColor, terrainLight, type WorldClock } from "./sky";
+import { terrainMaterial } from "./terrain-material";
 
 interface LoadedChunk {
   hash: string;
@@ -105,10 +108,16 @@ export class LiveViewScene {
   readonly rig: CameraRig;
   private readonly raycaster = new Raycaster();
   private readonly focusPoint = new Vector3();
-  private readonly opaqueMaterial = horizontalFog(new MeshBasicMaterial({ vertexColors: true }));
+  /** The players' outline, the game's Glowing effect, in the modes that look at them from outside. */
+  private readonly glow: Glow;
+  private glowWanted = true;
+  /** The map's relief blend, 1 on the map; shared by the terrain materials (terrain-material.ts). */
+  private readonly relief = { value: 0 };
+  private readonly opaqueMaterial = terrainMaterial(new MeshBasicMaterial({ vertexColors: true }), this.relief);
   // Translucency comes per vertex (RGBA colours): water, ice, glass and leaves in one pass.
-  private readonly transMaterial = horizontalFog(
+  private readonly transMaterial = terrainMaterial(
     new MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false }),
+    this.relief,
   );
   private world = "";
   private loaded = new Map<string, LoadedChunk>();
@@ -146,6 +155,7 @@ export class LiveViewScene {
     private readonly opts: SceneOptions,
   ) {
     this.renderer = new WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
+    this.glow = new Glow(this.renderer);
     // One canvas pixel per CSS pixel, retina or not: the world is the expensive scene, and blocks read fine at 1×.
     this.renderer.setPixelRatio(1);
     // No colour management, like the game: block colours come from the textures as sRGB bytes, the
@@ -210,6 +220,9 @@ export class LiveViewScene {
 
   setRadius(r: number) {
     this.radius = Math.max(RADIUS_MIN, Math.min(RADIUS_MAX, r));
+    // The map may open out to the loaded chunks minus a margin, so the edge still being fetched
+    // after a fast pan stays outside the view.
+    this.rig.setMapRadius(this.radius);
     const far = (this.radius + 1) * 16;
     this.fog.near = far * 0.7;
     this.fog.far = far * 1.05;
@@ -274,7 +287,7 @@ export class LiveViewScene {
     const light = ease(this.shownLight, terrainLight(this.clock), k);
     (this.scene.background as Color).setRGB(sky[0] / 255, sky[1] / 255, sky[2] / 255);
     this.fog.color.setRGB(fog[0] / 255, fog[1] / 255, fog[2] / 255);
-    this.dome.position.copy(this.camera.position);
+    this.dome.position.copy(this.rig.active.position);
     const key = `${sky.map(Math.round)}|${fog.map(Math.round)}`;
     if (key !== this.lastDome) {
       this.lastDome = key;
@@ -285,7 +298,7 @@ export class LiveViewScene {
     const l = (light[0] + light[1] + light[2]) / 3;
     this.ambient.intensity = AMBIENT_LIGHT * l;
     this.sun.intensity = SUN_LIGHT * l;
-    this.celestial.update(this.clock, this.camera.position, this.fog.far);
+    this.celestial.update(this.clock, this.rig.active.position, this.fog.far);
   }
 
   private lastSky: RGB = DEFAULT_SKY;
@@ -328,8 +341,8 @@ export class LiveViewScene {
     const prev = this.loaded.get(k);
     if (prev) this.dropChunk(prev);
     // A chunk without translucent blocks (most of them) gets no second mesh: an empty mesh is still a draw call.
-    const opaque = this.place(cx, cz, mesh.positions, mesh.colors, mesh.indices, this.opaqueMaterial);
-    const water = this.place(cx, cz, mesh.transPositions, mesh.transColors, mesh.transIndices, this.transMaterial);
+    const opaque = this.place(cx, cz, mesh.opaque, this.opaqueMaterial);
+    const water = this.place(cx, cz, mesh.trans, this.transMaterial);
     this.loaded.set(k, { hash, opaque, water, sky });
   }
 
@@ -342,15 +355,14 @@ export class LiveViewScene {
   private place(
     cx: number,
     cz: number,
-    positions: Float32Array,
-    colors: Uint8Array,
-    indices: Uint32Array,
+    { positions, colors, mapShade, indices }: MeshPart,
     material: MeshBasicMaterial,
   ): Mesh | null {
     if (indices.length === 0) return null;
     const g = new BufferGeometry();
     g.setAttribute("position", new BufferAttribute(positions, 3));
     g.setAttribute("color", new BufferAttribute(colors, 4, true));
+    g.setAttribute("mapShade", new BufferAttribute(mapShade, 1, true));
     g.setIndex(new BufferAttribute(indices, 1));
     g.computeBoundingSphere();
     // Whole blocks only: vertices must stay exact integers or neighbouring chunks show hairline cracks.
@@ -361,6 +373,9 @@ export class LiveViewScene {
     g.computeBoundingBox(); // the raycaster rejects a chunk by its box before testing its triangles
     const m = new Mesh(g, material);
     m.position.set(cx * 16 + c.x, c.y, cz * 16 + c.z);
+    // A chunk never moves: its matrix is composed once, not on every render pass (the glow adds a second).
+    m.matrixAutoUpdate = false;
+    m.updateMatrix();
     this.terrain.add(m);
     return m;
   }
@@ -385,6 +400,7 @@ export class LiveViewScene {
       let a = this.avatars.get(p.name);
       if (!a) {
         a = new Avatar(p.name, this.opts.skinUrl(p.name), horizontalFog);
+        Glow.mark(a.group);
         this.avatars.set(p.name, a);
         this.scene.add(a.group);
       }
@@ -415,18 +431,18 @@ export class LiveViewScene {
     this.following = name;
     const a = name ? this.avatars.get(name) : undefined;
     // Orbit and flight both go to the player at once; the player camera lands in their eyes anyway.
-    if (a && this.rig.mode !== "player") this.jumpTo(a.group.position);
+    if (a && this.rig.mode !== "eyes") this.jumpTo(a.group.position);
     this.opts.onFollow(name);
   }
 
   /** A click on a player: selects them, or lets go of them, except that the player camera always needs one. */
   toggleFollow(name: string) {
-    this.follow(this.following === name && this.rig.mode !== "player" ? null : name);
+    this.follow(this.following === name && this.rig.mode !== "eyes" ? null : name);
   }
 
   /** Whether the camera is looking out of this player's eyes. */
   private inEyes(name: string) {
-    return this.rig.mode === "player" && name === this.following;
+    return this.rig.mode === "eyes" && name === this.following;
   }
 
   /** Puts the focus on a point at once, keeping the camera's current offset from it. */
@@ -442,22 +458,36 @@ export class LiveViewScene {
   setCameraMode(mode: CameraMode) {
     const prev = this.rig.mode;
     if (mode === prev) return;
+    const t = CAMERA_TRAITS[mode];
+    // The map reads height from relief, not from sides; clouds would only cover it, and fog would
+    // grey out its edges, which the zoom already keeps within the loaded chunks.
+    this.relief.value = t.ortho ? 1 : 0;
+    this.celestial.clouds.visible = !t.ortho;
+    this.scene.fog = t.ortho ? null : this.fog;
     const a = this.followed();
-    if (prev === "player" && a) {
-      // Back out of the eyes to the opening aerial shot over the player.
-      this.rig.setMode(mode);
-      this.rig.jumpTo(a.group.position, CAMERA_OFFSET);
-    } else {
-      this.rig.setMode(mode);
-    }
-    if (mode === "orbit" && a) this.jumpTo(a.group.position);
-    if (mode === "player" && !a) this.follow(this.avatars.keys().next().value ?? null);
+    this.rig.setMode(mode);
+    this.applyGlow();
+    // Back out of the eyes to the opening aerial shot over the player.
+    if (prev === "eyes" && a) this.rig.jumpTo(a.group.position, CAMERA_OFFSET);
+    if (t.lands && a) this.jumpTo(a.group.position);
+    if (t.needsPlayer && !a) this.follow(this.avatars.keys().next().value ?? null);
     this.lastPlan = 0;
   }
 
   /** Shows the camera's pivot, to see what a click or the wheel picked. */
   setDebug(on: boolean) {
     this.pivotMarker.visible = on;
+  }
+
+  /** The players' outline, on by default. */
+  setGlow(on: boolean) {
+    this.glowWanted = on;
+    this.applyGlow();
+  }
+
+  /** The outline is for looking at players from outside: not through their eyes, and not on the map. */
+  private applyGlow() {
+    this.glow.enabled = this.glowWanted && this.rig.traits.outside;
   }
 
   /** Where the camera's attention is: the orbit pivot, the followed player, or ahead of a flight. */
@@ -467,7 +497,7 @@ export class LiveViewScene {
 
   /** The nearest terrain or player under a screen position, for the orbit camera's pivot. */
   private pick(x: number, y: number): Vector3 | null {
-    this.raycaster.setFromCamera({ x, y } as never, this.camera);
+    this.raycaster.setFromCamera({ x, y } as never, this.rig.active);
     this.raycaster.far = this.fog.far * 1.2; // past the fog there is nothing to see, nor to pick
     const hits = this.raycaster.intersectObjects(this.terrain.visible ? this.terrain.children : [], false);
     for (const a of this.avatars.values()) hits.push(...this.raycaster.intersectObject(a.group, true));
@@ -479,6 +509,8 @@ export class LiveViewScene {
 
   resize() {
     fitRenderer(this.renderer, this.camera, this.canvas);
+    this.rig.resize(this.camera.aspect);
+    this.glow.resize(this.canvas.clientWidth || 1, this.canvas.clientHeight || 1);
   }
 
   private loop = (t: number) => {
@@ -491,19 +523,26 @@ export class LiveViewScene {
       a.firstPerson = this.inEyes(name);
     }
     const followed = this.followed();
-    if (followed && this.rig.mode === "orbit") {
+    const mode = this.rig.mode;
+    if (followed && mode === "orbit") {
       this.delta.copy(followed.group.position).sub(this.rig.pivot);
       this.rig.translate(this.delta);
-    } else if (followed && this.rig.mode === "player") {
+    } else if (followed && mode === "eyes") {
       followed.eye(this.camera.position);
       this.rig.setLook(followed.viewDirection(this.delta));
       this.rig.pivot.copy(followed.group.position);
+    } else if (this.rig.traits.aimed) {
+      // Locked over the player, or over wherever the pivot was left.
+      this.rig.aim(followed?.group.position);
     }
     this.rig.update(dt);
     if (this.pivotMarker.visible) {
       this.pivotMarker.position.copy(this.rig.pivot);
-      // A constant size on screen, whatever the distance.
-      this.pivotMarker.scale.setScalar(this.camera.position.distanceTo(this.rig.pivot) / 60);
+      // A constant size on screen (about 7 px across), whatever the distance or the camera.
+      const h = this.canvas.clientHeight || 1;
+      this.pivotMarker.scale.setScalar(
+        14 * this.rig.worldPerPixel(h, this.rig.active.position.distanceTo(this.rig.pivot)),
+      );
     }
     if (t - this.lastPlan > 1000 || this.focus().distanceTo(this.lastTarget) > 16) this.plan(t);
     // The sky follows the biome under the focus and the clock runs on between samples.
@@ -511,7 +550,8 @@ export class LiveViewScene {
     this.applyLighting(dt);
     // Nothing to show while waiting; the component covers the canvas with its own scene then.
     if (this.idle) return;
-    this.renderer.render(this.scene, this.camera);
+    this.renderer.render(this.scene, this.rig.active);
+    this.glow.render(this.scene, this.rig.active);
     this.opts.onMarkers(this.markers());
     this.opts.onFrame?.();
   };
@@ -521,6 +561,17 @@ export class LiveViewScene {
    * coordinates are the game's, so a speaker placed by `heads` is heard where the avatar is drawn.
    */
   listenerPose(out: Float32Array): void {
+    if (this.rig.traits.ortho) {
+      // From 256 blocks up nobody is in earshot: the map listens from its centre, on the ground, facing north.
+      this.groundEar(out);
+      out[3] = 0;
+      out[4] = 0;
+      out[5] = -1;
+      out[6] = 0;
+      out[7] = 1;
+      out[8] = 0;
+      return;
+    }
     const c = this.camera;
     out[0] = c.position.x;
     out[1] = c.position.y;
@@ -555,27 +606,35 @@ export class LiveViewScene {
 
   /**
    * Where the admin's voice should come from for the current camera mode, written into `out`: the
-   * camera itself in fly and orbit modes, the followed player's head in player mode. `none` when
-   * player mode has nobody to follow.
+   * followed player's head through their eyes, the map's centre on the ground, the camera itself
+   * everywhere else. `none` when first person has nobody to follow.
    */
   speakTarget(out: Float32Array): SpeakTargetKind {
-    switch (this.rig.mode) {
-      case "fly":
-      case "orbit":
-        out[0] = this.camera.position.x;
-        out[1] = this.camera.position.y;
-        out[2] = this.camera.position.z;
-        return "camera";
-      default: {
-        const a = this.followed();
-        if (!a?.uuid) return "none";
-        a.eye(this.delta);
-        out[0] = this.delta.x;
-        out[1] = this.delta.y;
-        out[2] = this.delta.z;
-        return "entity";
-      }
+    if (this.rig.mode === "eyes") {
+      const a = this.followed();
+      if (!a?.uuid) return "none";
+      a.eye(this.delta);
+      out[0] = this.delta.x;
+      out[1] = this.delta.y;
+      out[2] = this.delta.z;
+      return "entity";
     }
+    if (this.rig.traits.ortho) {
+      this.groundEar(out);
+    } else {
+      out[0] = this.camera.position.x;
+      out[1] = this.camera.position.y;
+      out[2] = this.camera.position.z;
+    }
+    return "camera";
+  }
+
+  /** The map's ear and mouth: at eye height over its centre, where the admin is looking, not 256 blocks up. */
+  private groundEar(out: Float32Array) {
+    const p = this.rig.pivot;
+    out[0] = p.x;
+    out[1] = p.y + EYE_HEIGHT;
+    out[2] = p.z;
   }
 
   private followed(): Avatar | undefined {
@@ -613,20 +672,20 @@ export class LiveViewScene {
   private markers(): PlayerMarker[] {
     const w = this.canvas.clientWidth || 1;
     const h = this.canvas.clientHeight || 1;
-    const worldPerPixel = (2 * Math.tan(MathUtils.degToRad(this.camera.fov / 2))) / h;
+    const camera = this.rig.active;
     const out: PlayerMarker[] = [];
     for (const [name, a] of this.avatars) {
       if (this.inEyes(name)) continue;
       const head = a.headTop(this.delta);
-      const distance = head.distanceTo(this.camera.position);
-      const v = head.applyMatrix4(this.camera.matrixWorldInverse);
+      const distance = head.distanceTo(camera.position);
+      const v = head.applyMatrix4(camera.matrixWorldInverse);
       const behind = v.z > 0;
-      v.applyMatrix4(this.camera.projectionMatrix);
+      v.applyMatrix4(camera.projectionMatrix);
       const nx = behind ? -v.x : v.x;
       const ny = behind ? -v.y : v.y;
       const x = ((nx + 1) / 2) * w;
       let y = ((1 - ny) / 2) * h;
-      if (!behind) y -= Math.max(TAG_MIN_LIFT, TAG_LIFT_BLOCKS / (worldPerPixel * distance));
+      if (!behind) y -= Math.max(TAG_MIN_LIFT, TAG_LIFT_BLOCKS / this.rig.worldPerPixel(h, distance));
       out.push({ name, x, y });
     }
     return out;
@@ -701,6 +760,7 @@ export class LiveViewScene {
     cancelAnimationFrame(this.raf);
     for (const c of this.loaded.values()) this.dropChunk(c);
     for (const a of this.avatars.values()) a.dispose();
+    this.glow.dispose();
     this.rig.dispose();
     this.opaqueMaterial.dispose();
     this.transMaterial.dispose();

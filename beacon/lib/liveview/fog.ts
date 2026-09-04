@@ -8,14 +8,19 @@ import type { Material } from "three";
  */
 export function horizontalFog<T extends Material>(material: T, depthScale = 1): T {
   material.onBeforeCompile = (shader) => {
-    shader.vertexShader = shader.vertexShader.replace(
-      "#include <fog_vertex>",
-      `#ifdef USE_FOG
-        vec4 fogWorld = modelMatrix * vec4(transformed, 1.0);
-        vFogDepth = length(fogWorld.xz - cameraPosition.xz) * ${depthScale.toFixed(4)};
-      #endif`,
-    );
+    shader.vertexShader = withHorizontalFog(shader.vertexShader, depthScale);
   };
   material.customProgramCacheKey = () => `horizontal-fog-${depthScale}`;
   return material;
+}
+
+/** The vertex shader with its fog depth taken along the ground, for materials that patch more than the fog. */
+export function withHorizontalFog(vertexShader: string, depthScale = 1): string {
+  return vertexShader.replace(
+    "#include <fog_vertex>",
+    `#ifdef USE_FOG
+      vec4 fogWorld = modelMatrix * vec4(transformed, 1.0);
+      vFogDepth = length(fogWorld.xz - cameraPosition.xz) * ${depthScale.toFixed(4)};
+    #endif`,
+  );
 }

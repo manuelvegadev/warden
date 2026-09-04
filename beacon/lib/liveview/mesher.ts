@@ -3,15 +3,20 @@
 // per-vertex ambient occlusion baked into the vertex colour. Runs in the worker.
 import { type ChunkData, FLAG_FOLIAGE, FLAG_GRASS, FLAG_WATER } from "./format";
 
-export interface MeshData {
+/** One pass of a chunk's geometry. */
+export interface MeshPart {
   positions: Float32Array;
   /** 4 bytes per vertex (RGBA), normalized. */
   colors: Uint8Array;
+  /** The map's relief per vertex (a vanilla map's three shades), normalized; 255 on faces that are not tops. */
+  mapShade: Uint8Array;
   indices: Uint32Array;
+}
+
+export interface MeshData {
+  opaque: MeshPart;
   /** The translucent pass: water, ice, glass, leaves. */
-  transPositions: Float32Array;
-  transColors: Uint8Array;
-  transIndices: Uint32Array;
+  trans: MeshPart;
 }
 
 export type TintKind = "grass" | "foliage" | "water";
@@ -32,6 +37,11 @@ export type NeighborLookup = (dx: -1 | 0 | 1, dz: -1 | 0 | 1) => ChunkData | und
 const AIR = 0;
 const OPAQUE = 1;
 const TRANSLUCENT = 2;
+
+// A vanilla map's relief: a column brighter than the one north of it, level with it, or lower.
+const RELIEF_HIGHER = 255;
+const RELIEF_LEVEL = 220;
+const RELIEF_LOWER = 180;
 
 // Face table: normal, the two tangents, and the corner order. `order` lists (i, j) packed as i*2+j:
 // positive faces go 00, 10, 11, 01 (counter-clockwise seen from outside, since cross(T1, T2) = +N);
@@ -57,6 +67,7 @@ const WHITE = [255, 255, 255];
 class Builder {
   private positions = new Float32Array(12 * 2048);
   private colors = new Uint8Array(16 * 2048);
+  private mapShade = new Uint8Array(4 * 2048);
   private indices = new Uint32Array(6 * 2048);
   private quads = 0;
 
@@ -64,10 +75,11 @@ class Builder {
     this.quads = 0;
   }
 
-  quad(corners: number[][], color: number[], alpha: number, ao: number[], shade: number) {
+  quad(corners: number[][], color: number[], alpha: number, ao: number[], shade: number, relief: number) {
     if ((this.quads + 1) * 12 > this.positions.length) this.grow();
     const q = this.quads;
     const base = q * 4;
+    this.mapShade.fill(relief, q * 4, q * 4 + 4);
     for (let i = 0; i < 4; i++) {
       const p = (q * 4 + i) * 3;
       this.positions[p] = corners[i][0];
@@ -108,6 +120,9 @@ class Builder {
     const colors = new Uint8Array(this.colors.length * 2);
     colors.set(this.colors);
     this.colors = colors;
+    const mapShade = new Uint8Array(this.mapShade.length * 2);
+    mapShade.set(this.mapShade);
+    this.mapShade = mapShade;
     const indices = new Uint32Array(this.indices.length * 2);
     indices.set(this.indices);
     this.indices = indices;
@@ -117,6 +132,7 @@ class Builder {
     return {
       positions: this.positions.slice(0, this.quads * 12),
       colors: this.colors.slice(0, this.quads * 16),
+      mapShade: this.mapShade.slice(0, this.quads * 4),
       indices: this.indices.slice(0, this.quads * 6),
     };
   }
@@ -144,14 +160,16 @@ class Builder {
     for (let k = 0; k < buckets; k++) counts[k + 1] += counts[k];
     const positions = new Float32Array(n * 12);
     const colors = new Uint8Array(n * 16);
+    const mapShade = new Uint8Array(n * 4);
     const indices = new Uint32Array(n * 6);
     for (let q = 0; q < n; q++) {
       const i = counts[key[q]]++;
       for (let k = 0; k < 12; k++) positions[i * 12 + k] = this.positions[q * 12 + k];
       for (let k = 0; k < 16; k++) colors[i * 16 + k] = this.colors[q * 16 + k];
+      for (let k = 0; k < 4; k++) mapShade[i * 4 + k] = this.mapShade[q * 4 + k];
       for (let k = 0; k < 6; k++) indices[i * 6 + k] = this.indices[q * 6 + k] - q * 4 + i * 4;
     }
-    return { positions, colors, indices };
+    return { positions, colors, mapShade, indices };
   }
 }
 
@@ -303,20 +321,18 @@ export function meshChunk(chunk: ChunkData, neighbor: NeighborLookup, tables: Bl
                 : 0;
             ao[k] = side1 && side2 ? 0 : 3 - (side1 + side2 + corner);
           }
-          (translucent ? trans : opaque).quad(corners, color, own.alpha[idx], ao, face.shade);
+          // The map's relief, on tops only: is the column to the north higher, level, or lower? A
+          // canopy is looked for a couple of blocks up, so the edge of a tree reads as a rise.
+          let relief = RELIEF_HIGHER;
+          if (face.n[1] > 0) {
+            if (sample(x, y + 1, z - 1) !== AIR || sample(x, y + 2, z - 1) !== AIR) relief = RELIEF_LOWER;
+            else if (sample(x, y, z - 1) !== AIR) relief = RELIEF_LEVEL;
+          }
+          (translucent ? trans : opaque).quad(corners, color, own.alpha[idx], ao, face.shade, relief);
         }
       }
     }
   }
 
-  const o = opaque.finish();
-  const w = trans.finishSortedByY(yMin, height);
-  return {
-    positions: o.positions,
-    colors: o.colors,
-    indices: o.indices,
-    transPositions: w.positions,
-    transColors: w.colors,
-    transIndices: w.indices,
-  };
+  return { opaque: opaque.finish(), trans: trans.finishSortedByY(yMin, height) };
 }
