@@ -68,18 +68,29 @@ export class VoiceTransmitter {
   private seq = 0;
   private lastLevel = 0;
 
-  constructor(private readonly handlers: VoiceTransmitterHandlers) {}
+  /**
+   * @param deviceId the microphone, as `enumerateDevices` names it; "" is the browser's default.
+   */
+  constructor(
+    private readonly handlers: VoiceTransmitterHandlers,
+    readonly deviceId = "",
+  ) {}
 
   /** Call from a gesture: asks for the microphone and builds the graph. Throws when refused. */
   async start(): Promise<void> {
     if (this.ctx) return;
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-    });
     const ctx = new AudioContext({ sampleRate: OPUS_RATE, latencyHint: "interactive" });
-    this.stream = stream;
     this.ctx = ctx;
-    await registerWorklet(ctx, CAPTURE_PROCESSOR, CAPTURE_SOURCE);
+    // The permission prompt and the worklet's compilation do not wait for each other.
+    let stream: MediaStream;
+    try {
+      [stream] = await Promise.all([this.openMicrophone(), registerWorklet(ctx, CAPTURE_PROCESSOR, CAPTURE_SOURCE)]);
+    } catch (e) {
+      this.ctx = null;
+      void ctx.close();
+      throw e;
+    }
+    this.stream = stream;
     const source = ctx.createMediaStreamSource(stream);
     // Where phase 4 puts the effect presets: between the microphone and the capture.
     const effects = ctx.createGain();
@@ -103,6 +114,21 @@ export class VoiceTransmitter {
     encoder.configure({ codec: "opus", sampleRate: OPUS_RATE, numberOfChannels: 1, bitrate: BITRATE });
     this.encoder = encoder;
     await ctx.resume();
+  }
+
+  /** The chosen microphone, or the default when the chosen one is gone (it was unplugged, say). */
+  private async openMicrophone(): Promise<MediaStream> {
+    const processing = { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
+    if (this.deviceId) {
+      try {
+        return await navigator.mediaDevices.getUserMedia({
+          audio: { ...processing, deviceId: { exact: this.deviceId } },
+        });
+      } catch (e) {
+        if (!(e instanceof DOMException) || e.name !== "OverconstrainedError") throw e;
+      }
+    }
+    return navigator.mediaDevices.getUserMedia({ audio: processing });
   }
 
   stop(): void {

@@ -1,3 +1,4 @@
+import { applyOutput } from "../audio-context";
 import { OPUS_RATE, PACKET_US, type VoiceFrame } from "./frames";
 import { JITTER_PROCESSOR, registerJitterWorklet } from "./jitter-worklet";
 import { createSpatializer, type Renderer, type RoomPreset, type Spatializer, type SpatialSource } from "./spatial";
@@ -23,6 +24,8 @@ export interface VoiceOptions {
   renderer: Renderer;
   room: RoomPreset;
   elevation: boolean;
+  /** The output device, as `enumerateDevices` names it; "" is the browser's default. */
+  output: string;
 }
 
 interface Speaker {
@@ -81,8 +84,8 @@ export class VoiceReceiver {
     if (this.ctx) return;
     const ctx = new AudioContext({ sampleRate: OPUS_RATE, latencyHint: "interactive" });
     this.ctx = ctx;
-    await registerJitterWorklet(ctx);
-    await this.openSpatializer();
+    // The worklet, the output device and the renderer (Resonance is a lazy import) load side by side.
+    await Promise.all([registerJitterWorklet(ctx), applyOutput(ctx, this.options.output), this.openSpatializer()]);
     await ctx.resume();
     document.addEventListener("visibilitychange", this.onVisible);
     this.sweep = setInterval(() => this.dropIdle(), 1000);
@@ -107,13 +110,14 @@ export class VoiceReceiver {
   }
 
   /**
-   * Changes the renderer, the room or the elevation cue while playing. A renderer change rebuilds
-   * the field: the speakers are dropped and come back with their next frame.
+   * Changes the renderer, the room, the elevation cue or the output device while playing. A
+   * renderer change rebuilds the field: the speakers are dropped and come back with their next frame.
    */
   async setOptions(next: VoiceOptions): Promise<void> {
     const prev = this.options;
     this.options = { ...next };
     if (!this.ctx || !this.spatial) return;
+    if (next.output !== prev.output) await applyOutput(this.ctx, next.output);
     if (next.renderer !== prev.renderer) {
       for (const uuid of [...this.speakers.keys()]) this.dispose(uuid);
       this.spatial.dispose();

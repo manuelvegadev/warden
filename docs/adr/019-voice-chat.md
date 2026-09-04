@@ -170,8 +170,8 @@ every stream of an instance to every subscriber. Audio needs binary frames, a qu
 New module `lib/voice/`, consumed by `components/instance/live-view.tsx`:
 
 - **Capability gate.** Supported browsers are **Safari 26+ and Chrome 94+** (WebCodecs `AudioDecoder`/
-  `AudioEncoder` with Opus). The toolbar shows the voice controls only when both constructors exist;
-  otherwise a short notice. No WASM fallback, no WebRTC.
+  `AudioEncoder` with Opus). The viewer shows the voice controls (over the scene, bottom left) only
+  when both constructors exist; otherwise a short notice. No WASM fallback, no WebRTC.
 - **`VoiceSocket`** — the `/voice` WebSocket with the same token and backoff as `use-wardend-socket.ts`.
 - **`Receiver`** — per speaker UUID: `AudioDecoder({codec:"opus", sampleRate:48000, numberOfChannels:1})`
   → a ~60 ms jitter buffer in an `AudioWorklet` → the elevation filter → a source of the spatial
@@ -208,7 +208,11 @@ New module `lib/voice/`, consumed by `components/instance/live-view.tsx`:
   The controls follow Discord: **Join voice** opens the session (the socket, the receiver, the
   microphone, so the permission prompt happens once, up front); **mute** turns the microphone off and
   keeps the listening; **deafen** turns the listening off and mutes with it — one cannot talk without
-  hearing; **leave** ends it. The microphone works in two modes, a stored preference: **push-to-talk**
+  hearing; **leave** ends it. The choices behind them sit in the live view's settings dialog (the
+  gear over the scene), Audio tab, kept in the browser: the **microphone** and the **output device**
+  (`enumerateDevices`; the output through `AudioContext.setSinkId`, so only where the browser has it
+  — Chrome; Safari plays through the system's output), the microphone's mode, the target, the reach,
+  the renderer and the room. The microphone works in two modes: **push-to-talk**
   (hold **V** or the microphone button) or **open mic** (on until muted). The **target** follows the
   camera mode: fly and orbit → locational at the camera, where the admin is, not where the camera
   points; player → entity channel on the followed player. A fourth choice, **Everyone**, uses the
