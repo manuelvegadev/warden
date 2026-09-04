@@ -1,28 +1,18 @@
 "use client";
 
-import { Badge } from "@warden/ui/components/badge";
 import { Button } from "@warden/ui/components/button";
-import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@warden/ui/components/dropdown-menu";
 import { cn } from "@warden/ui/lib/utils";
-import { HeadphoneOff, Headphones, Mic, MicOff, PhoneOff, SlidersHorizontal } from "lucide-react";
+import { Globe, Hand, HeadphoneOff, Headphones, Mic, MicOff, PhoneOff, Radio, Video } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useInstance } from "@/components/instance/instance-context";
+import { Chip, OVERLAY } from "@/components/instance/live-view-chip";
 import { useWardendBaseUrl } from "@/components/wardend-config";
-import { useStoredPreference } from "@/hooks/use-stored-preference";
+import { useStoredFlag, useStoredPreference } from "@/hooks/use-stored-preference";
 import type { WsMessage } from "@/hooks/use-wardend-socket";
 import { can } from "@/lib/access";
 import { ApiError, instances, type VoiceStatus } from "@/lib/api";
+import { setUiOutput } from "@/lib/audio-context";
 import { useSession } from "@/lib/auth-client";
 import { type Aim, aim, RADII, type Radius, type SpeakStage, TARGETS, type Target } from "@/lib/voice/aim";
 import { encodeSpeakBody } from "@/lib/voice/frames";
@@ -71,13 +61,15 @@ const MIC_MODES = ["ptt", "open"] as const;
 type MicMode = (typeof MIC_MODES)[number];
 
 /** The viewer's voice choices, kept in the browser: the receiver's, and where and how the admin's voice goes. */
-interface VoicePrefs extends VoiceOptions {
+export interface VoicePrefs extends VoiceOptions {
   target: Target;
   radius: Radius;
   /** Push-to-talk (hold V or the microphone button) or open mic (the microphone stays on until muted). */
   mic: MicMode;
   /** Draw the emission point and the reach globe in the scene while talking. */
   reach: boolean;
+  /** The microphone, as `enumerateDevices` names it; "" is the browser's default. */
+  micDevice: string;
 }
 
 const RENDERER_KEY = "beacon.voice.renderer";
@@ -87,32 +79,36 @@ const TARGET_KEY = "beacon.voice.target";
 const RADIUS_KEY = "beacon.voice.radius";
 const MIC_KEY = "beacon.voice.mic";
 const REACH_KEY = "beacon.voice.reach";
-const ON_OFF = ["on", "off"] as const;
-
-/** The stored preferences as one object. */
-function useVoicePrefs(): readonly [VoicePrefs, (next: VoicePrefs) => void] {
+const MIC_DEVICE_KEY = "beacon.voice.mic-device";
+const OUTPUT_KEY = "beacon.voice.output";
+/** The stored preferences as one object, changed a field at a time. */
+function useVoicePrefs(): readonly [VoicePrefs, (patch: Partial<VoicePrefs>) => void] {
   const [renderer, setRenderer] = useStoredPreference<Renderer>(RENDERER_KEY, "resonance", RENDERERS);
   const [room, setRoom] = useStoredPreference<RoomPreset>(ROOM_KEY, "outdoors", ROOM_PRESETS);
-  const [elevation, setElevation] = useStoredPreference(ELEVATION_KEY, "on", ON_OFF);
+  const [elevation, setElevation] = useStoredFlag(ELEVATION_KEY, true);
   const [target, setTarget] = useStoredPreference<Target>(TARGET_KEY, "auto", TARGETS);
   const [radius, setRadius] = useStoredPreference<Radius>(RADIUS_KEY, "max", RADII);
   const [mic, setMic] = useStoredPreference<MicMode>(MIC_KEY, "ptt", MIC_MODES);
-  const [reach, setReach] = useStoredPreference(REACH_KEY, "on", ON_OFF);
+  const [reach, setReach] = useStoredFlag(REACH_KEY, true);
+  const [micDevice, setMicDevice] = useStoredPreference<string>(MIC_DEVICE_KEY, "");
+  const [output, setOutput] = useStoredPreference<string>(OUTPUT_KEY, "");
   const prefs = useMemo<VoicePrefs>(
-    () => ({ renderer, room, elevation: elevation === "on", target, radius, mic, reach: reach === "on" }),
-    [renderer, room, elevation, target, radius, mic, reach],
+    () => ({ renderer, room, elevation, target, radius, mic, reach, micDevice, output }),
+    [renderer, room, elevation, target, radius, mic, reach, micDevice, output],
   );
   const set = useCallback(
-    (next: VoicePrefs) => {
-      setRenderer(next.renderer);
-      setRoom(next.room);
-      setElevation(next.elevation ? "on" : "off");
-      setTarget(next.target);
-      setRadius(next.radius);
-      setMic(next.mic);
-      setReach(next.reach ? "on" : "off");
+    (p: Partial<VoicePrefs>) => {
+      if (p.renderer !== undefined) setRenderer(p.renderer);
+      if (p.room !== undefined) setRoom(p.room);
+      if (p.elevation !== undefined) setElevation(p.elevation);
+      if (p.target !== undefined) setTarget(p.target);
+      if (p.radius !== undefined) setRadius(p.radius);
+      if (p.mic !== undefined) setMic(p.mic);
+      if (p.reach !== undefined) setReach(p.reach);
+      if (p.micDevice !== undefined) setMicDevice(p.micDevice);
+      if (p.output !== undefined) setOutput(p.output);
     },
-    [setRenderer, setRoom, setElevation, setTarget, setRadius, setMic, setReach],
+    [setRenderer, setRoom, setElevation, setTarget, setRadius, setMic, setReach, setMicDevice, setOutput],
   );
   return [prefs, set];
 }
@@ -148,7 +144,7 @@ export interface Voice {
   /** Every rendered frame of the scene: moves the listener and the speakers, aims the admin's voice. */
   update: (stage: VoiceStage & SpeakStage) => void;
   prefs: VoicePrefs;
-  setPrefs: (next: VoicePrefs) => void;
+  setPrefs: (patch: Partial<VoicePrefs>) => void;
 }
 
 /** What the session should be doing, from the switches; `reconcile` makes the socket, receiver and microphone match it. */
@@ -214,7 +210,7 @@ export function useVoice(id: string, status: VoiceStatus | null): Voice {
       const running = receiver.renderer;
       if (running && running !== prefsRef.current.renderer) {
         toast.warning("Resonance Audio could not be loaded; using the browser's spatial audio");
-        setPrefs({ ...prefsRef.current, renderer: running });
+        setPrefs({ renderer: running });
       }
     },
     [setPrefs],
@@ -224,6 +220,9 @@ export function useVoice(id: string, status: VoiceStatus | null): Voice {
     const receiver = receiverRef.current;
     if (receiver) void receiver.setOptions(prefs).then(() => reflectRenderer(receiver));
   }, [prefs, reflectRenderer]);
+  // The cues and the in-game voices come out of the same device.
+  const output = prefs.output;
+  useEffect(() => setUiOutput(output), [output]);
 
   /** One encoded packet from the microphone: wrapped in the current aim and sent. */
   const onOpus = useCallback((opus: Uint8Array, seq: number) => {
@@ -283,8 +282,13 @@ export function useVoice(id: string, status: VoiceStatus | null): Voice {
       receiverRef.current.stop();
       receiverRef.current = null;
     }
+    // A different microphone is a new capture graph: the old one goes, the next block opens the new one.
+    if (transmitterRef.current && transmitterRef.current.deviceId !== prefsRef.current.micDevice) {
+      transmitterRef.current.stop();
+      transmitterRef.current = null;
+    }
     if (want.mic && !transmitterRef.current) {
-      const tx = new VoiceTransmitter({ onOpus });
+      const tx = new VoiceTransmitter({ onOpus }, prefsRef.current.micDevice);
       transmitterRef.current = tx;
       if (process.env.NODE_ENV !== "production")
         (window as { __beaconVoiceTx?: VoiceTransmitter }).__beaconVoiceTx = tx;
@@ -317,10 +321,11 @@ export function useVoice(id: string, status: VoiceStatus | null): Voice {
     }
   }, [url, canListen, canSpeak, onOpus, reflectRenderer]);
   const micMode = prefs.mic;
-  // biome-ignore lint/correctness/useExhaustiveDependencies: the mic mode changes what "transmitting" means; the rest is read from refs
+  const micDevice = prefs.micDevice;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the mic mode changes what "transmitting" means and the device which microphone is open; the rest is read from refs
   useEffect(() => {
     queue.current = queue.current.then(reconcile, reconcile);
-  }, [desired, micMode, reconcile]);
+  }, [desired, micMode, micDevice, reconcile]);
 
   // The switches, each answered by its sound; they run from the click, so audio may start.
   const join = useCallback(() => {
@@ -436,48 +441,51 @@ function usePushToTalkKey(voice: Voice, enabled: boolean) {
 }
 
 /**
- * The voice controls for the live view's toolbar, in Discord's shape: "Join voice", then a bar with
- * the microphone (mute, or hold to talk), the headphones (deafen), the settings and leave. Or the
- * hint explaining why there is none: the browser lacks WebCodecs, or Simple Voice Chat is not on
- * the server. Nothing for viewers with neither role.
+ * The voice controls, over the live view's scene, in Discord's shape: "Join voice", then a bar with
+ * the microphone (mute, or hold to talk), the headphones (deafen) and leave. Or the hint explaining
+ * why there is none: the browser lacks WebCodecs, or Simple Voice Chat is not on the server.
+ * Nothing for viewers with neither role. The choices behind them live in the live view's settings.
  */
 export function VoiceControls({ status, voice }: { status: VoiceStatus | null; voice: Voice }) {
   const [supported, setSupported] = useState<boolean | null>(null);
   useEffect(() => setSupported(voiceSupported()), []);
   usePushToTalkKey(voice, voice.canSpeak && status?.available === true);
   if ((!voice.canListen && !voice.canSpeak) || status === null || supported === null) return null;
-  if (!supported) return <span className="text-xs text-muted-foreground">{VOICE_UNSUPPORTED}</span>;
-  if (!status.available) {
-    return <span className="text-xs text-muted-foreground">Install Simple Voice Chat to enable voice</span>;
+  if (!supported || !status.available) {
+    return (
+      <Chip className="text-muted-foreground">
+        {supported ? "Install Simple Voice Chat to enable voice" : VOICE_UNSUPPORTED}
+      </Chip>
+    );
   }
   if (!voice.joined) {
     return (
-      <>
-        <Button
-          size="sm"
-          variant="secondary"
-          onClick={voice.join}
-          title={
-            voice.canListen
-              ? "Hear the players' voice chat and talk to them; they are told you are there"
-              : "Talk to the players; they are told you are there"
-          }
-        >
-          <Headphones data-icon="inline-start" />
-          Join voice
-        </Button>
-        <VoiceSettingsMenu voice={voice} status={status} />
-      </>
+      <Button
+        variant="outline"
+        onClick={voice.join}
+        className={OVERLAY}
+        title={
+          voice.canListen
+            ? "Hear the players' voice chat and talk to them; they are told you are there"
+            : "Talk to the players; they are told you are there"
+        }
+      >
+        <Headphones data-icon="inline-start" />
+        Join voice
+      </Button>
     );
   }
   const busy = voice.state !== "open";
   return (
-    <div className={cn("flex h-8 items-center gap-0.5 rounded-lg border bg-muted/40 px-1", busy && "animate-pulse")}>
+    <div className={cn("flex h-8 items-center gap-0.5 rounded-lg border px-1", OVERLAY, busy && "animate-pulse")}>
+      {/* The state light sits in a box the size of the icon buttons, so it is spaced like them. */}
       <span
-        className={cn("mx-1 inline-block size-2 rounded-full", busy ? "bg-amber-500" : "bg-emerald-500")}
+        className="flex size-7 items-center justify-center"
         title={busy ? "Connecting to voice" : "Voice connected"}
         aria-hidden="true"
-      />
+      >
+        <span className={cn("size-2 rounded-full", busy ? "bg-amber-500" : "bg-emerald-500")} />
+      </span>
       {voice.canSpeak && <MicButton voice={voice} />}
       <Button
         size="icon-sm"
@@ -498,17 +506,64 @@ export function VoiceControls({ status, voice }: { status: VoiceStatus | null; v
       >
         {voice.deafened ? <HeadphoneOff /> : <Headphones />}
       </Button>
-      <VoiceSettingsMenu voice={voice} status={status} />
+      {voice.canSpeak && (
+        <>
+          <span className="mx-0.5 h-4 w-px bg-border" aria-hidden="true" />
+          <VoiceModeToggles voice={voice} />
+        </>
+      )}
       <Button
-        size="icon-sm"
+        size="sm"
         variant="ghost"
         onClick={voice.leave}
-        title="Leave voice"
+        title="Leave voice: stop hearing and talking; the players are told you left"
         className="text-destructive hover:bg-destructive/10 hover:text-destructive"
       >
-        <PhoneOff />
+        <PhoneOff data-icon="inline-start" />
+        Leave
       </Button>
     </div>
+  );
+}
+
+/**
+ * The two choices worth a single click while talking, each a button that flips to the other
+ * value: how the microphone opens (push-to-talk or open mic) and who hears (from the camera or
+ * everyone). The rest of the voice settings live in the live view's settings dialog.
+ */
+function VoiceModeToggles({ voice }: { voice: Voice }) {
+  const { prefs, setPrefs } = voice;
+  const ptt = prefs.mic === "ptt";
+  const everyone = prefs.target === "everyone";
+  return (
+    <>
+      <Button
+        size="sm"
+        variant="ghost"
+        onClick={() => setPrefs({ mic: ptt ? "open" : "ptt" })}
+        title={
+          ptt
+            ? "Push to talk: hold V or the microphone button while you speak · click for open mic"
+            : "Open mic: the microphone stays on until you mute · click for push to talk"
+        }
+      >
+        {ptt ? <Hand data-icon="inline-start" /> : <Radio data-icon="inline-start" />}
+        {ptt ? "Push to talk" : "Open mic"}
+      </Button>
+      <Button
+        size="sm"
+        variant="ghost"
+        onClick={() => setPrefs({ target: everyone ? "auto" : "everyone" })}
+        title={
+          everyone
+            ? "Everyone: the whole server hears you, wherever they are · click to talk from the camera"
+            : "Camera: your voice comes from where the camera is (a whisper to the player in first person) · click to talk to everyone"
+        }
+      >
+        {everyone ? <Globe data-icon="inline-start" /> : <Video data-icon="inline-start" />}
+        {everyone ? "Everyone" : "Camera"}
+      </Button>
+    </>
   );
 }
 
@@ -599,139 +654,9 @@ export function VoicePresencePill({ status, className }: { status: VoiceStatus |
   if (speakers.length) parts.push(`${speakers.join(", ")} speaking`);
   const text = parts.join(" · ");
   return (
-    <Badge variant="secondary" className={cn("gap-1 bg-background/80 backdrop-blur", className)} title={text}>
-      {speakers.length ? (
-        <Mic className="size-3" aria-hidden="true" />
-      ) : (
-        <Headphones className="size-3" aria-hidden="true" />
-      )}
+    <Chip className={className} title={text}>
+      {speakers.length ? <Mic aria-hidden="true" /> : <Headphones aria-hidden="true" />}
       {text}
-    </Badge>
-  );
-}
-
-// --- the menu ---
-
-const RENDERER_LABELS: Record<Renderer, { label: string; hint: string }> = {
-  resonance: { label: "Resonance Audio", hint: "Ambisonic HRTF with a room: reflections and reverb around the voices" },
-  browser: { label: "Browser", hint: "The browser's own HRTF panner, no room; the fallback" },
-};
-
-const ROOM_LABELS: Record<RoomPreset, string> = {
-  outdoors: "Outdoors",
-  room: "Room",
-  hall: "Hall",
-  none: "No room",
-};
-
-const TARGET_LABELS: Record<Target, { label: string; hint: string }> = {
-  auto: {
-    label: "Follows the camera",
-    hint: "Fly and orbit: your voice comes from where the camera is · Player: a whisper only they hear",
-  },
-  everyone: { label: "Everyone", hint: "The whole server hears you, wherever they are" },
-};
-
-const MIC_LABELS: Record<MicMode, { label: string; hint: string }> = {
-  ptt: { label: "Push to talk", hint: "Hold V or the microphone button while you speak" },
-  open: { label: "Open mic", hint: "The microphone stays on until you mute" },
-};
-
-/** The viewer's own choices, kept in the browser: microphone, where the voice goes, renderer, room, cues. */
-function VoiceSettingsMenu({ voice, status }: { voice: Voice; status: VoiceStatus }) {
-  const { prefs, setPrefs } = voice;
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={<Button size="icon-sm" variant="ghost" title="Voice settings" aria-label="Voice settings" />}
-      >
-        <SlidersHorizontal />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-72">
-        {voice.canSpeak && (
-          <>
-            <DropdownMenuRadioGroup value={prefs.mic} onValueChange={(v) => setPrefs({ ...prefs, mic: v as MicMode })}>
-              <DropdownMenuLabel>Microphone</DropdownMenuLabel>
-              {MIC_MODES.map((m) => (
-                <DropdownMenuRadioItem key={m} value={m} title={MIC_LABELS[m].hint}>
-                  {MIC_LABELS[m].label}
-                </DropdownMenuRadioItem>
-              ))}
-            </DropdownMenuRadioGroup>
-            <DropdownMenuSeparator />
-            <DropdownMenuRadioGroup
-              value={prefs.target}
-              onValueChange={(v) => setPrefs({ ...prefs, target: v as Target })}
-            >
-              <DropdownMenuLabel>Talk to</DropdownMenuLabel>
-              {TARGETS.map((t) => (
-                <DropdownMenuRadioItem key={t} value={t} title={TARGET_LABELS[t].hint}>
-                  {TARGET_LABELS[t].label}
-                </DropdownMenuRadioItem>
-              ))}
-            </DropdownMenuRadioGroup>
-            <DropdownMenuSeparator />
-            <DropdownMenuRadioGroup
-              value={prefs.radius}
-              onValueChange={(v) => setPrefs({ ...prefs, radius: v as Radius })}
-            >
-              <DropdownMenuLabel>Reach</DropdownMenuLabel>
-              {RADII.map((r) => (
-                <DropdownMenuRadioItem key={r} value={r} disabled={prefs.target === "everyone"}>
-                  {r === "max" ? `Server distance (${status.distance} blocks)` : `${r} blocks`}
-                </DropdownMenuRadioItem>
-              ))}
-            </DropdownMenuRadioGroup>
-            <DropdownMenuGroup>
-              <DropdownMenuCheckboxItem
-                checked={prefs.reach}
-                onCheckedChange={(v) => setPrefs({ ...prefs, reach: v })}
-                title="A globe of the reach around where your voice leaves, drawn while sound is going out"
-              >
-                Show reach while talking
-              </DropdownMenuCheckboxItem>
-            </DropdownMenuGroup>
-          </>
-        )}
-        {voice.canSpeak && voice.canListen && <DropdownMenuSeparator />}
-        {voice.canListen && (
-          <>
-            <DropdownMenuRadioGroup
-              value={prefs.renderer}
-              onValueChange={(v) => setPrefs({ ...prefs, renderer: v as Renderer })}
-            >
-              <DropdownMenuLabel>Renderer</DropdownMenuLabel>
-              {RENDERERS.map((r) => (
-                <DropdownMenuRadioItem key={r} value={r} title={RENDERER_LABELS[r].hint}>
-                  {RENDERER_LABELS[r].label}
-                </DropdownMenuRadioItem>
-              ))}
-            </DropdownMenuRadioGroup>
-            <DropdownMenuSeparator />
-            <DropdownMenuRadioGroup
-              value={prefs.room}
-              onValueChange={(v) => setPrefs({ ...prefs, room: v as RoomPreset })}
-            >
-              <DropdownMenuLabel>Room</DropdownMenuLabel>
-              {ROOM_PRESETS.map((r) => (
-                <DropdownMenuRadioItem key={r} value={r} disabled={prefs.renderer !== "resonance"}>
-                  {ROOM_LABELS[r]}
-                </DropdownMenuRadioItem>
-              ))}
-            </DropdownMenuRadioGroup>
-            <DropdownMenuSeparator />
-            <DropdownMenuGroup>
-              <DropdownMenuCheckboxItem
-                checked={prefs.elevation}
-                onCheckedChange={(v) => setPrefs({ ...prefs, elevation: v })}
-                title="Brightens voices above you and dulls those below; a generic HRTF cannot tell on its own"
-              >
-                Elevation cue
-              </DropdownMenuCheckboxItem>
-            </DropdownMenuGroup>
-          </>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    </Chip>
   );
 }

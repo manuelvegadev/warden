@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   celestialAngle,
-  clockLabel,
+  clockParts,
   DEFAULT_SKY,
   fogColor,
   skyBrightness,
@@ -15,12 +15,17 @@ import {
 const clear = (time: number) => ({ day: 34, time, gameTime: 0, rain: false, thunder: false });
 
 describe("sky", () => {
-  it("prints the 24-hour clock with the day", () => {
-    assert.equal(clockLabel(clear(0)), "Day 34, 06:00");
-    assert.equal(clockLabel(clear(6000)), "Day 34, 12:00");
-    assert.equal(clockLabel(clear(6550)), "Day 34, 12:33");
-    assert.equal(clockLabel(clear(18000)), "Day 34, 00:00");
-    assert.equal(clockLabel({ day: 2, time: 13000, gameTime: 0, rain: true, thunder: false }), "Day 2, 19:00 · Rain");
+  it("reads the 24-hour clock, the day and the weather", () => {
+    assert.deepEqual(clockParts(clear(0)), { day: 34, time: "06:00", weather: null });
+    assert.deepEqual(clockParts(clear(6000)), { day: 34, time: "12:00", weather: null });
+    assert.deepEqual(clockParts(clear(6550)), { day: 34, time: "12:33", weather: null });
+    assert.deepEqual(clockParts(clear(18000)), { day: 34, time: "00:00", weather: null });
+    assert.deepEqual(clockParts({ day: 2, time: 13000, gameTime: 0, rain: true, thunder: false }), {
+      day: 2,
+      time: "19:00",
+      weather: "rain",
+    });
+    assert.equal(clockParts({ day: 2, time: 0, gameTime: 0, rain: true, thunder: true }).weather, "thunder");
   });
 
   it("follows the game's clock", () => {

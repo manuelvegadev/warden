@@ -16,13 +16,19 @@ export interface WorldClock {
 /** A tick count folded into the day, 0..24000. */
 export const dayTime = (ticks: number) => ((ticks % 24000) + 24000) % 24000;
 
-/** The in-game clock, 24-hour: tick 0 is 06:00, 1000 ticks are an hour. */
-export function clockLabel(clock: WorldClock): string {
+export type Weather = "rain" | "thunder";
+export const WEATHER_LABELS: Record<Weather, string> = { rain: "Rain", thunder: "Thunderstorm" };
+
+/** The clock as the viewer shows it: the day, the wall time (06:00 at dawn, like the game), the weather if any. */
+export function clockParts(clock: WorldClock): { day: number; time: string; weather: Weather | null } {
   const minutes = Math.floor((dayTime(clock.time) / 1000) * 60);
   const h = (Math.floor(minutes / 60) + 6) % 24;
   const m = minutes % 60;
-  const weather = clock.thunder ? " · Thunderstorm" : clock.rain ? " · Rain" : "";
-  return `Day ${clock.day}, ${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}${weather}`;
+  return {
+    day: clock.day,
+    time: `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`,
+    weather: clock.thunder ? "thunder" : clock.rain ? "rain" : null,
+  };
 }
 
 export type RGB = [number, number, number];

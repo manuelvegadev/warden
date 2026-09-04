@@ -1,23 +1,30 @@
 "use client";
 
-import { Badge } from "@warden/ui/components/badge";
 import { Button } from "@warden/ui/components/button";
-import { Slider } from "@warden/ui/components/slider";
-import { Tabs, TabsList, TabsTrigger } from "@warden/ui/components/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@warden/ui/components/select";
 import { cn } from "@warden/ui/lib/utils";
-import { Bug, Eye, LocateFixed, Orbit, Plane } from "lucide-react";
+import { CalendarDays, Clock, CloudLightning, CloudRain } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { DetachControls } from "@/components/instance/detach-controls";
 import { useInstance } from "@/components/instance/instance-context";
+import {
+  CAMERA_LABELS,
+  CAMERA_MODES,
+  CAMERAS,
+  cameraDescription,
+  cameraHint,
+} from "@/components/instance/live-view-cameras";
+import { Chip, OVERLAY } from "@/components/instance/live-view-chip";
+import { LiveViewSettings, type ViewSettings } from "@/components/instance/live-view-settings";
 import { PlayerFace } from "@/components/instance/player-face";
 import { SectionCard } from "@/components/instance/section-card";
 import { useVoice, useVoiceStatus, VoiceControls, VoicePresencePill } from "@/components/instance/voice-listen";
 import { useDetachable } from "@/hooks/use-detachable";
-import { useStoredPreference } from "@/hooks/use-stored-preference";
+import { useStoredFlag, useStoredPreference } from "@/hooks/use-stored-preference";
 import type { WsMessage } from "@/hooks/use-wardend-socket";
 import { instances, type LiveViewInfo, type PlayerPos, skins, type WorldClock } from "@/lib/api";
-import type { CameraMode } from "@/lib/liveview/camera";
+import type { CameraMode } from "@/lib/liveview/camera-modes";
 import {
   HANDOVER_FLASH_MS,
   HANDOVER_REVEAL_MS,
@@ -29,26 +36,12 @@ import { playCue, preloadCue } from "@/lib/liveview/cues";
 import { chunkKey, parseBatch } from "@/lib/liveview/format";
 import type { IdleScene } from "@/lib/liveview/idle-scene";
 import type { LiveViewScene, PlayerMarker } from "@/lib/liveview/scene";
-import { clockLabel } from "@/lib/liveview/sky";
+import { clockParts, WEATHER_LABELS } from "@/lib/liveview/sky";
 import type { WorkerRequest, WorkerResponse } from "@/lib/liveview/worker";
 
 const RADIUS_KEY = "beacon.liveview.radius";
 const CAMERA_KEY = "beacon.liveview.camera";
-/** The camera modes as the toolbar shows them, keyed by the scene's mode so the two cannot drift. */
-const CAMERAS: Record<CameraMode, { label: string; icon: typeof Orbit; hint: string }> = {
-  orbit: {
-    label: "Orbit",
-    icon: Orbit,
-    hint: "Left drag moves the world · right drag turns around the point under the cursor · wheel zooms to it",
-  },
-  fly: {
-    label: "Fly",
-    icon: Plane,
-    hint: "Click to look around · WASD · Space and Shift up and down · Ctrl faster · wheel sets the speed · Esc frees the mouse",
-  },
-  player: { label: "Player", icon: Eye, hint: "Through the selected player's eyes" },
-};
-const CAMERA_MODES = Object.keys(CAMERAS) as CameraMode[];
+const GLOW_KEY = "beacon.liveview.glow";
 /** Chunk radii the slider can take, as the stored preference's allow-list. */
 const RADII = Array.from({ length: RADIUS_MAX - RADIUS_MIN + 1 }, (_, i) => String(i + RADIUS_MIN));
 
@@ -56,9 +49,32 @@ const SUBTITLE = "The world around each player, as the agent streams it.";
 /** How far inside the view's edges a name tag stays, in pixels. */
 const TAG_MARGIN = 8;
 
-function CameraIcon({ mode }: { mode: CameraMode }) {
+function CameraIcon({ mode, className }: { mode: CameraMode; className?: string }) {
   const Icon = CAMERAS[mode].icon;
-  return <Icon data-icon="inline-start" />;
+  return <Icon className={className} aria-hidden="true" />;
+}
+
+/** The world's clock as chips: the weather when there is any, then the day, then the time. */
+function ClockChips({ clock }: { clock: WorldClock }) {
+  const { day, time, weather } = clockParts(clock);
+  return (
+    <>
+      {weather && (
+        <Chip className="pointer-events-none">
+          {weather === "thunder" ? <CloudLightning /> : <CloudRain />}
+          {WEATHER_LABELS[weather]}
+        </Chip>
+      )}
+      <Chip className="font-mono" title={`Day ${day}`}>
+        <CalendarDays />
+        {day}
+      </Chip>
+      <Chip className="pointer-events-none font-mono">
+        <Clock />
+        {time}
+      </Chip>
+    </>
+  );
 }
 
 /** What the viewer is waiting on, when it is not showing the world. */
@@ -95,8 +111,11 @@ export function LiveView({ popout }: { popout?: boolean }) {
   const [radius, setRadius] = useStoredPreference<string>(RADIUS_KEY, "8", RADII);
   const [cameraMode, setCameraMode] = useStoredPreference<CameraMode>(CAMERA_KEY, "orbit", CAMERA_MODES);
   const [debug, setDebug] = useState(false);
+  const [glow, setGlow] = useStoredFlag(GLOW_KEY, true);
+  const glowRef = useRef(glow);
+  glowRef.current = glow;
   const [stats, setStats] = useState({ chunks: 0, pending: 0 });
-  const [clockText, setClockText] = useState("");
+  const [clock, setClock] = useState<WorldClock | null>(null);
   // Voice (ADR-019): the players' voices while "Listen" is on; the tags of those heard light up.
   const voiceStatus = useVoiceStatus(id);
   const voice = useVoice(id, voiceStatus);
@@ -272,6 +291,7 @@ export function LiveView({ popout }: { popout?: boolean }) {
         else console.warn("live view:", msg.message);
       };
       scene.setRadius(radiusRef.current);
+      scene.setGlow(glowRef.current);
       scene.setCameraMode(cameraModeRef.current);
       scene.setClocks(clocksRef.current);
       applyWorld(worldRef.current);
@@ -282,8 +302,7 @@ export function LiveView({ popout }: { popout?: boolean }) {
       if (!scene) return;
       setStats(scene.stats());
       setPlayers(playersRef.current); // refreshes the coordinates in the overlay tooltips
-      const clock = scene.currentClock();
-      setClockText(clock ? clockLabel(clock) : "");
+      setClock(scene.currentClock());
     }, 1000);
     return () => {
       disposed = true;
@@ -319,6 +338,7 @@ export function LiveView({ popout }: { popout?: boolean }) {
   }, [voice.listening, voice.speaking]);
   useEffect(() => sceneRef.current?.setCameraMode(cameraMode), [cameraMode]);
   useEffect(() => sceneRef.current?.setDebug(debug), [debug]);
+  useEffect(() => sceneRef.current?.setGlow(glow), [glow]);
 
   const worldPlayers = useMemo(() => players.filter((p) => p.world === world), [players, world]);
   const idle = worldPlayers.length === 0;
@@ -431,12 +451,23 @@ export function LiveView({ popout }: { popout?: boolean }) {
   }
   const running = status.state === "running";
   const phase = PHASES[agentConnected ? "ready" : running ? "connecting" : "stopped"];
+  const view: ViewSettings = {
+    cameraMode,
+    setCameraMode,
+    radius: effectiveRadius,
+    maxRadius,
+    setRadius: (r) => setRadius(String(r)),
+    glow,
+    setGlow,
+    debug,
+    setDebug,
+  };
   // The viewer takes whatever height it is given: the page (the shell stretches this section), the pop-out, fullscreen.
   const viewClass = "min-h-0 flex-1";
   return (
     <div ref={rootRef} className={cn("flex h-full min-h-0 flex-1 flex-col gap-2", fullscreen && "bg-background p-3")}>
-      {/* Three columns so the camera modes sit in the middle whatever the sides hold. */}
-      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+      {/* Above the scene only what is about the panel itself: its state and where it is shown. */}
+      <div className="flex items-center justify-between gap-2">
         <div className="flex h-8 items-center gap-2 text-sm leading-none">
           <span
             className={cn(
@@ -448,48 +479,8 @@ export function LiveView({ popout }: { popout?: boolean }) {
             title={phase.badge}
           />
           <span>Live view</span>
-          {worldVisible && <VoiceControls status={voiceStatus} voice={voice} />}
-          <VoicePresencePill status={voiceStatus} />
-          {debug && (
-            <span
-              className="text-xs text-muted-foreground tabular-nums"
-              title="Chunks in the 3D view out of what the radius allows; the daemon keeps every chunk it has ever seen"
-            >
-              {stats.chunks} / {(2 * effectiveRadius + 1) ** 2} chunks
-              {stats.pending ? ` · ${stats.pending} loading` : ""}
-            </span>
-          )}
         </div>
-        {!worldVisible ? (
-          <span />
-        ) : (
-          <Tabs value={cameraMode} onValueChange={(v) => setCameraMode(v as CameraMode)} aria-label="Camera">
-            <TabsList>
-              {CAMERA_MODES.map((mode) => (
-                <TabsTrigger key={mode} value={mode} title={CAMERAS[mode].hint}>
-                  <CameraIcon mode={mode} />
-                  {CAMERAS[mode].label}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </Tabs>
-        )}
-        <div className="flex items-center justify-end gap-2">
-          <div className={cn("flex items-center gap-2 text-xs text-muted-foreground", !worldVisible && "hidden")}>
-            <span>Render distance</span>
-            <Slider
-              className="w-28 shrink-0 data-horizontal:w-28"
-              min={RADIUS_MIN}
-              max={maxRadius}
-              step={1}
-              value={effectiveRadius}
-              onValueChange={(v) => setRadius(String(Array.isArray(v) ? v[0] : v))}
-              aria-label="Render distance"
-              title={`Chunks around the focus, up to the server's view distance (${maxRadius})`}
-            />
-            <span className="w-4 tabular-nums">{effectiveRadius}</span>
-          </div>
-          <div className={cn("h-5 w-px bg-border", !worldVisible && "hidden")} aria-hidden="true" />
+        <div className="flex items-center gap-2">
           <DetachControls
             fullscreen={fullscreen}
             showPopout={showPopout}
@@ -507,21 +498,55 @@ export function LiveView({ popout }: { popout?: boolean }) {
           ref={idleCanvasRef}
           className={cn("absolute inset-0 block h-full w-full touch-none", worldVisible && "hidden")}
         />
-        <div className="absolute top-2 left-2 flex max-h-[calc(100%-1rem)] flex-col gap-1 overflow-auto">
+        {/* Top left: the players; top centre: the camera; top right: the clock and the settings;
+            bottom centre: the camera's hint. */}
+        {/* A pressed button slides down a pixel (the shared button's active state); the extra pixel
+            of padding keeps that inside the list, or a scrollbar would flash while it is held. */}
+        <div className="absolute top-2 left-2 flex max-h-[calc(100%-1rem)] flex-col gap-1 overflow-y-auto pb-px">
           {worldPlayers.map((p) => (
             <Button
               key={p.name}
-              size="sm"
               variant="outline"
               onClick={() => sceneRef.current?.toggleFollow(p.name)}
-              className={cn("justify-start bg-background/80 backdrop-blur", following === p.name && "border-primary")}
+              className={cn(
+                "justify-start gap-2 font-mono",
+                OVERLAY,
+                following === p.name && "border-primary font-bold",
+              )}
               title={`${Math.round(p.x)}, ${Math.round(p.y)}, ${Math.round(p.z)}`}
             >
               <PlayerFace name={p.name} className="size-4" />
               {p.name}
-              {following === p.name && <LocateFixed data-icon="inline-end" className="text-primary" />}
             </Button>
           ))}
+        </div>
+        {worldVisible && (
+          <div className="pointer-events-none absolute inset-x-0 top-2 flex flex-col items-center gap-1">
+            <Select items={CAMERA_LABELS} value={cameraMode} onValueChange={(v) => v && setCameraMode(v as CameraMode)}>
+              <SelectTrigger className={cn("pointer-events-auto", OVERLAY)} aria-label="Camera">
+                <CameraIcon mode={cameraMode} className="size-4" />
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent fit="content">
+                {CAMERA_MODES.map((mode) => (
+                  <SelectItem key={mode} value={mode} title={cameraDescription(mode)} className="items-start py-1.5">
+                    {/* The icon is centred on the name's line, not on the two lines together. */}
+                    <span className="flex h-5 items-center">
+                      <CameraIcon mode={mode} className="size-4" />
+                    </span>
+                    <span className="flex flex-col">
+                      <span>{CAMERAS[mode].label}</span>
+                      <span className="text-xs text-muted-foreground">{CAMERAS[mode].short}</span>
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+        <div className="absolute top-2 right-2 flex items-center gap-1">
+          {clock && worldVisible && <ClockChips clock={clock} />}
+          <LiveViewSettings view={view} voice={voice} status={voiceStatus} />
         </div>
         {/* Name tags, the game's look: over each head, or at the nearest edge when the player is out of view. */}
         <div
@@ -560,32 +585,24 @@ export function LiveView({ popout }: { popout?: boolean }) {
             </div>
           ))}
         </div>
+        {/* Bottom left: voice; bottom right: the debug figures. */}
+        <div className="absolute bottom-2 left-2 z-10 flex flex-col items-start gap-1">
+          <VoicePresencePill status={voiceStatus} />
+          {worldVisible && <VoiceControls status={voiceStatus} voice={voice} />}
+        </div>
         {worldVisible && cameraMode !== "orbit" && (
-          <div className="pointer-events-none absolute inset-x-0 bottom-2 flex justify-center">
-            <Badge variant="secondary" className="bg-background/80 text-muted-foreground backdrop-blur">
-              {cameraMode === "fly" ? CAMERAS.fly.hint : following ? `Through ${following}'s eyes` : "Select a player"}
-            </Badge>
-          </div>
+          <p className="pointer-events-none absolute inset-x-0 bottom-3 text-center text-sm font-medium text-white [text-shadow:0_1px_2px_rgb(0_0_0/0.8),0_0_6px_rgb(0_0_0/0.5)]">
+            {cameraHint(cameraMode, following)}
+          </p>
         )}
-        {worldVisible && (
-          <Button
-            size="icon-sm"
-            variant={debug ? "secondary" : "outline"}
-            onClick={() => setDebug((d) => !d)}
-            title="Debug: the camera's pivot and the chunk count"
-            aria-pressed={debug}
-            className="absolute right-2 bottom-2 bg-background/80 backdrop-blur"
+        {debug && worldVisible && (
+          <Chip
+            className="absolute right-2 bottom-2 tabular-nums"
+            title="Chunks in the 3D view out of what the radius allows; the daemon keeps every chunk it has ever seen"
           >
-            <Bug />
-          </Button>
-        )}
-        {clockText && worldVisible && (
-          <Badge
-            variant="secondary"
-            className="pointer-events-none absolute top-2 right-2 bg-background/80 font-mono tabular-nums backdrop-blur"
-          >
-            {clockText}
-          </Badge>
+            {stats.chunks} / {(2 * effectiveRadius + 1) ** 2} chunks
+            {stats.pending ? ` · ${stats.pending} loading` : ""}
+          </Chip>
         )}
         {((idle && transition !== "leaving") || transition === "charging") && (
           <div className="pointer-events-none absolute inset-x-0 bottom-8 flex justify-center">
