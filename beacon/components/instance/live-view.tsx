@@ -3,7 +3,16 @@
 import { Button } from "@warden/ui/components/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@warden/ui/components/select";
 import { cn } from "@warden/ui/lib/utils";
-import { CalendarDays, Clock, CloudLightning, CloudRain } from "lucide-react";
+import {
+  CalendarDays,
+  Camera,
+  Clock,
+  CloudLightning,
+  CloudRain,
+  Flashlight,
+  FlashlightOff,
+  RotateCcw,
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { DetachControls } from "@/components/instance/detach-controls";
@@ -16,7 +25,14 @@ import {
   cameraHint,
 } from "@/components/instance/live-view-cameras";
 import { Chip, OVERLAY } from "@/components/instance/live-view-chip";
-import { LiveViewSettings, type ViewSettings } from "@/components/instance/live-view-settings";
+import {
+  BRIGHTNESS_DEFAULT,
+  LEAVES_MODES,
+  LiveViewSettings,
+  PIXEL_SCALES,
+  type PixelScale,
+  type ViewSettings,
+} from "@/components/instance/live-view-settings";
 import { PlayerFace } from "@/components/instance/player-face";
 import { SectionCard } from "@/components/instance/section-card";
 import { useVoice, useVoiceStatus, VoiceControls, VoicePresencePill } from "@/components/instance/voice-listen";
@@ -35,13 +51,26 @@ import {
 import { playCue, preloadCue } from "@/lib/liveview/cues";
 import { chunkKey, parseBatch } from "@/lib/liveview/format";
 import type { IdleScene } from "@/lib/liveview/idle-scene";
+import type { FaceTable, LeavesMode } from "@/lib/liveview/mesher";
 import type { LiveViewScene, PlayerMarker } from "@/lib/liveview/scene";
 import { clockParts, WEATHER_LABELS } from "@/lib/liveview/sky";
+import { loadBlockTextures } from "@/lib/liveview/textures";
 import type { WorkerRequest, WorkerResponse } from "@/lib/liveview/worker";
 
 const RADIUS_KEY = "beacon.liveview.radius";
 const CAMERA_KEY = "beacon.liveview.camera";
 const GLOW_KEY = "beacon.liveview.glow";
+const RELIEF_KEY = "beacon.liveview.relief";
+const PIXEL_SCALE_KEY = "beacon.liveview.pixel-scale";
+const LEAVES_KEY = "beacon.liveview.leaves";
+const TEXTURES_KEY = "beacon.liveview.textures";
+const NIGHT_VISION_KEY = "beacon.liveview.night-vision";
+/** The game's brightness option, in percent. */
+const BRIGHTNESS_KEY = "beacon.liveview.brightness";
+/** The steps the brightness slider takes, as the stored preference's allow-list. */
+const BRIGHTNESS_STEPS = Array.from({ length: 21 }, (_, i) => String(i * 5));
+/** The renderer's pixel ratio for a stored scale; the device's is read when applied, so a window moved between screens follows. */
+const pixelRatioOf = (scale: PixelScale) => (scale === "device" ? window.devicePixelRatio || 1 : Number(scale));
 /** Chunk radii the slider can take, as the stored preference's allow-list. */
 const RADII = Array.from({ length: RADIUS_MAX - RADIUS_MIN + 1 }, (_, i) => String(i + RADIUS_MIN));
 
@@ -112,9 +141,26 @@ export function LiveView({ popout }: { popout?: boolean }) {
   const [cameraMode, setCameraMode] = useStoredPreference<CameraMode>(CAMERA_KEY, "orbit", CAMERA_MODES);
   const [debug, setDebug] = useState(false);
   const [glow, setGlow] = useStoredFlag(GLOW_KEY, true);
-  const glowRef = useRef(glow);
-  glowRef.current = glow;
+  const [relief, setRelief] = useStoredFlag(RELIEF_KEY, true);
+  const [pixelScale, setPixelScale] = useStoredPreference<PixelScale>(PIXEL_SCALE_KEY, "1", PIXEL_SCALES);
+  const [leaves, setLeaves] = useStoredPreference<LeavesMode>(LEAVES_KEY, "fancy", LEAVES_MODES);
+  const [textures, setTextures] = useStoredFlag(TEXTURES_KEY, true);
+  const [nightVision, setNightVision] = useStoredFlag(NIGHT_VISION_KEY, false);
+  const [brightness, setBrightness] = useStoredPreference<string>(
+    BRIGHTNESS_KEY,
+    String(BRIGHTNESS_DEFAULT),
+    BRIGHTNESS_STEPS,
+  );
+  /** The block face table once loaded, and a counter so the settings reach the worker with it. */
+  const facesRef = useRef<FaceTable | null>(null);
+  const [facesLoaded, setFacesLoaded] = useState(0);
   const [stats, setStats] = useState({ chunks: 0, pending: 0 });
+  // Bumped to rebuild the scene and its worker from scratch: the debug overlay's way of dropping
+  // every chunk the viewer holds when the daemon's copy has moved on and the meshes have not.
+  const [rebuild, setRebuild] = useState(0);
+  // Bumped once the scene and worker exist, so the settings effect below applies every value to
+  // them: one list, whether the scene is new or a setting changed.
+  const [sceneEpoch, setSceneEpoch] = useState(0);
   const [clock, setClock] = useState<WorldClock | null>(null);
   // Voice (ADR-019): the players' voices while "Listen" is on; the tags of those heard light up.
   const voiceStatus = useVoiceStatus(id);
@@ -158,8 +204,6 @@ export function LiveView({ popout }: { popout?: boolean }) {
   worldRef.current = world;
   const clocksRef = useRef<Record<string, WorldClock>>({});
   const radiusRef = useRef(Number(radius));
-  const cameraModeRef = useRef(cameraMode);
-  cameraModeRef.current = cameraMode;
 
   const { rootRef, fullscreen, toggleFullscreen, openPopout, showPopout } = useDetachable(
     `/map/${id}`,
@@ -241,7 +285,9 @@ export function LiveView({ popout }: { popout?: boolean }) {
     scene.follow(playersRef.current.find((p) => p.world === w)?.name ?? null);
   }, []);
 
-  // The scene and its worker live as long as the canvas does; later state reaches them through refs.
+  // The scene and its worker live as long as the canvas does; later state reaches them through the
+  // settings effect below.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `rebuild` is the point of the dependency, not a value the body reads — bumping it tears the scene and the worker down and builds them again.
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !info?.supported) return;
@@ -285,16 +331,23 @@ export function LiveView({ popout }: { popout?: boolean }) {
         skinUrl: skins.full,
       });
       sceneRef.current = scene;
+      setSceneEpoch((n) => n + 1);
       // A handle for measuring the renderer from the console while developing.
       if (process.env.NODE_ENV !== "production") (window as { __beaconScene?: LiveViewScene }).__beaconScene = scene;
       worker.onmessage = (ev: MessageEvent<WorkerResponse>) => {
         const msg = ev.data;
-        if (msg.type === "mesh") scene?.setChunkMesh(msg.world, msg.cx, msg.cz, msg.hash, msg.mesh, msg.sky);
+        if (msg.type === "meshes")
+          for (const m of msg.items) scene?.setChunkMesh(m.world, m.cx, m.cz, m.hash, m.mesh, m.sky);
         else console.warn("live view:", msg.message);
       };
+      // The block textures: the game's art, if the server fetched it; flat colours until then, or by choice.
+      void loadBlockTextures().then((t) => {
+        if (disposed || !t || !scene) return;
+        scene.setBlockTextures(t.texture);
+        facesRef.current = t.faces;
+        setFacesLoaded((n) => n + 1);
+      });
       scene.setRadius(radiusRef.current);
-      scene.setGlow(glowRef.current);
-      scene.setCameraMode(cameraModeRef.current);
       scene.setClocks(clocksRef.current);
       applyWorld(worldRef.current);
     });
@@ -315,7 +368,7 @@ export function LiveView({ popout }: { popout?: boolean }) {
       sceneRef.current = null;
       workerRef.current = null;
     };
-  }, [id, info?.supported, applyWorld, placeMarkers, voiceUpdate]);
+  }, [id, info?.supported, applyWorld, placeMarkers, voiceUpdate, rebuild]);
 
   useEffect(() => applyWorld(world), [world, applyWorld]);
 
@@ -338,9 +391,60 @@ export function LiveView({ popout }: { popout?: boolean }) {
       mark(new Set());
     };
   }, [voice.listening, voice.speaking]);
-  useEffect(() => sceneRef.current?.setCameraMode(cameraMode), [cameraMode]);
-  useEffect(() => sceneRef.current?.setDebug(debug), [debug]);
-  useEffect(() => sceneRef.current?.setGlow(glow), [glow]);
+  // Every setting the scene and the worker hold, applied together: on a change, and again whenever
+  // the scene is rebuilt, so a new scene never starts with a setting the user cannot see is missing.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `sceneEpoch` and `facesLoaded` are what makes this run again once the scene, the worker and the block faces exist; they are counters, not values the body reads.
+  useEffect(() => {
+    const scene = sceneRef.current;
+    const worker = workerRef.current;
+    if (!scene || !worker) return;
+    scene.setCameraMode(cameraMode);
+    scene.setDebug(debug);
+    scene.setGlow(glow);
+    scene.setRelief(relief);
+    scene.setNightVision(nightVision);
+    scene.setBrightness(Number(brightness) / 100);
+    scene.setPixelRatio(pixelRatioOf(pixelScale));
+    worker.postMessage({ type: "leaves", mode: leaves } satisfies WorkerRequest);
+    worker.postMessage({ type: "textures", faces: textures ? facesRef.current : null } satisfies WorkerRequest);
+  }, [sceneEpoch, facesLoaded, cameraMode, debug, glow, relief, nightVision, brightness, pixelScale, leaves, textures]);
+
+  // A screenshot of the scene (F2, the game's key, or the camera button): saved as a PNG and put on
+  // the clipboard where the browser allows it. The name tags are HTML and are not in it.
+  const screenshot = useCallback(async () => {
+    const scene = sceneRef.current;
+    if (!scene) return;
+    try {
+      const blob = await scene.snapshot();
+      const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `beacon-${id}-${stamp}.png`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
+      let copied = false;
+      if (typeof ClipboardItem !== "undefined" && navigator.clipboard?.write) {
+        await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]).then(
+          () => {
+            copied = true;
+          },
+          () => {},
+        );
+      }
+      toast.success(copied ? "Screenshot saved and copied" : "Screenshot saved");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not take the screenshot");
+    }
+  }, [id]);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "F2" || e.repeat) return;
+      e.preventDefault();
+      void screenshot();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [screenshot]);
 
   const worldPlayers = useMemo(() => players.filter((p) => p.world === world), [players, world]);
   const idle = worldPlayers.length === 0;
@@ -461,6 +565,16 @@ export function LiveView({ popout }: { popout?: boolean }) {
     setRadius: (r) => setRadius(String(r)),
     glow,
     setGlow,
+    relief,
+    setRelief,
+    pixelScale,
+    setPixelScale,
+    leaves,
+    setLeaves,
+    textures,
+    setTextures,
+    brightness: Number(brightness),
+    setBrightness: (percent: number) => setBrightness(String(percent)),
     debug,
     setDebug,
   };
@@ -523,7 +637,7 @@ export function LiveView({ popout }: { popout?: boolean }) {
           ))}
         </div>
         {worldVisible && (
-          <div className="pointer-events-none absolute inset-x-0 top-2 flex flex-col items-center gap-1">
+          <div className="pointer-events-none absolute inset-x-0 top-2 flex items-start justify-center gap-1">
             <Select items={CAMERA_LABELS} value={cameraMode} onValueChange={(v) => v && setCameraMode(v as CameraMode)}>
               <SelectTrigger className={cn("pointer-events-auto", OVERLAY)} aria-label="Camera">
                 <CameraIcon mode={cameraMode} className="size-4" />
@@ -544,6 +658,25 @@ export function LiveView({ popout }: { popout?: boolean }) {
                 ))}
               </SelectContent>
             </Select>
+            <Button
+              size="icon"
+              variant="outline"
+              className={cn(
+                "pointer-events-auto",
+                OVERLAY,
+                nightVision && "border-primary bg-primary/20 text-primary dark:bg-primary/20",
+              )}
+              aria-pressed={nightVision}
+              onClick={() => setNightVision(!nightVision)}
+              title={
+                nightVision
+                  ? "Night vision on: everything lit as full daylight, like the game's potion · click for the server's light"
+                  : "Night vision: everything lit as full daylight, like the game's potion, so caves and nights stay readable"
+              }
+              aria-label="Night vision"
+            >
+              {nightVision ? <Flashlight className="fill-current" /> : <FlashlightOff />}
+            </Button>
           </div>
         )}
         <div className="absolute top-2 right-2 flex items-center gap-1">
@@ -587,6 +720,19 @@ export function LiveView({ popout }: { popout?: boolean }) {
             </div>
           ))}
         </div>
+        {/* Bottom right: a screenshot, and the debug figures when asked. */}
+        {worldVisible && (
+          <Button
+            size="icon"
+            variant="outline"
+            className={cn("absolute right-2 bottom-2", OVERLAY, debug && "bottom-12")}
+            onClick={() => void screenshot()}
+            title="Screenshot (F2): saves the scene as a PNG and copies it"
+            aria-label="Screenshot"
+          >
+            <Camera />
+          </Button>
+        )}
         {/* Bottom left: voice; bottom right: the debug figures. */}
         <div className="absolute bottom-2 left-2 z-10 flex flex-col items-start gap-1">
           <VoicePresencePill status={voiceStatus} />
@@ -598,13 +744,25 @@ export function LiveView({ popout }: { popout?: boolean }) {
           </p>
         )}
         {debug && worldVisible && (
-          <Chip
-            className="absolute right-2 bottom-2 tabular-nums"
-            title="Chunks in the 3D view out of what the radius allows; the daemon keeps every chunk it has ever seen"
-          >
-            {stats.chunks} / {(2 * effectiveRadius + 1) ** 2} chunks
-            {stats.pending ? ` · ${stats.pending} loading` : ""}
-          </Chip>
+          <div className="absolute right-2 bottom-2 flex items-center gap-1">
+            <Button
+              size="sm"
+              variant="outline"
+              className={cn("pointer-events-auto", OVERLAY)}
+              onClick={() => setRebuild((n) => n + 1)}
+              title="Drops every chunk the viewer holds, builds a new mesher and fetches the world again from the daemon. The camera returns to the opening shot."
+            >
+              <RotateCcw data-icon="inline-start" />
+              Reload world
+            </Button>
+            <Chip
+              className="tabular-nums"
+              title="Chunks in the 3D view out of what the radius allows; the daemon keeps every chunk it has ever seen"
+            >
+              {stats.chunks} / {(2 * effectiveRadius + 1) ** 2} chunks
+              {stats.pending ? ` · ${stats.pending} loading` : ""}
+            </Chip>
+          </div>
         )}
         {((idle && transition !== "leaving") || transition === "charging") && (
           <div className="pointer-events-none absolute inset-x-0 bottom-8 flex justify-center">

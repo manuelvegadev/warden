@@ -122,13 +122,12 @@ export function starBrightness(time: number): number {
 }
 
 /**
- * The multiplier for the terrain's baked colours, per channel 0..1: full at sky light 15, dim and
- * bluish at 4 (moonlight), the way the game's light map reads at default gamma.
+ * The game's sky darken: how much of the world's sky light the hour lets through, 1 by day down to
+ * 0.2 at night, less in rain and less again in thunder. What the light map scales sky light by.
  */
-export function terrainLight(clock: WorldClock): RGB {
-  const level = skyLight(clock.time) - (clock.thunder ? 3 : clock.rain ? 1 : 0);
-  const t = clamp01(Math.max(0, level) / 15);
-  const b = 0.16 + 0.84 * t ** 1.6;
-  const night = 1 - t;
-  return [b * (1 - night * 0.35), b * (1 - night * 0.22), b];
+export function skyDarken(clock: WorldClock): number {
+  let f = 1 - clamp01(1 - (Math.cos(celestialAngle(clock.time) * 2 * Math.PI) * 2 + 0.2));
+  if (clock.rain || clock.thunder) f *= 1 - 5 / 16;
+  if (clock.thunder) f *= 1 - 5 / 16;
+  return f * 0.8 + 0.2;
 }

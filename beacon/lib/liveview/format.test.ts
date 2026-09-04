@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { gzipSync } from "node:zlib";
-import { decodeChunk, FLAG_GRASS, FLAG_WATER, gunzip, parseBatch } from "./format";
+import { decodeChunk, FLAG_GRASS, FLAG_WATER, gunzip, ORIENTATIONS, parseBatch } from "./format";
 
 /** Builds a payload the way the agent's ChunkEncoder.serialize does. */
 export function encodePayload(opts: {
@@ -9,25 +9,30 @@ export function encodePayload(opts: {
   cz: number;
   yMin: number;
   yMax: number;
-  palette: number[][]; // [r,g,b,flags], entry 0 = air
+  palette: number[][]; // [r,g,b,flags] or [r,g,b,flags,orient] (WCK3 when any entry has five), entry 0 = air
   names?: string[]; // one per palette entry
   biomes?: string[];
   block: (x: number, y: number, z: number) => number;
+  /** Sky and block light per cell (0–15 each); given, the payload is WCK4. */
+  light?: (x: number, y: number, z: number) => [number, number];
 }): Uint8Array {
   const height = opts.yMax - opts.yMin + 1;
   const biomes = opts.biomes ?? ["plains"];
   const enc = new TextEncoder();
   const biomeBytes = biomes.map((b) => enc.encode(b));
   const names = (opts.names ?? FLAT_NAMES).map((n) => enc.encode(n));
+  const wck4 = opts.light !== undefined;
+  const wck3 = wck4 || opts.palette.some((e) => e.length > 4);
+  const entryHead = wck3 ? 6 : 5;
   const size =
     20 +
-    names.reduce((n, b) => n + 5 + b.length, 0) +
+    names.reduce((n, b) => n + entryHead + b.length, 0) +
     biomeBytes.reduce((n, b) => n + 1 + b.length, 0) +
     256 +
-    256 * height;
+    256 * height * (wck4 ? 2 : 1);
   const buf = new Uint8Array(size);
   const view = new DataView(buf.buffer);
-  view.setUint32(0, 0x324b4357, true);
+  view.setUint32(0, wck4 ? 0x344b4357 : wck3 ? 0x334b4357 : 0x324b4357, true);
   view.setInt32(4, opts.cx, true);
   view.setInt32(8, opts.cz, true);
   view.setInt16(12, opts.yMin, true);
@@ -36,10 +41,11 @@ export function encodePayload(opts: {
   buf[18] = biomes.length;
   let p = 20;
   opts.palette.forEach((e, i) => {
-    buf.set(e, p);
-    buf[p + 4] = names[i].length;
-    buf.set(names[i], p + 5);
-    p += 5 + names[i].length;
+    buf.set(e.slice(0, 4), p);
+    if (wck3) buf[p + 4] = e[4] ?? 0;
+    buf[p + entryHead - 1] = names[i].length;
+    buf.set(names[i], p + entryHead);
+    p += entryHead + names[i].length;
   });
   for (const b of biomeBytes) {
     buf[p++] = b.length;
@@ -50,7 +56,12 @@ export function encodePayload(opts: {
   for (let x = 0; x < 16; x++) {
     for (let z = 0; z < 16; z++) {
       for (let y = opts.yMin; y <= opts.yMax; y++) {
-        buf[p + (x * 16 + z) * height + (y - opts.yMin)] = opts.block(x, y, z);
+        const i = (x * 16 + z) * height + (y - opts.yMin);
+        buf[p + i] = opts.block(x, y, z);
+        if (opts.light) {
+          const [sky, block] = opts.light(x, y, z);
+          buf[p + 256 * height + i] = (sky << 4) | block;
+        }
       }
     }
   }
@@ -82,7 +93,7 @@ describe("decodeChunk", () => {
     assert.equal(c.yMax, 70);
     assert.equal(c.height, 15);
     assert.equal(c.entries.length, 4);
-    assert.deepEqual(c.entries[2], { name: "grass_block", rgb: [127, 178, 56], flags: FLAG_GRASS });
+    assert.deepEqual(c.entries[2], { name: "grass_block", rgb: [127, 178, 56], flags: FLAG_GRASS, orient: 0 });
     assert.deepEqual(
       c.entries.map((e) => e.name),
       FLAT_NAMES,
@@ -94,6 +105,47 @@ describe("decodeChunk", () => {
     assert.equal(c.blocks[col + (64 - 56)], 3);
     assert.equal(c.blocks[col + (63 - 56)], 1);
     assert.equal(c.blocks[col + (65 - 56)], 0);
+  });
+
+  it("reads WCK3's orientation byte and leaves WCK2 entries unturned", () => {
+    const turned = decodeChunk(
+      encodePayload({
+        cx: 0,
+        cz: 0,
+        yMin: 60,
+        yMax: 61,
+        names: ["air", "oak_log"],
+        palette: [
+          [0, 0, 0, 0, 0],
+          [143, 106, 62, 0, 1],
+        ],
+        block: (_x, y) => (y === 60 ? 1 : 0),
+      }),
+    );
+    assert.equal(turned.entries[1].orient, 1, "axis x");
+    assert.equal(ORIENTATIONS[turned.entries[1].orient], "x");
+    const flat = decodeChunk(
+      encodePayload({ cx: 0, cz: 0, yMin: 60, yMax: 61, palette: [[0, 0, 0, 0]], block: () => 0 }),
+    );
+    assert.equal(flat.entries[0].orient, 0);
+  });
+
+  it("reads WCK4's light bytes", () => {
+    const c = decodeChunk(
+      encodePayload({
+        cx: 0,
+        cz: 0,
+        yMin: 60,
+        yMax: 61,
+        palette: [[0, 0, 0, 0]],
+        block: () => 0,
+        light: (x, y) => (x === 1 && y === 61 ? [3, 14] : [15, 0]),
+      }),
+    );
+    assert.ok(c.light);
+    const at = (x: number, y: number, z: number) => c.light?.[(x * 16 + z) * c.height + (y - c.yMin)] ?? -1;
+    assert.equal(at(0, 60, 0), 0xf0, "sky 15, no block light");
+    assert.equal(at(1, 61, 0), (3 << 4) | 14);
   });
 
   it("rejects other data", () => {

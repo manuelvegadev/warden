@@ -7,9 +7,9 @@ import {
   fogColor,
   skyBrightness,
   skyColor,
+  skyDarken,
   skyLight,
   sunriseColor,
-  terrainLight,
 } from "./sky";
 
 const clear = (time: number) => ({ day: 34, time, gameTime: 0, rain: false, thunder: false });
@@ -67,11 +67,11 @@ describe("sky", () => {
     assert.ok(Math.abs(rain[0] - rain[2]) < Math.abs(day[0] - day[2]), "rain is greyer");
   });
 
-  it("lights the terrain fully by day and dimly, bluish, at night", () => {
-    assert.deepEqual(terrainLight(clear(6000)), [1, 1, 1]);
-    const night = terrainLight(clear(18000));
-    assert.ok(night[2] > night[0] && night[2] < 0.35 && night[0] > 0.1, `night ${night}`);
-    const rainy = terrainLight({ day: 1, time: 6000, gameTime: 0, rain: true, thunder: false });
-    assert.ok(rainy[0] < 1 && rainy[0] > 0.8);
+  it("lets all the sky light through by day and a fifth at night, less in the rain", () => {
+    assert.equal(skyDarken(clear(6000)), 1);
+    assert.ok(Math.abs(skyDarken(clear(18000)) - 0.2) < 1e-9);
+    const rainy = skyDarken({ day: 1, time: 6000, gameTime: 0, rain: true, thunder: false });
+    const stormy = skyDarken({ day: 1, time: 6000, gameTime: 0, rain: true, thunder: true });
+    assert.ok(rainy < 1 && stormy < rainy);
   });
 });

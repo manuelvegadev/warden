@@ -5,6 +5,7 @@ import {
   BufferAttribute,
   BufferGeometry,
   Color,
+  type DataArrayTexture,
   DoubleSide,
   Fog,
   Group,
@@ -33,8 +34,9 @@ import { horizontalFog } from "./fog";
 import { chunkKey, parseChunkKey } from "./format";
 import { Glow } from "./glow";
 import type { MeshData, MeshPart } from "./mesher";
-import { DEFAULT_SKY, dayTime, fogColor, type RGB, skyColor, terrainLight, type WorldClock } from "./sky";
-import { terrainMaterial } from "./terrain-material";
+import { DEFAULT_SKY, dayTime, fogColor, type RGB, skyColor, skyDarken, type WorldClock } from "./sky";
+import { type TerrainUniforms, terrainMaterial } from "./terrain-material";
+import { whiteTiles } from "./textures";
 
 interface LoadedChunk {
   hash: string;
@@ -105,13 +107,27 @@ export class LiveViewScene {
   /** The players' outline, the game's Glowing effect, in the modes that look at them from outside. */
   private readonly glow: Glow;
   private glowWanted = true;
-  /** The map's relief blend, 1 on the map; shared by the terrain materials (terrain-material.ts). */
+  /** The map's relief blend, 1 on the map when the shading is on; shared by the terrain materials (terrain-material.ts). */
   private readonly relief = { value: 0 };
-  private readonly opaqueMaterial = terrainMaterial(new MeshBasicMaterial({ vertexColors: true }), this.relief);
+  /** The map's relief shading setting: a vanilla map's three shades by the height of the block to the north. */
+  private reliefOn = true;
+  /** What both terrain materials share: the block face tiles (white until the fetched art arrives), the hour's sky light colour, the relief and night vision. */
+  private readonly terrainUniforms: TerrainUniforms = {
+    relief: this.relief,
+    tiles: { value: whiteTiles() },
+    skyDarken: { value: 1 },
+    gamma: { value: 0.45 },
+    nightVision: { value: 0 },
+  };
+  // The alpha test is for the cut-outs (fancy leaves); every other opaque tile is solid anyway.
+  private readonly opaqueMaterial = terrainMaterial(
+    new MeshBasicMaterial({ vertexColors: true, alphaTest: 0.5 }),
+    this.terrainUniforms,
+  );
   // Translucency comes per vertex (RGBA colours): water, ice, glass and leaves in one pass.
   private readonly transMaterial = terrainMaterial(
     new MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false }),
-    this.relief,
+    this.terrainUniforms,
   );
   private world = "";
   private loaded = new Map<string, LoadedChunk>();
@@ -271,7 +287,6 @@ export class LiveViewScene {
     const k = dt > 0 ? 1 - Math.exp(-dt / LIGHT_EASE_SECONDS) : 1;
     const sky = ease(this.shownSky, skyColor(base, this.clock), k);
     const fog = ease(this.shownFog, fogColor(base, this.clock), k);
-    const light = ease(this.shownLight, terrainLight(this.clock), k);
     (this.scene.background as Color).setRGB(sky[0] / 255, sky[1] / 255, sky[2] / 255);
     this.fog.color.setRGB(fog[0] / 255, fog[1] / 255, fog[2] / 255);
     this.dome.position.copy(this.rig.active.position);
@@ -280,15 +295,15 @@ export class LiveViewScene {
       this.lastDome = key;
       paintSkyDome(this.dome, sky, fog);
     }
-    this.opaqueMaterial.color.setRGB(light[0], light[1], light[2]);
-    this.transMaterial.color.setRGB(light[0], light[1], light[2]);
+    // The hour's darkening of sky light; the vertices carry how much sky light each face gets.
+    const darken = this.terrainUniforms.skyDarken;
+    darken.value += (skyDarken(this.clock) - darken.value) * k;
     this.celestial.update(this.clock, this.rig.active.position, this.fog.far);
   }
 
   private lastSky: RGB = DEFAULT_SKY;
   private readonly shownSky: RGB = [...DEFAULT_SKY];
   private readonly shownFog: RGB = [...DEFAULT_SKY];
-  private readonly shownLight: RGB = [1, 1, 1];
 
   /** The server had no data for these keys: do not ask again for a while. */
   markAbsent(keys: [number, number][]) {
@@ -339,7 +354,7 @@ export class LiveViewScene {
   private place(
     cx: number,
     cz: number,
-    { positions, colors, mapShade, indices }: MeshPart,
+    { positions, colors, mapShade, tileUv, tileLayer, light, indices }: MeshPart,
     material: MeshBasicMaterial,
   ): Mesh | null {
     if (indices.length === 0) return null;
@@ -347,6 +362,9 @@ export class LiveViewScene {
     g.setAttribute("position", new BufferAttribute(positions, 3));
     g.setAttribute("color", new BufferAttribute(colors, 4, true));
     g.setAttribute("mapShade", new BufferAttribute(mapShade, 1, true));
+    g.setAttribute("tileUv", new BufferAttribute(tileUv, 2, true));
+    g.setAttribute("tileLayer", new BufferAttribute(tileLayer, 1));
+    g.setAttribute("light", new BufferAttribute(light, 2, true));
     g.setIndex(new BufferAttribute(indices, 1));
     g.computeBoundingSphere();
     // Whole blocks only: vertices must stay exact integers or neighbouring chunks show hairline cracks.
@@ -445,17 +463,43 @@ export class LiveViewScene {
     const t = CAMERA_TRAITS[mode];
     // The map reads height from relief, not from sides; clouds would only cover it, and fog would
     // grey out its edges, which the zoom already keeps within the loaded chunks.
-    this.relief.value = t.ortho ? 1 : 0;
     this.celestial.clouds.visible = !t.ortho;
     this.scene.fog = t.ortho ? null : this.fog;
     const a = this.followed();
     this.rig.setMode(mode);
+    this.applyRelief();
     this.applyGlow();
     // Back out of the eyes to the opening aerial shot over the player.
     if (prev === "eyes" && a) this.rig.jumpTo(a.group.position, CAMERA_OFFSET);
     if (t.lands && a) this.jumpTo(a.group.position);
     if (t.needsPlayer && !a) this.follow(this.avatars.keys().next().value ?? null);
     this.lastPlan = 0;
+  }
+
+  /** The block textures arrived: the terrain samples them from now on (the worker re-meshes with the tiles). */
+  setBlockTextures(texture: DataArrayTexture) {
+    this.terrainUniforms.tiles.value.dispose();
+    this.terrainUniforms.tiles.value = texture;
+  }
+
+  /** The map's relief shading, as a vanilla map shades slopes: only the map camera shows it. */
+  setRelief(on: boolean) {
+    this.reliefOn = on;
+    this.applyRelief();
+  }
+
+  private applyRelief() {
+    this.relief.value = this.reliefOn && this.rig.traits.ortho ? 1 : 0;
+  }
+
+  /** The game's brightness option, 0 (moody) to 1 (bright): how much the light map's gamma lifts the dark. */
+  setBrightness(gamma: number) {
+    this.terrainUniforms.gamma.value = gamma;
+  }
+
+  /** Night vision, as the game's potion: every cell lit as full daylight, whatever the hour or the cave. */
+  setNightVision(on: boolean) {
+    this.terrainUniforms.nightVision.value = on ? 1 : 0;
   }
 
   /** Shows the camera's pivot, to see what a click or the wheel picked. */
@@ -490,6 +534,26 @@ export class LiveViewScene {
   }
 
   // ---- loop ----
+
+  /**
+   * The scene as a PNG: one frame drawn on the spot and read back before the browser composites it
+   * (the drawing buffer is not preserved otherwise). The name tags are HTML, so they are not in it.
+   */
+  snapshot(): Promise<Blob> {
+    if (!this.idle) {
+      this.renderer.render(this.scene, this.rig.active);
+      this.glow.render(this.scene, this.rig.active);
+    }
+    return new Promise((resolve, reject) =>
+      this.canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error("the canvas gave no image"))), "image/png"),
+    );
+  }
+
+  /** Device pixels per CSS pixel the canvas renders at: 1 by default, the screen's for a Retina-sharp view. */
+  setPixelRatio(ratio: number) {
+    this.renderer.setPixelRatio(ratio);
+    this.resize();
+  }
 
   resize() {
     fitRenderer(this.renderer, this.camera, this.canvas);
@@ -747,6 +811,7 @@ export class LiveViewScene {
     this.glow.dispose();
     this.rig.dispose();
     this.opaqueMaterial.dispose();
+    this.terrainUniforms.tiles.value.dispose();
     this.transMaterial.dispose();
     this.renderer.dispose();
   }

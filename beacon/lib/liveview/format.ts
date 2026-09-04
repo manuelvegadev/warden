@@ -6,10 +6,20 @@
 export const FLAG_GRASS = 1;
 export const FLAG_FOLIAGE = 2;
 export const FLAG_WATER = 4;
+/** The cell holds water besides the block: a waterlogged block, or a plant the game keeps in water. */
+export const FLAG_WATERLOGGED = 8;
 /** Solid but not a full cube (slabs, stairs, fences). Boxed for now. */
 export const FLAG_PARTIAL = 16;
 
-const MAGIC = 0x324b4357; // "WCK2"
+const MAGIC_2 = 0x324b4357; // "WCK2": no orientation byte
+const MAGIC_3 = 0x334b4357; // "WCK3": one orientation byte per palette entry
+const MAGIC_4 = 0x344b4357; // "WCK4": WCK3 plus one light byte per cell after the blocks
+
+/**
+ * How a block is turned, as the agent codes it: 0 none, 1–3 an axis (x, y, z), 4–9 a facing
+ * (down, up, north, south, west, east). Indexes `ORIENTATIONS`.
+ */
+export const ORIENTATIONS = ["", "x", "y", "z", "down", "up", "north", "south", "west", "east"] as const;
 
 export interface PaletteEntry {
   /** Block key ("grass_block"), what the texture colour table is looked up by. */
@@ -17,6 +27,8 @@ export interface PaletteEntry {
   /** The game's map colour: the fallback when the table does not know the block. */
   rgb: [number, number, number];
   flags: number;
+  /** An index into `ORIENTATIONS`; 0 for blocks that have none (and for every WCK2 chunk). */
+  orient: number;
 }
 
 export interface ChunkData {
@@ -34,12 +46,20 @@ export interface ChunkData {
   biomes: Uint8Array;
   /** One palette index per block, `(x * 16 + z) * height + (y - yMin)`. */
   blocks: Uint8Array;
+  /**
+   * The server's light per cell, indexed like `blocks`: the sky level in the high nibble, the block
+   * light in the low one. Missing on chunks from older agents (drawn as full daylight).
+   */
+  light?: Uint8Array;
 }
 
 /** Decodes an uncompressed payload. Throws on a bad magic or a truncated buffer. */
 export function decodeChunk(payload: Uint8Array): ChunkData {
   const view = new DataView(payload.buffer, payload.byteOffset, payload.byteLength);
-  if (payload.byteLength < 20 || view.getUint32(0, true) !== MAGIC) throw new Error("not a WCK2 chunk");
+  const magic = payload.byteLength >= 20 ? view.getUint32(0, true) : 0;
+  if (magic !== MAGIC_2 && magic !== MAGIC_3 && magic !== MAGIC_4) throw new Error("not a WCK2/3/4 chunk");
+  const oriented = magic !== MAGIC_2;
+  const lit = magic === MAGIC_4;
   const cx = view.getInt32(4, true);
   const cz = view.getInt32(8, true);
   const yMin = view.getInt16(12, true);
@@ -62,8 +82,9 @@ export function decodeChunk(payload: Uint8Array): ChunkData {
     if (p + 4 > payload.byteLength) throw new Error("truncated chunk");
     const rgb: [number, number, number] = [payload[p], payload[p + 1], payload[p + 2]];
     const flags = payload[p + 3];
-    p += 4;
-    entries.push({ name: str(), rgb, flags });
+    const orient = oriented ? payload[p + 4] : 0;
+    p += oriented ? 5 : 4;
+    entries.push({ name: str(), rgb, flags, orient: orient < ORIENTATIONS.length ? orient : 0 });
   }
   const biomeNames: string[] = [];
   for (let i = 0; i < biomeLen; i++) biomeNames.push(str());
@@ -72,7 +93,10 @@ export function decodeChunk(payload: Uint8Array): ChunkData {
   const height = yMax - yMin + 1;
   const blocks = payload.subarray(p, p + 256 * height);
   if (blocks.byteLength !== 256 * height) throw new Error("truncated chunk");
-  return { cx, cz, yMin, yMax, height, entries, biomeNames, biomes, blocks };
+  p += 256 * height;
+  const light = lit ? payload.subarray(p, p + 256 * height) : undefined;
+  if (light && light.byteLength !== 256 * height) throw new Error("truncated chunk");
+  return { cx, cz, yMin, yMax, height, entries, biomeNames, biomes, blocks, light };
 }
 
 export interface ChunkRecord {
