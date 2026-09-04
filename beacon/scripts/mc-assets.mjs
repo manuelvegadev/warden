@@ -21,6 +21,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { inflateRawSync } from "node:zlib";
+import { buildAtlas } from "./mc-atlas.mjs";
 
 const PISTON_MANIFEST = "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json";
 const BEDROCK_RELEASES = "https://api.github.com/repos/Mojang/bedrock-samples/releases";
@@ -156,6 +157,7 @@ async function main() {
   const pinnedSame = (want, got) => want === "latest" || want === got;
   if (complete && !force && pinnedSame(wantJava, have.java) && pinnedSame(wantBedrock, have.bedrock)) {
     log(`mc-assets: keeping Java ${have.java} and Bedrock samples ${have.bedrock} in ${dir}`);
+    if (!existsSync(join(dir, "derived", "blocks.json"))) atlas();
     return;
   }
   const [java, bedrock] = await Promise.all([resolveJava(wantJava), resolveBedrock(wantBedrock)]);
@@ -176,7 +178,14 @@ async function main() {
   log(`mc-assets: ${bedrockFiles} files from the Bedrock samples`);
   const manifest = { java: java.version, bedrock: bedrock.tag, fetchedAt: new Date().toISOString() };
   writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+  atlas();
   log(`mc-assets: ready in ${dir}`);
+}
+
+/** What the viewer draws blocks with, derived from the art just fetched. */
+function atlas() {
+  const r = buildAtlas(dir);
+  log(`mc-assets: ${r.tiles} block face tiles for ${r.blocks} blocks`);
 }
 
 main().catch((e) => {

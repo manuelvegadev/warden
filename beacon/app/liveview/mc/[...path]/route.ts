@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import { extname, resolve, sep } from "node:path";
 import { NextResponse } from "next/server";
 import { mcAssetsDir } from "@/lib/mc-assets";
@@ -17,7 +17,7 @@ const TYPES: Record<string, string> = {
  * `$MC_ASSETS_DIR/<path>`, for signed-in users, cached for a day. Not a static route on purpose:
  * the tree is Mojang's and lives outside the image and the repository.
  */
-export async function GET(_req: Request, ctx: { params: Promise<{ path: string[] }> }) {
+export async function GET(req: Request, ctx: { params: Promise<{ path: string[] }> }) {
   if (!(await getSession())) return new NextResponse(null, { status: 401 });
   const { path } = await ctx.params;
   const root = mcAssetsDir();
@@ -25,8 +25,13 @@ export async function GET(_req: Request, ctx: { params: Promise<{ path: string[]
   const type = TYPES[extname(file)];
   if (!type || !file.startsWith(root + sep)) return new NextResponse(null, { status: 404 });
   try {
+    // Derived files change when the art is fetched again: the viewer revalidates, and a match is a 304.
+    const info = await stat(file);
+    const etag = `"${info.size}-${Math.round(info.mtimeMs)}"`;
+    const headers = { ETag: etag, "Cache-Control": "private, max-age=86400" };
+    if (req.headers.get("if-none-match") === etag) return new NextResponse(null, { status: 304, headers });
     const body = await readFile(file);
-    return new NextResponse(body, { headers: { "Content-Type": type, "Cache-Control": "private, max-age=86400" } });
+    return new NextResponse(body, { headers: { ...headers, "Content-Type": type } });
   } catch {
     return new NextResponse(null, { status: 404 });
   }

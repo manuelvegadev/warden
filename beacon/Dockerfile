@@ -32,7 +32,7 @@ RUN groupadd -r beacon && useradd -r -g beacon beacon && mkdir -p /data && chown
 COPY --from=build --chown=beacon:beacon /repo/beacon/.next/standalone ./
 COPY --from=build --chown=beacon:beacon /repo/beacon/.next/static ./beacon/.next/static
 COPY --from=build --chown=beacon:beacon /repo/beacon/public ./beacon/public
-COPY --from=build --chown=beacon:beacon /repo/beacon/scripts/mc-assets.mjs ./beacon/scripts/mc-assets.mjs
+COPY --from=build --chown=beacon:beacon /repo/beacon/scripts ./beacon/scripts
 USER beacon
 VOLUME ["/data"]
 EXPOSE 3000

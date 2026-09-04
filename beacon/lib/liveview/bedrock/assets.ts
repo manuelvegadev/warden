@@ -10,7 +10,7 @@ const geometryFiles = new Map<string, Promise<Map<string, Geometry>>>();
 export function loadGeometryFile(path: string): Promise<Map<string, Geometry>> {
   let p = geometryFiles.get(path);
   if (!p) {
-    p = fetch(`${MC_ASSETS}/${path}`)
+    p = fetch(`${MC_ASSETS}/${path}`, { cache: "no-cache" })
       .then((res) => {
         if (!res.ok) throw new Error(`${path}: HTTP ${res.status}`);
         return res.text();

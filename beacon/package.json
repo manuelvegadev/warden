@@ -16,6 +16,7 @@
     "test": "node --import ./scripts/test-resolve.mjs --test \"lib/**/*.test.ts\"",
     "block-colors": "node scripts/block-colors.mjs",
     "mc:assets": "node scripts/mc-assets.mjs",
+    "mc:atlas": "node scripts/mc-atlas.mjs",
     "postinstall": "node scripts/mc-assets.mjs"
   },
   "dependencies": {
