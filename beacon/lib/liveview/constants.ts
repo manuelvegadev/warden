@@ -23,5 +23,7 @@ export const HANDOVER_REVEAL_MS = 700;
 export const HANDOVER_FLASH_MS = 250;
 
 /** A player's eyes above their feet, standing and sneaking (the game's values): the camera in player mode and where a voice comes from. */
+/** The game's clock rate. */
+export const TICKS_PER_SECOND = 20;
 export const EYE_HEIGHT = 1.62;
 export const EYE_HEIGHT_SNEAKING = 1.27;

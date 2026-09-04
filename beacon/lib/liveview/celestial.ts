@@ -18,11 +18,11 @@ import {
   TextureLoader,
   type Vector3,
 } from "three";
-import { crisp } from "./avatar";
 import { SKY_DOME_RADIUS } from "./constants";
 import { horizontalFog } from "./fog";
 import { JavaRandom } from "./java-random";
 import { celestialAngle, greyTowards, type RGB, skyBrightness, starBrightness, type WorldClock } from "./sky";
+import { crisp } from "./texture";
 
 /** Where the sky is drawn: just inside the sky dome. */
 const SKY_RADIUS = SKY_DOME_RADIUS - 100;

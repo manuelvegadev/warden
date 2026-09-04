@@ -46,6 +46,15 @@ Build a deliberately simple viewer of our own, scoped to **what players can see*
   client jar into `lib/liveview/blocks.json` (with translucency and which biome tint applies), and
   the same script reads the biome colormaps so grass, foliage and water are tinted per column biome.
   The map colour is the fallback for blocks the table does not know (mods, newer versions).
+- **The game's own art, fetched where Beacon runs, never shipped.** Textures, block models and
+  the entity geometries and animations are Mojang's, so they are not in the repository or the
+  image. `scripts/mc-assets.mjs` (run by `pnpm install`, and by the container's entrypoint into
+  `/data`) downloads the client jar from piston-meta and Mojang's public `bedrock-samples`
+  release, and keeps textures, block models, blockstates, entity geometries and animations under
+  `data/mc-assets`; Beacon serves that tree at `/liveview/mc/…` to signed-in users. The player is
+  drawn from the pack's own humanoid geometry (`lib/liveview/bedrock`: the file's bones and cubes
+  as one skinned mesh, one draw call per model) and posed with the pack's player animations,
+  ported as arithmetic rather than through a Molang interpreter. Mobs will come the same way.
 - **Covers repaint the block under them.** A snow layer is not sent as a block (it is not a full
   cube) but the grass beneath it is sent as snow, as the game shows snowy grass sides. The rule
   lives in the agent's palette so carpets can join it.

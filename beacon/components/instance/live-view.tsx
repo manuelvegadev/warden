@@ -285,6 +285,8 @@ export function LiveView({ popout }: { popout?: boolean }) {
         skinUrl: skins.full,
       });
       sceneRef.current = scene;
+      // A handle for measuring the renderer from the console while developing.
+      if (process.env.NODE_ENV !== "production") (window as { __beaconScene?: LiveViewScene }).__beaconScene = scene;
       worker.onmessage = (ev: MessageEvent<WorkerResponse>) => {
         const msg = ev.data;
         if (msg.type === "mesh") scene?.setChunkMesh(msg.world, msg.cx, msg.cz, msg.hash, msg.mesh, msg.sky);

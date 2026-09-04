@@ -1,12 +1,10 @@
 // The three.js side of the live view: renderer, camera rig, one mesh pair (opaque + water) per
 // chunk, avatars, and the bookkeeping of which chunks around the focus are wanted.
 import {
-  AmbientLight,
   BackSide,
   BufferAttribute,
   BufferGeometry,
   Color,
-  DirectionalLight,
   DoubleSide,
   Fog,
   Group,
@@ -30,7 +28,7 @@ import { CameraRig } from "./camera";
 import { CAMERA_TRAITS, type CameraMode, FOV } from "./camera-modes";
 import { fitRenderer } from "./canvas";
 import { Celestial } from "./celestial";
-import { EYE_HEIGHT, RADIUS_MAX, RADIUS_MIN, SKY_DOME_RADIUS } from "./constants";
+import { EYE_HEIGHT, RADIUS_MAX, RADIUS_MIN, SKY_DOME_RADIUS, TICKS_PER_SECOND } from "./constants";
 import { horizontalFog } from "./fog";
 import { chunkKey, parseChunkKey } from "./format";
 import { Glow } from "./glow";
@@ -80,13 +78,9 @@ export interface SceneOptions {
 const ABSENT_RETRY_MS = 20_000;
 /** A request that never came back is retried after this. */
 const PENDING_RETRY_MS = 15_000;
-/** The lights for the player models (the terrain's shading is baked in), at full daylight. */
-const AMBIENT_LIGHT = 2.2;
-const SUN_LIGHT = 2.0;
 /** Sky, fog and light ease towards their targets with this time constant, in seconds. */
 const LIGHT_EASE_SECONDS = 1.2;
-/** The game's clock rate, and how the local clock follows the server's samples. */
-const TICKS_PER_SECOND = 20;
+/** How the local clock follows the server's samples. */
 const CLOCK_SNAP_TICKS = 40;
 const CLOCK_CORRECTION = 0.3;
 /** Chunks per request. Ring order means the nearest batch lands first; the daemon caps a request at 1024. */
@@ -129,8 +123,6 @@ export class LiveViewScene {
   private clockSample: WorldClock | null = null;
   private clocks: Record<string, WorldClock> = {};
   private clockSampledAt = 0;
-  private readonly ambient = new AmbientLight(0xffffff, AMBIENT_LIGHT);
-  private readonly sun = new DirectionalLight(0xffffff, SUN_LIGHT);
   private readonly fog = new Fog(0x9fc4e7, 1, 2);
   private readonly dome = makeSkyDome();
   private readonly celestial = new Celestial("/liveview");
@@ -174,11 +166,6 @@ export class LiveViewScene {
     this.scene.add(this.dome);
     this.scene.add(this.celestial.sky);
     this.scene.add(this.celestial.clouds);
-    // Terrain shading is baked into vertex colours (MeshBasicMaterial ignores lights); the lights are
-    // for the skinview3d player models, whose standard material renders black without them.
-    this.sun.position.set(0.4, 1, 0.6);
-    this.scene.add(this.ambient);
-    this.scene.add(this.sun);
     this.scene.add(this.terrain);
     this.scene.add(this.pivotMarker);
     this.scene.add(this.emitter.point, this.emitter.range);
@@ -295,9 +282,6 @@ export class LiveViewScene {
     }
     this.opaqueMaterial.color.setRGB(light[0], light[1], light[2]);
     this.transMaterial.color.setRGB(light[0], light[1], light[2]);
-    const l = (light[0] + light[1] + light[2]) / 3;
-    this.ambient.intensity = AMBIENT_LIGHT * l;
-    this.sun.intensity = SUN_LIGHT * l;
     this.celestial.update(this.clock, this.rig.active.position, this.fog.far);
   }
 

@@ -1,59 +1,38 @@
-// A player in the scene: the skinview3d model (a THREE.Group) animated by what the agent says the
-// player is doing. Positions arrive at 5 Hz and are interpolated. The name tag is not here: it is an
-// HTML layer over the canvas that the scene positions from the head each frame.
+// A player in the scene: the game's own humanoid geometry (from the Bedrock resource pack, see
+// lib/liveview/bedrock) with the Mojang skin on it, posed every frame from what the agent says the
+// player is doing with the pack's own animations. Positions arrive at 5 Hz and are interpolated.
+// The name tag is not here: it is an HTML layer over the canvas that the scene positions from the
+// head each frame.
 
 import { inferModelType, loadImage, loadSkinToCanvas } from "skinview-utils";
-import { FlyingAnimation, IdleAnimation, PlayerObject, RunningAnimation, WalkingAnimation } from "skinview3d";
-import { CanvasTexture, Group, type Material, MathUtils, type Mesh, NearestFilter, type Texture, Vector3 } from "three";
+import { type CanvasTexture, Group, type Material, MathUtils, MeshBasicMaterial, Vector3 } from "three";
 import type { PlayerPos } from "@/lib/api";
+import { loadGeometry, loadGeometryFile } from "./bedrock/assets";
+import { buildModel, MODEL_UNIT, type Model } from "./bedrock/model";
+import { type Motion, PlayerPose } from "./bedrock/player-pose";
 import { lookDirection } from "./camera";
 import { EYE_HEIGHT, EYE_HEIGHT_SNEAKING } from "./constants";
+import { pixelTexture } from "./texture";
 
-/** Model units are skin pixels: 32 tall. A player is 1.8 blocks. */
-const SCALE = 1.8 / 32;
-/** Feet are at −24 model units (legs hang from y = −12 with a 12-unit box). */
-const FEET_OFFSET = 24 * SCALE;
+/** The player's geometries: the classic (Steve) and slim (Alex) arms, where the pack keeps each. */
+const CLASSIC = { file: "bedrock/models/entity/humanoid.custom.geo.json", id: "geometry.humanoid.custom" };
+const SLIM = { file: "bedrock/models/mobs.json", id: "geometry.humanoid.customSlim" };
+/** The pack draws the player at 0.9375 of the model's 32 units: 1.875 blocks, the game's height. */
+const PLAYER_SCALE = 0.9375;
 const LERP_PER_SECOND = 8;
 /** How far the head may turn from the body before the body follows (Minecraft: 75°). */
 const HEAD_LIMIT = MathUtils.degToRad(75);
-/** What the player is doing, from the agent's pose flags and the speed of the last samples. */
-type Motion = "idle" | "walk" | "run" | "sneak" | "jump" | "swim" | "fly" | "glide";
-/**
- * Swimming is a pose, not an animation: the body lies flat with its centre this far above the
- * player's position (the game's 0.6-block box), and the game eases in and out of it over about half
- * a second. The stroke of the arms is the only part that animates.
- */
-const SWIM_LEVEL = 0.3; // blocks: the model's position is in world units, it is the model that is scaled
-const SWIM_EASE_SECONDS = 0.55;
-const SWIM_STROKE_SPEED = 4;
-/** Sneaking, as the game draws it: the body leans forward and drops a little. */
-const SNEAK_LEAN = 0.5;
-const SNEAK_DROP = 3;
 /** Wraps an angle to (-π, π]. */
 const wrap = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
-
-/** Keeps a texture's pixels crisp, the way Minecraft draws its 16×16 art. */
-export function crisp<T extends Texture>(texture: T): T {
-  texture.magFilter = NearestFilter;
-  texture.minFilter = NearestFilter;
-  return texture;
-}
-
-export const pixelTexture = (canvas: HTMLCanvasElement) => crisp(new CanvasTexture(canvas));
 
 export class Avatar {
   readonly group = new Group();
   /** The player's UUID from the last sample; what the voice receiver keys speakers by. */
   uuid = "";
-  readonly player = new PlayerObject();
-  private readonly walk = new WalkingAnimation();
-  private readonly run = new RunningAnimation();
-  private readonly idle = new IdleAnimation();
-  private readonly glide = new FlyingAnimation();
-  /** How far into the swimming pose the body is, 0..1. */
-  private swimAmount = 0;
-  private stroke = 0;
-  private motion: Motion = "idle";
+  /** The model, once the geometry and the skin have arrived. */
+  private model: Model | null = null;
+  private pose: PlayerPose | null = null;
+  private readonly material = new MeshBasicMaterial({ alphaTest: 0.5 });
   /** The agent's last word on what the player is doing; older agents send none of the pose fields. */
   private last: Pick<PlayerPos, "pose" | "onGround" | "flying" | "inWater" | "sneaking" | "sprinting"> = {
     pose: "standing",
@@ -74,35 +53,29 @@ export class Avatar {
   private speed = 0; // blocks per second, from the last two samples
   private lastSampleAt = 0;
   private texture: CanvasTexture | null = null;
+  private hidden = false;
   private disposed = false;
 
-  /** @param decorate applied to every mesh material of the model (the scene patches fog into them). */
+  /** @param decorate applied to the model's material (the scene patches fog into it). */
   constructor(
     public readonly name: string,
     skinUrl: string,
     decorate?: (material: Material) => void,
   ) {
-    this.player.scale.setScalar(SCALE);
-    if (decorate) {
-      this.player.traverse((o) => {
-        if ((o as Mesh).isMesh) decorate((o as Mesh).material as Material);
-      });
-    }
-    this.player.position.y = FEET_OFFSET;
-    this.player.skin.visible = false; // until a texture is bound; a bare model renders as garbage
-    this.player.cape.visible = false;
-    this.player.elytra.visible = false;
-    this.group.add(this.player);
-    this.walk.headBobbing = false; // the head follows the player's look instead
-    void this.loadSkin(skinUrl);
+    decorate?.(this.material);
+    void this.load(skinUrl);
   }
 
-  private async loadSkin(url: string) {
+  /** The skin decides the geometry (slim or classic arms); both files are asked for meanwhile, once per page. */
+  private async load(url: string) {
+    void loadGeometryFile(CLASSIC.file).catch(() => {});
+    void loadGeometryFile(SLIM.file).catch(() => {});
     const canvas = document.createElement("canvas");
+    let slim = false;
     try {
       const img = await loadImage({ src: url, crossOrigin: "use-credentials" });
       loadSkinToCanvas(canvas, img);
-      this.player.skin.modelType = inferModelType(canvas);
+      slim = inferModelType(canvas) === "slim";
     } catch {
       // No Mojang skin (offline-mode name): a flat placeholder keeps the player visible.
       canvas.width = 64;
@@ -115,10 +88,23 @@ export class Avatar {
         ctx.fillRect(8, 8, 8, 8); // face
       }
     }
-    if (this.disposed) return;
+    const which = slim ? SLIM : CLASSIC;
+    const geometry = await loadGeometry(which.file, which.id).catch((e) => {
+      console.warn("live view: the player geometry is missing (run `pnpm mc:assets`)", e);
+      return null;
+    });
+    if (!geometry || this.disposed) return;
     this.texture = pixelTexture(canvas);
-    this.player.skin.map = this.texture;
-    this.player.skin.visible = true;
+    this.material.map = this.texture;
+    const model = buildModel(geometry, this.material);
+    model.mesh.scale.setScalar(MODEL_UNIT * PLAYER_SCALE);
+    // The geometry faces north (−z); yaw 0 in the game faces south, so the body turns from there.
+    model.mesh.rotation.y = Math.PI;
+    model.mesh.layers.mask = this.group.layers.mask; // marked for the outline like the group was
+    model.mesh.visible = !this.hidden;
+    this.model = model;
+    this.pose = new PlayerPose(model);
+    this.group.add(model.mesh);
   }
 
   /** New sample from the server. */
@@ -168,16 +154,18 @@ export class Avatar {
       const off = wrap(this.viewYaw - this.bodyYaw);
       if (Math.abs(off) > HEAD_LIMIT) this.bodyYaw = wrap(this.bodyYaw + off * Math.min(1, dt * 3));
     }
-    // Yaw 0 faces south (+z); the model faces +z at rotation 0, so the sign is inverted.
+    // The game's yaw grows clockwise seen from above; a rotation about +y grows the other way.
     this.group.rotation.y = -this.bodyYaw;
-    const head = this.player.skin.head;
     if (!moving) this.speed *= 0.9;
-    const motion = this.decideMotion(moving);
-    this.animate(motion, dt);
-    this.applySwimPose(motion, dt);
-    // The animations own the limbs; the head is ours, set after them so the look wins.
-    head.rotation.y = -MathUtils.clamp(wrap(this.viewYaw - this.bodyYaw), -HEAD_LIMIT, HEAD_LIMIT);
-    head.rotation.x = MathUtils.clamp(this.viewPitch, -1.2, 1.2) + (motion === "sneak" ? -SNEAK_LEAN : 0);
+    this.pose?.update(
+      {
+        motion: this.decideMotion(moving),
+        speed: this.speed,
+        pitch: MathUtils.radToDeg(MathUtils.clamp(this.viewPitch, -1.2, 1.2)),
+        headYaw: MathUtils.radToDeg(MathUtils.clamp(wrap(this.viewYaw - this.bodyYaw), -HEAD_LIMIT, HEAD_LIMIT)),
+      },
+      dt,
+    );
   }
 
   private decideMotion(moving: boolean): Motion {
@@ -189,86 +177,6 @@ export class Avatar {
     if (p.sneaking) return "sneak";
     if (moving) return p.sprinting ? "run" : "walk";
     return "idle";
-  }
-
-  /** Runs the animation for the motion, starting from a clean pose whenever the motion changes. */
-  private animate(motion: Motion, dt: number) {
-    const player = this.player;
-    if (motion !== this.motion) {
-      this.motion = motion;
-      this.resetPose();
-      for (const a of [this.walk, this.run, this.idle, this.glide]) a.progress = 0;
-    }
-    const { leftArm, rightArm, leftLeg, rightLeg } = player.skin;
-    switch (motion) {
-      case "walk":
-        this.walk.speed = Math.min(2.5, 0.5 + this.speed / 4);
-        this.walk.update(player, dt);
-        break;
-      case "run":
-        this.run.speed = Math.min(1.6, 0.6 + this.speed / 8);
-        this.run.update(player, dt);
-        break;
-      case "sneak":
-        player.rotation.x = SNEAK_LEAN;
-        player.position.y = FEET_OFFSET - SNEAK_DROP * SCALE;
-        if (this.speed > 0.3) {
-          this.walk.speed = 0.8;
-          this.walk.update(player, dt);
-        }
-        break;
-      case "jump": {
-        // Airborne: a frozen stride with the arms out a little.
-        leftLeg.rotation.x = -0.35;
-        rightLeg.rotation.x = 0.35;
-        leftArm.rotation.x = -0.3;
-        rightArm.rotation.x = -0.3;
-        leftArm.rotation.z = 0.45;
-        rightArm.rotation.z = -0.45;
-        break;
-      }
-      case "swim": {
-        // The crawl: arms circling in turn, legs kicking a little. The body itself is the pose's.
-        this.stroke += dt * SWIM_STROKE_SPEED;
-        leftArm.rotation.x = -(this.stroke % (2 * Math.PI));
-        rightArm.rotation.x = -((this.stroke + Math.PI) % (2 * Math.PI));
-        leftLeg.rotation.x = Math.sin(this.stroke * 2) * 0.3;
-        rightLeg.rotation.x = -Math.sin(this.stroke * 2) * 0.3;
-        break;
-      }
-      case "fly":
-        // Creative flight: upright and still, leaning into the movement.
-        player.rotation.x = this.speed > 0.3 ? 0.2 : 0;
-        break;
-      case "glide":
-        this.glide.update(player, dt);
-        break;
-      default:
-        this.idle.update(player, dt);
-    }
-  }
-
-  /**
-   * Lays the body down and lifts it to the water line by how far into the swimming pose it is,
-   * easing in and out like the game, on top of whatever the limbs are doing.
-   */
-  private applySwimPose(motion: Motion, dt: number) {
-    const step = dt / SWIM_EASE_SECONDS;
-    this.swimAmount = MathUtils.clamp(this.swimAmount + (motion === "swim" ? step : -step), 0, 1);
-    if (this.swimAmount === 0) return;
-    const player = this.player;
-    player.rotation.x = (this.swimAmount * Math.PI) / 2;
-    player.position.y = FEET_OFFSET + (SWIM_LEVEL - FEET_OFFSET) * this.swimAmount;
-  }
-
-  /** Straightens everything an animation may have bent. */
-  private resetPose() {
-    const player = this.player;
-    player.position.set(0, FEET_OFFSET, 0);
-    player.rotation.set(0, 0, 0);
-    for (const part of [player.skin.leftArm, player.skin.rightArm, player.skin.leftLeg, player.skin.rightLeg]) {
-      part.rotation.set(0, 0, 0);
-    }
   }
 
   /** The eyes, for a camera looking through them and for the voice. */
@@ -290,12 +198,15 @@ export class Avatar {
 
   /** Hidden while the camera sits in this player's eyes: the model would fill the view. */
   set firstPerson(on: boolean) {
-    this.player.visible = !on;
+    this.hidden = on;
+    if (this.model) this.model.mesh.visible = !on;
   }
 
   dispose() {
     this.disposed = true;
     this.texture?.dispose();
+    this.material.dispose();
+    this.model?.mesh.geometry.dispose();
     this.group.removeFromParent();
   }
 }
