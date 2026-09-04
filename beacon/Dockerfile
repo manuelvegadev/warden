@@ -9,6 +9,8 @@ WORKDIR /repo
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY beacon/package.json beacon/
 COPY packages/ui/package.json packages/ui/
+# The install runs beacon's postinstall, so its scripts have to be here already.
+COPY beacon/scripts beacon/scripts
 # The pnpm store survives between builds (BuildKit cache mount). The game art is not fetched into
 # the image (it is Mojang's): the container's entrypoint fetches it into /data at first start.
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store MC_ASSETS=skip pnpm install --frozen-lockfile --filter beacon...
