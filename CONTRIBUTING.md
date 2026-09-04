@@ -34,3 +34,5 @@ docs(adr): managed java runtimes (ADR-010)
 
 ## Releases
 Tag `main` with `vX.Y.Z` and push the tag: `.github/workflows/release.yml` runs the tests, builds `wardend-linux-{amd64,arm64}`, attaches them (with `SHA256SUMS` and generated notes) to a GitHub Release, and pushes `ghcr.io/manuelvegadev/warden-{wardend,beacon}:X.Y.Z` (plus `X.Y` and `latest`) for amd64 and arm64.
+
+The checklist is [`docs/release.md`](docs/release.md): what to verify before tagging (CI green on the exact commit — the local checks do not build the container images), how to pick the number, how to write the tag message (it is the changelog: there is no changelog file), and how to recover when a release publishes only half of itself.
