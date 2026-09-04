@@ -235,9 +235,18 @@ New module `lib/voice/`, consumed by `components/instance/live-view.tsx`:
 
 ### 5. Installing and configuring SVC from Beacon
 
-- The Plugins tab keeps installing SVC from the catalog (Modrinth `simple-voice-chat`, loader `paper`;
-  Hangar also lists it). The Live view shows "Install Simple Voice Chat to enable voice" while
-  `available` is false.
+- **wardend installs SVC itself.** Voice is a Beacon feature, and the agent is an addon to SVC, so
+  the daemon does not ask an admin to go and find the plugin: on the first start of a server whose
+  software loads Bukkit plugins it fetches the newest release from the catalog (Modrinth
+  `simple-voice-chat`, loader `paper`) and puts it in `plugins/`, the same path the Plugins tab
+  uses. It picks the release listed for the server's Minecraft version, falling back to the newest
+  one when the catalog lists none, since the Bukkit build is one jar across versions. The download
+  is bounded and never fatal: a failure costs voice, not the start, and says so in the console.
+  Afterwards it is an ordinary catalog install — the tab shows it, offers its updates and can
+  remove it — and a removal is remembered in the manifest (`voice.noAutoInstall`), so wardend does
+  not put it back; installing it again from the tab clears the mark. A jar an admin dropped in by
+  hand counts as installed, by the plugin name in its descriptor.
+- The Live view shows "Restart the server to enable voice" while `available` is false.
 - `plugins/voicechat/voicechat-server.properties` joins the confined file editor allowlist (`port`,
   `bind_address`, `voice_host`). `docs/deploy.md` gains the UDP port note: the host firewall (and a
   proxy, if any) must pass the voice port; wardend itself opens nothing new.

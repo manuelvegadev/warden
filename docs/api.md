@@ -182,6 +182,14 @@ daemon writes it into the agent's `plugins/WardenAgent/config.yml` as `voice-con
 server start, which is when the agent reads it: a change applies at the next start, and `GET …/voice`
 keeps reporting the value in force until then.
 
+The plugin itself arrives on its own: on the first start of a server whose software loads Bukkit
+plugins, the daemon installs Simple Voice Chat from the catalog into `plugins/` (Modrinth
+`simple-voice-chat`), because Beacon's voice needs it on the server and the agent is an addon to it.
+It is an ordinary catalog install afterwards — it appears in `GET …/plugins`, offers updates and can
+be removed — and removing it is remembered (`voice.noAutoInstall` in the manifest), so the daemon
+does not install it again; installing it from the catalog clears the mark. A failed download costs
+voice, not the start, and is reported on the console.
+
 Audio rides its own WebSocket, not the hub: `GET /api/v1/instances/{id}/voice/ws` (no `Authorization`
 header; the first message authenticates, as on `/ws`). Client → server, in order:
 `{"type":"auth","token":"<jwt>"}` within 5 s, then `{"type":"voice.hello","listen":bool,"speak":bool}`
