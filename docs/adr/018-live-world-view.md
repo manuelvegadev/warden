@@ -41,11 +41,35 @@ Build a deliberately simple viewer of our own, scoped to **what players can see*
 
 ### Why the shape of the data is what it is
 
-- **Flat colours, not textures.** Each palette entry carries the block key and the game's map colour.
-  Beacon owns the colours: `scripts/block-colors.mjs` averages every block's textures from the
-  client jar into `lib/liveview/blocks.json` (with translucency and which biome tint applies), and
-  the same script reads the biome colormaps so grass, foliage and water are tinted per column biome.
-  The map colour is the fallback for blocks the table does not know (mods, newer versions).
+- **Colours on the wire, textures in the viewer.** Each palette entry carries the block key and the
+  game's map colour. Beacon owns the look: `scripts/block-colors.mjs` averages every block's
+  textures from the client jar into `lib/liveview/blocks.json` (with translucency and which biome
+  tint applies) and reads the biome colormaps, so grass, foliage and water are tinted per column
+  biome. With the fetched art, `scripts/mc-atlas.mjs` derives a strip of 16×16 face tiles and a
+  per-block face table (up, down, north, south, east, west, and which faces the biome tints); the
+  viewer uploads the strip as a texture array (no bleeding between tiles at any mip level), the
+  mesher writes each face's tile and corner coordinates into the vertices, and the vertex colour
+  keeps the tint, the ambient occlusion and the face shade. Blocks that turn take the faces of
+  their orientation's blockstate variant, with each face's texture turned as the game's model
+  rotation turns it (`variants` per block in the table, quarter turns per face). Blocks whose
+  blockstate lists several models for one look (grass, dirt, stone, sand, netherrack and the
+  like, turned or mirrored copies) carry them as `random`, and the mesher picks one per position
+  the way the game does, seeding its `java.util.Random` port with `Mth.getSeed(x, y, z)`, so a
+  plain does not repeat one tile and every block turns the way the player sees it; mirrored model
+  faces get a flipped tile. A water surface is drawn 8/9 of a block tall, as the game draws a source
+  fluid, and only where no water sits above it, so a pool has one step at the top and none below.
+  A block with no body of its own is not drawn, but when its cell also holds water the agent sends
+  it with the `8` flag rather than dropping it, keeping its own key and colour: the water is a fact
+  the server holds, either in the block's `waterlogged` state (coral fans, sea pickles) or in its
+  very definition (seagrass, kelp). The viewer draws such a cell as water for now, so the sea has
+  no holes where a plant stands, and the palette still says which plant it is for when the viewer
+  can draw it. Blocks that are
+  not full cubes take their particle texture on every face for now, the grass block's tinted side fringe is baked
+  with the plains colour, and leaves follow the game's graphics setting, chosen in the viewer: *fancy*
+  keeps the holes in their textures (an alpha test on the opaque pass) and draws the faces between
+  two leaf blocks so the leaves behind show through; *fast* fills the holes with the foliage's
+  own colour and draws only the outside of a canopy. Without the art the terrain draws in the flat colours, as before; the
+  map colour is the fallback for blocks neither table knows (mods, newer versions).
 - **The game's own art, fetched where Beacon runs, never shipped.** Textures, block models and
   the entity geometries and animations are Mojang's, so they are not in the repository or the
   image. `scripts/mc-assets.mjs` (run by `pnpm install`, and by the container's entrypoint into
@@ -55,6 +79,21 @@ Build a deliberately simple viewer of our own, scoped to **what players can see*
   drawn from the pack's own humanoid geometry (`lib/liveview/bedrock`: the file's bones and cubes
   as one skinned mesh, one draw call per model) and posed with the pack's player animations,
   ported as arithmetic rather than through a Molang interpreter. Mobs will come the same way.
+- **The server's light, drawn the game's way.** The light engine runs on the server, so the agent
+  sends its result: sky and block light per cell. The mesher lights each face with the cell it
+  looks into and averages the three open cells around every corner (the game's smooth lighting,
+  the same cells the ambient occlusion samples) into two bytes per vertex. The shader turns them
+  into brightness as the game's light map does: the game's curve `f / (4 − 3f)` per channel, sky
+  light scaled by the game's sky darken (1 by day, 0.2 at night, less in rain) in its bluish
+  night tint, block light with the game's 1.5 factor and its warmth that fades in as the level
+  drops, the two added, the faint 0.75/4 % floor, the brightness option's gamma (the game's
+  `1 − (1 − c)⁴` lift; the game defaults to 50 %, the panel to 45 %, set in the Video tab) and the floor again. The levels are interpolated across
+  the face and the map is evaluated per pixel, as the game samples its light texture, so a torch's
+  falloff is a smooth gradient rather than shaded vertices. The ambient occlusion is the game's own
+  0.4/0.6/0.8/1 curve, and a solid or unlit neighbour counts as the face's cell in the corner
+  average, as the game blends it.
+  Night vision (a Video setting, like the potion) lights every cell as full daylight. Chunks from
+  agents before WCK4 carry no light and draw in daylight.
 - **Covers repaint the block under them.** A snow layer is not sent as a block (it is not a full
   cube) but the grass beneath it is sent as snow, as the game shows snowy grass sides. The rule
   lives in the agent's palette so carpets can join it.
@@ -108,20 +147,25 @@ u8 kind (1 = chunk) · u8 worldNameLen · worldName (UTF-8) · i32 cx · i32 cz 
 ### Chunk payload (inside the gzip), little-endian
 
 ```
-u32 magic 0x324B4357 ("WCK2"; WCK1 had no block keys in the palette)
+u32 magic 0x344B4357 ("WCK4"; WCK3 had no light, WCK2 no orientation byte, WCK1 no block keys in the palette)
 i32 cx, i32 cz
 i16 yMin, i16 yMax            inclusive; height = yMax - yMin + 1
 u16 paletteLen                index 0 is always air
 u8  biomePaletteLen
 u8  reserved
-palette       paletteLen × { u8 r, u8 g, u8 b, u8 flags, u8 nameLen, UTF-8 block key such as "grass_block" }
+palette       paletteLen × { u8 r, u8 g, u8 b, u8 flags, u8 orient, u8 nameLen, UTF-8 block key such as "grass_block" }
+              orient: 0 none · 1–3 axis x, y, z (logs, pillars) · 4–9 facing down, up, north, south, west, east
+              (furnaces, dispensers, barrels, observers, glazed terracotta); a block turned two ways is two entries
 biomePalette  biomePaletteLen × { u8 len, UTF-8 key such as "plains" }
 biomes        256 × u8, index = z*16 + x  (biome of the column at its top block)
 blocks        256 × height × u8, index = (x*16 + z)*height + (y - yMin)
+light         256 × height × u8, same index: the server's sky light in the high nibble, block light
+              (torches, lava) in the low one, for every cell of the band, air included
 ```
 
 Palette flags are hints for blocks the viewer's colour table does not know (mods, newer
-versions): `1` grass tint · `2` foliage tint · `4` liquid · `16` partial (solid but not a full
+versions): `1` grass tint · `2` foliage tint · `4` liquid · `8` the cell also holds water (a
+waterlogged block, or a plant the game keeps in water) · `16` partial (solid but not a full
 cube; boxed, not yet read by the viewer). Known blocks take colour, translucency and tint from
 `blocks.json`.
 
