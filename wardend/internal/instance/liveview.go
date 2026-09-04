@@ -27,6 +27,9 @@ type LiveView struct {
 // somebody in Beacon listens or speaks. `notify` tells them in-game; `ask` asks each player once.
 type VoiceSettings struct {
 	Policy string `json:"policy"`
+	// NoAutoInstall: the admin removed Simple Voice Chat, so wardend does not install it again
+	// (voiceplugin.go). Installing it from the Plugins tab clears this.
+	NoAutoInstall bool `json:"noAutoInstall,omitempty"`
 }
 
 // Voice policies the agent understands.
@@ -101,7 +104,10 @@ func (m *Manager) InstanceByAgentToken(token string) (string, bool) {
 }
 
 // LiveViewSupported: the agent is a Bukkit plugin, so the software must load those (catalog traits).
-func (i *Instance) LiveViewSupported() bool {
+func (i *Instance) LiveViewSupported() bool { return i.loadsPlugins() }
+
+// loadsPlugins reports whether this instance's software loads Bukkit plugins, by the catalog's traits.
+func (i *Instance) loadsPlugins() bool {
 	return i.agent != nil && i.agent.traits(i.Manifest.Software).Plugins
 }
 

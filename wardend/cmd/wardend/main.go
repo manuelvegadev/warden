@@ -116,6 +116,8 @@ func main() {
 	vc := voice.NewService(st, hub, wv, verifier, cfg.AllowedOrigins)
 	wv.SetSink(vc)
 	mgr.SetAgent(cfg.AgentURL(), agent.Jar, reg.TraitsOf)
+	// Simple Voice Chat is fetched from the catalog on the first start of a server that loads plugins.
+	mgr.SetCatalog(reg)
 	agentMux := http.NewServeMux()
 	agentMux.HandleFunc("GET /agent/v1", wv.HandleAgent)
 	agentSrv := &http.Server{Addr: cfg.AgentListen, Handler: agentMux, ReadHeaderTimeout: 10 * time.Second}

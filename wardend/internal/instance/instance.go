@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/manuelvega/warden/wardend/internal/bus"
+	"github.com/manuelvega/warden/wardend/internal/catalog"
 	"github.com/manuelvega/warden/wardend/internal/mc"
 )
 
@@ -34,7 +35,8 @@ type Instance struct {
 	bc    bus.Broadcaster
 	java  JavaResolver
 	sink  EventSink
-	agent *agentDeps // live view: agent URL and jar (ADR-018); nil until main wires it
+	agent *agentDeps        // live view: agent URL and jar (ADR-018); nil until main wires it
+	reg   *catalog.Registry // plugin catalog, for the voice plugin wardend installs itself (ADR-019)
 
 	mu          sync.RWMutex
 	pluginMetas map[string]pluginMetaEntry // jar descriptors keyed by path, invalidated by size/mtime
@@ -137,6 +139,11 @@ func (i *Instance) Start(ctx context.Context) error {
 	// before taking the lock; it touches only plugins/ and a start that is refused below did no harm.
 	if s := i.State(); s == StateStopped || s == StateCrashed {
 		if msg := i.refreshAgent(); msg != "" {
+			i.system(msg)
+		}
+		// Simple Voice Chat is Beacon's voice on the server side, so it is installed like the agent,
+		// except that it comes from the catalog and a failure only costs voice (ADR-019).
+		if msg := i.ensureVoicePlugin(ctx); msg != "" {
 			i.system(msg)
 		}
 	}

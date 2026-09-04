@@ -443,7 +443,9 @@ function usePushToTalkKey(voice: Voice, enabled: boolean) {
 /**
  * The voice controls, over the live view's scene, in Discord's shape: "Join voice", then a bar with
  * the microphone (mute, or hold to talk), the headphones (deafen) and leave. Or the hint explaining
- * why there is none: the browser lacks WebCodecs, or Simple Voice Chat is not on the server.
+ * why there is none: the browser lacks WebCodecs, or Simple Voice Chat is not loaded. The daemon
+ * installs that plugin itself on a server that can load it (ADR-019), so a restart is what a fresh
+ * server needs; a server whose admin removed it needs the Plugins tab.
  * Nothing for viewers with neither role. The choices behind them live in the live view's settings.
  */
 export function VoiceControls({ status, voice }: { status: VoiceStatus | null; voice: Voice }) {
@@ -453,8 +455,15 @@ export function VoiceControls({ status, voice }: { status: VoiceStatus | null; v
   if ((!voice.canListen && !voice.canSpeak) || status === null || supported === null) return null;
   if (!supported || !status.available) {
     return (
-      <Chip className="text-muted-foreground">
-        {supported ? "Install Simple Voice Chat to enable voice" : VOICE_UNSUPPORTED}
+      <Chip
+        className="text-muted-foreground"
+        title={
+          supported
+            ? "Voice needs the Simple Voice Chat plugin. Warden installs it on a server that can load plugins, so restarting is usually enough; otherwise add it from the Plugins tab."
+            : undefined
+        }
+      >
+        {supported ? "Restart the server to enable voice" : VOICE_UNSUPPORTED}
       </Chip>
     );
   }

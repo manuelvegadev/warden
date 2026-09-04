@@ -214,6 +214,15 @@ func (i *Instance) InstallPlugin(ctx context.Context, reg *catalog.Registry, sou
 	if !ok {
 		return fmt.Errorf("no version %q of %s for Minecraft %s", versionID, hit.Name, i.Manifest.MCVersion)
 	}
+	return i.installPluginVersion(ctx, reg, source, hit, v, ids, icon, iconDone, report)
+}
+
+// installPluginVersion downloads a resolved release and puts it in plugins/: the tail of
+// InstallPlugin, shared with the voice plugin, which resolves its own version (voiceplugin.go).
+func (i *Instance) installPluginVersion(ctx context.Context, reg *catalog.Registry, source string,
+	hit catalog.PluginHit, v catalog.PluginVersion, ids []string, icon string, iconDone chan struct{},
+	report tasks.Reporter,
+) error {
 	fileName := filepath.Base(v.FileName)
 	staged, err := i.stage(".download-*")
 	if err != nil {
@@ -229,7 +238,9 @@ func (i *Instance) InstallPlugin(ctx context.Context, reg *catalog.Registry, sou
 	if err != nil {
 		return err
 	}
-	<-iconDone
+	if iconDone != nil {
+		<-iconDone
+	}
 	rec := InstalledPlugin{Source: source, ProjectID: hit.ID, Name: hit.Name, VersionID: v.ID, Version: v.Name,
 		HashAlgo: v.Hash.Algo, Hash: v.Hash.Value, Icon: icon}
 	_, err = i.placePlugin(staged, fileName, rec, func(p InstalledPlugin) bool {
@@ -238,6 +249,9 @@ func (i *Instance) InstallPlugin(ctx context.Context, reg *catalog.Registry, sou
 	if err != nil {
 		// External downloads (Hangar "externalUrl") can be a web page rather than the jar itself.
 		return fmt.Errorf("%w — the download link may point to a web page; install it manually from %s", err, v.URL)
+	}
+	if hit.ID == voicePluginProject || slices.Contains(ids, voicePluginProject) {
+		_ = i.forgetVoicePlugin(false) // installed on purpose: wardend may keep it up to date again
 	}
 	report(100, "Installed "+fileName+" — restart the server to load it")
 	return nil
@@ -360,8 +374,15 @@ func (i *Instance) RemovePlugin(fileName string) error {
 	if err != nil {
 		return err
 	}
+	voice := i.isVoicePlugin(fileName)
 	if err := os.Remove(path); err != nil {
 		return err
+	}
+	// Taking Simple Voice Chat out is a decision, not an accident: wardend stops putting it back.
+	if voice {
+		if err := i.forgetVoicePlugin(true); err != nil {
+			return err
+		}
 	}
 	return i.updatePlugins(func(p InstalledPlugin) bool { return p.FileName == fileName }, nil)
 }

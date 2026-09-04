@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/manuelvega/warden/wardend/internal/bus"
+	"github.com/manuelvega/warden/wardend/internal/catalog"
 )
 
 var idRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{1,31}$`)
@@ -29,6 +30,7 @@ type Manager struct {
 	java  JavaResolver
 	sink  EventSink
 	agent *agentDeps
+	reg   *catalog.Registry
 	mu    sync.RWMutex
 	byID  map[string]*Instance
 }
@@ -38,6 +40,17 @@ func NewManager(serversDir string, bc bus.Broadcaster) *Manager {
 		bc = bus.Nop{}
 	}
 	return &Manager{root: serversDir, bc: bc, byID: map[string]*Instance{}}
+}
+
+// SetCatalog wires the plugin catalog (main), which wardend uses to install Simple Voice Chat on
+// servers that can load it (ADR-019).
+func (m *Manager) SetCatalog(reg *catalog.Registry) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.reg = reg
+	for _, i := range m.byID {
+		i.reg = reg
+	}
 }
 
 // SetEventSink wires event persistence (store).
@@ -74,7 +87,7 @@ func (m *Manager) SetBroadcaster(bc bus.Broadcaster) {
 // re-wire instances that already exist; new ones must come through here.
 func (m *Manager) newInstance(dir string, man *Manifest) *Instance {
 	inst := newInstance(dir, man, m.bc)
-	inst.java, inst.sink, inst.agent = m.java, m.sink, m.agent
+	inst.java, inst.sink, inst.agent, inst.reg = m.java, m.sink, m.agent, m.reg
 	return inst
 }
 
