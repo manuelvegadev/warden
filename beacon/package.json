@@ -17,6 +17,7 @@
     "block-colors": "node scripts/block-colors.mjs",
     "mc:assets": "node scripts/mc-assets.mjs",
     "mc:atlas": "node scripts/mc-atlas.mjs",
+    "file:icons": "node scripts/file-icons.mjs",
     "postinstall": "node scripts/mc-assets.mjs"
   },
   "dependencies": {
