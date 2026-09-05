@@ -1,10 +1,8 @@
 package api
 
 import (
-	"errors"
 	"io"
 	"net/http"
-	"os"
 
 	"github.com/manuelvega/warden/wardend/internal/instance"
 )
@@ -21,7 +19,7 @@ func (s *server) getConfigFile(w http.ResponseWriter, r *http.Request) {
 	}
 	text, err := inst.ReadConfigFile(r.URL.Query().Get("path"))
 	if err != nil {
-		writeError(w, fileErrStatus(err), "read_failed", err.Error())
+		writeFSError(w, err, err.Error())
 		return
 	}
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
@@ -42,20 +40,8 @@ func (s *server) putConfigFile(w http.ResponseWriter, r *http.Request) {
 	}
 	restart, err := inst.WriteConfigFile(r.URL.Query().Get("path"), string(body))
 	if err != nil {
-		writeError(w, fileErrStatus(err), "write_failed", err.Error())
+		writeFSError(w, err, err.Error())
 		return
 	}
 	writeJSON(w, 200, map[string]any{"restartRequired": restart})
-}
-
-func fileErrStatus(err error) int {
-	switch {
-	case errors.Is(err, os.ErrNotExist):
-		return 404
-	case errors.Is(err, instance.ErrFileNotAllowed):
-		return 403
-	case errors.Is(err, instance.ErrInvalidSyntax), errors.Is(err, instance.ErrFileTooLarge):
-		return 400
-	}
-	return 500
 }

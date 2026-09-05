@@ -16,8 +16,9 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Editable configuration files. The panel never gets a general file browser: only paths that
-// match this allowlist, always relative to the server directory, never following symlinks out.
+// Editable configuration files: the *Config files* section, an allowlist of paths relative to the
+// server directory. The file manager (fs.go, ADR-020) browses the whole directory; both confine
+// paths the same way (cleanRel + resolveExisting).
 
 // ConfigFile describes one editable file.
 type ConfigFile struct {
@@ -138,28 +139,13 @@ func (i *Instance) ConfigFiles() ([]ConfigFile, error) {
 	return out, nil
 }
 
-// resolveConfigFile confines rel to the allowlist and returns its absolute path.
+// resolveConfigFile confines rel to the allowlist, then to the server directory (fs.go).
 func (i *Instance) resolveConfigFile(rel string) (string, error) {
-	rel = path.Clean("/" + strings.ReplaceAll(rel, "\\", "/"))[1:] // no "..", no absolute paths
+	rel = cleanRel(rel)
 	if _, ok := configFileGroup(rel); !ok {
 		return "", ErrFileNotAllowed
 	}
-	// Follow symlinks and make sure the target is still inside the server directory.
-	real, err := filepath.EvalSymlinks(filepath.Join(i.ServerDir(), filepath.FromSlash(rel)))
-	if err != nil {
-		if os.IsNotExist(err) {
-			return "", os.ErrNotExist
-		}
-		return "", err
-	}
-	root, err := i.realServerDir()
-	if err != nil {
-		return "", err
-	}
-	if real != root && !strings.HasPrefix(real, root+string(filepath.Separator)) {
-		return "", ErrFileNotAllowed
-	}
-	return real, nil
+	return i.resolveExisting(rel)
 }
 
 // realServerDir is ServerDir with symlinks resolved; fixed for the instance's lifetime.
