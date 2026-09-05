@@ -1,9 +1,7 @@
 import { redirect } from "next/navigation";
 import { LoginForm } from "@/components/login-form";
+import { safeNext } from "@/lib/http";
 import { getSession } from "@/lib/session";
-
-/** Only same-origin relative paths are valid post-login targets (no open redirect). */
-const safeNext = (v: string | undefined) => (v?.startsWith("/") && !v.startsWith("//") ? v : "/");
 
 // The proxy appends ?next=<path>; read it on the server so the page needs no client-side
 // search-params hook (which would bail out of prerendering).

@@ -6,3 +6,6 @@ export const jsonError = (status: number, code: string, message: string) =>
 
 export const forbidden = (message: string) => jsonError(403, "forbidden", message);
 export const badRequest = (message: string) => jsonError(400, "bad_request", message);
+
+/** Only same-origin relative paths are valid post-login targets (no open redirect). */
+export const safeNext = (v: string | null | undefined) => (v?.startsWith("/") && !v.startsWith("//") ? v : "/");
