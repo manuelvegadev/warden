@@ -2,6 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 
+/** Whether a drag carries files (as opposed to text or a link). */
+export const hasFiles = (e: { dataTransfer: DataTransfer | null }) =>
+  Array.from(e.dataTransfer?.types ?? []).includes("Files");
+
 /**
  * Window-level drag & drop: returns true while files are dragged over the page; `onDrop` receives
  * them. Tracks enter/leave depth because the browser fires dragleave for every child element crossed.
@@ -13,7 +17,6 @@ export function useFileDrag(enabled: boolean, onDrop: (files: FileList) => void)
   dropRef.current = onDrop;
   useEffect(() => {
     if (!enabled) return;
-    const hasFiles = (e: DragEvent) => Array.from(e.dataTransfer?.types ?? []).includes("Files");
     const enter = (e: DragEvent) => {
       if (!hasFiles(e)) return;
       depth.current += 1;
