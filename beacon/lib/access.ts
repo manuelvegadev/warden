@@ -45,7 +45,8 @@ export type InstanceAction =
   | "backups.write"
   | "settings.write" // instance settings, upgrade, eula, install
   | "voice.listen" // hear the players from the live view (ADR-019)
-  | "voice.speak"; // talk to the players from the live view
+  | "voice.speak" // talk to the players from the live view
+  | "files"; // the file manager: the whole server directory (ADR-020)
 
 const NEEDS: Record<InstanceAction, InstanceRole> = {
   read: "viewer",
@@ -60,6 +61,7 @@ const NEEDS: Record<InstanceAction, InstanceRole> = {
   "settings.write": "manager",
   "voice.listen": "manager",
   "voice.speak": "operator",
+  files: "manager",
 };
 
 export const can = (role: InstanceRole | undefined, action: InstanceAction): boolean => atLeast(role, NEEDS[action]);
@@ -99,7 +101,7 @@ export const labelForInstanceRole: Record<InstanceRole, string> = {
 export const describeInstanceRole: Record<InstanceRole, string> = {
   viewer: "Read the console, metrics and players.",
   operator: "Also start, stop and send commands; manage the whitelist and bans.",
-  manager: "Also edit configuration, plugins and backups.",
+  manager: "Also edit configuration, files, plugins and backups.",
 };
 
 export const labelForOrgRole: Record<OrgRole, string> = { owner: "Owner", admin: "Admin", member: "Member" };

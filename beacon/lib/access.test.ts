@@ -44,6 +44,7 @@ test("every action is covered by a vector", () => {
     "settings.write",
     "voice.listen",
     "voice.speak",
+    "files",
   ];
   for (const action of actions) {
     assert.ok(seen.has(action), `action "${action}" has no vector in access-vectors.json`);

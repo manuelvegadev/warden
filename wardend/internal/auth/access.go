@@ -47,6 +47,7 @@ const (
 	ActionSettingsWrite Action = "settings.write" // instance settings, upgrade, eula, install
 	ActionVoiceListen   Action = "voice.listen"   // hear the players' voice chat from the panel (ADR-019)
 	ActionVoiceSpeak    Action = "voice.speak"    // talk to players from the panel (ADR-019)
+	ActionFiles         Action = "files"          // the file manager: the whole server directory (ADR-020)
 )
 
 var needs = map[Action]InstanceRole{
@@ -62,6 +63,7 @@ var needs = map[Action]InstanceRole{
 	ActionSettingsWrite: InstManager,
 	ActionVoiceListen:   InstManager,  // hearing players is more than reading their chat
 	ActionVoiceSpeak:    InstOperator, // `say` with a microphone
+	ActionFiles:         InstManager,  // the directory holds server.properties and every plugin's secrets
 }
 
 // stronger returns whichever role grants more.

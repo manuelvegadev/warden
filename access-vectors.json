@@ -24,7 +24,8 @@
         "backups.write",
         "settings.write",
         "voice.listen",
-        "voice.speak"
+        "voice.speak",
+        "files"
       ]
     },
     {
@@ -32,7 +33,15 @@
       "acl": { "survival": "operator" },
       "instance": "survival",
       "allowed": ["read", "power", "console.send", "players.action", "access.write", "voice.speak"],
-      "denied": ["ops.write", "config.write", "plugins.write", "backups.write", "settings.write", "voice.listen"]
+      "denied": [
+        "ops.write",
+        "config.write",
+        "plugins.write",
+        "backups.write",
+        "settings.write",
+        "voice.listen",
+        "files"
+      ]
     },
     {
       "name": "manager may do everything on the instance",
@@ -50,7 +59,8 @@
         "backups.write",
         "settings.write",
         "voice.listen",
-        "voice.speak"
+        "voice.speak",
+        "files"
       ]
     },
     {
