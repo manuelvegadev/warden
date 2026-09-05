@@ -29,6 +29,7 @@
 ## Phase 2 — Configuration and plugins
 - [x] `server.properties` schema-driven editor (validation, restart hints); whitelist/ops/bans via live commands or JSON files, UUIDs from usercache/Mojang/offline
 - [x] Confined file editor: allowlisted Bukkit/Paper/world/plugin config files with YAML/JSON validation
+- [x] File manager (2026-09-05, ADR-020): the whole server directory in Finder-style columns — browse, edit text in CodeMirror, preview images, upload by drag & drop, download, new folder/file, rename, delete; confined to `server/` with the jar and the agent read-only; Atom Material Icons per file type. The confined editor stays as *Config files*
 - [x] `catalog/hangar` + `catalog/modrinth` search/versions; install with hash verification
 - [x] Plugin management: update/toggle/upload/delete; `plugin.yml`/`paper-plugin.yml` metadata; update check against the catalog
 - [x] Paper build/version upgrade with prior backup (jar + configs + worlds to `<instance>/backups/`)
@@ -82,7 +83,7 @@
 - [ ] Server-list appearance follow-ups, from the cleanup pass over the MOTD/icon work. None block anything; each was judged not worth its blast radius at the time:
   - `hasIcon` on the instance detail (or properties) response. Beacon currently learns whether an instance has an icon by requesting `GET /instances/{id}/icon` and treating the 404 as "no" — a guaranteed 404 in the network panel for the common case. The daemon knows it for free; this is an API contract change, so it wants its own commit.
   - Serve the icon with `ETag`/`Last-Modified` (`http.ServeContent`) and `Cache-Control: no-cache` instead of `no-store`, so a revalidation costs a 304 rather than a full body. The `?v=` cache-buster already keeps it fresh, so this is about bytes, not correctness.
-  - An element-scoped drag-and-drop hook. `hooks/use-file-drag.ts` is window-level; the import dialog and the icon panel each hand-roll the element-scoped version, so there are now two copies waiting for a third.
+  - The import dialog and the icon panel each hand-roll an element-scoped drag-and-drop; the file manager's `hooks/use-drop-zone.ts` (ADR-020) is the shared version they could move to.
   - Fold "drop the trailing .0" into `formatBytes` (`lib/api.ts`) so `lib/server-budget.ts` can drop its local `gb()`. Four size formatters exist; they differ only in whether prose wants `2 GB` or `2.0 GB`.
   - Reuse `SectionCard`'s heading markup for the section headings that are written by hand (Identity, Advanced). Heading typography lives in three places today, and the pre-existing "Advanced" heading has the same problem.
   - `MotdDialog`'s Apply writes the icon to the daemon immediately while the message only enters the Properties draft, so a later Discard reverts half of what the dialog did. Deliberate — the icon is not a property — and stated in the dialog footer, but it is a seam worth revisiting if the split ever confuses anyone.

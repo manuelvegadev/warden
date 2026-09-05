@@ -41,7 +41,7 @@ The role held on an instance is the stronger of `aclAll` and `acl[id]`. Roles ar
 
 - `viewer` — read the instance, console, metrics, players, events, and list backups and plugins.
 - `operator` — also power (`start`/`stop`/`restart`/`kill`), `POST /command`, player message/kick, whitelist and bans.
-- `manager` — also `server.properties` and the config files (they carry `rcon.password`), plugins, backups, upgrades, EULA and instance settings.
+- `manager` — also `server.properties` and the config files (they carry `rcon.password`), the file manager (the whole server directory, ADR-020), plugins, backups, upgrades, EULA and instance settings.
 
 An instance the caller has no role on answers **404, not 403**, so the set of instances on the node
 stays private; `GET /instances` lists only what they may see. A token with none of the three access
@@ -136,9 +136,23 @@ Creation body:
 | GET | `/instances/{id}/command` | `{java,javaError?,args[],cwd,shell}` — `shell` is the line quoted for a POSIX shell; the exact command `Start` would run from the current manifest (heap, JVM preset/flags, jar); `javaError` when no runtime can be resolved yet. |
 | GET | `/instances/{id}/upgrade` | `{current:{mcVersion,build},latestBuild?:{mcVersion,build,channel,time,changes},latestVersion?:{…}}` — newer build of the same version and newest version with a build, from the software catalog. |
 | POST | `/instances/{id}/upgrade` | `{"mcVersion":"1.21.8","build":0}` (both optional: current version / newest build) → `202` task `upgrade`. `409` unless stopped/crashed. The task takes a full-scope `pre-upgrade` backup (see Backups), downloads the build with sha256 verification, swaps the jar, updates the manifest (appending to `upgrades[]`: from/to version+build, backup file name, time) and resolves the Java runtime for the new version. Admin only. |
-| GET | `/instances/{id}/files` | Editable files that exist: `[{path,group,size,modifiedAt}]`. Not a file browser — an allowlist: `bukkit.yml`, `spigot.yml`, `commands.yml`, `help.yml`, `permissions.yml` (Server); `config/paper-global.yml`, `config/paper-world-defaults.yml` (Paper); `<world>/paper-world.yml` (Worlds); text files under `plugins/<name>/` (Plugins: yml/yaml/json/properties/txt/toml/conf). `server.properties` has its own endpoint. |
-| GET | `/instances/{id}/files/content?path=config/paper-global.yml` | `text/plain` (2 MB limit). `403` outside the allowlist or when a symlink escapes the server directory; `404` missing. |
+| GET | `/instances/{id}/files` | Editable files that exist: `[{path,group,size,modifiedAt}]`. An allowlist for the *Config files* section (the file manager is `/fs` below): `bukkit.yml`, `spigot.yml`, `commands.yml`, `help.yml`, `permissions.yml` (Server); `config/paper-global.yml`, `config/paper-world-defaults.yml` (Paper); `<world>/paper-world.yml` (Worlds); text files under `plugins/<name>/` (Plugins: yml/yaml/json/properties/txt/toml/conf). `server.properties` has its own endpoint. |
+| GET | `/instances/{id}/files/content?path=config/paper-global.yml` | `text/plain` (2 MB limit). `403 forbidden` outside the allowlist or when a symlink escapes the server directory; `404 not_found` missing (the error codes of the file manager below). |
 | PUT | `/instances/{id}/files/content?path=` | Body `text/plain`. YAML/JSON syntax is validated (`400 invalid syntax`), then written atomically → `{"restartRequired":bool}` (Paper reads these at startup only). Admin only. |
+
+## File manager (ADR-020)
+
+The whole server directory, for managers (`files` in the access tables). Paths travel in `?path=` (or the JSON body), slash-separated and relative to `server/`; `""` is the root. Every path is cleaned (`..` cannot climb out) and resolved through symlinks: a target outside the server directory answers `403 forbidden`. `instance.json` and the backups live above `server/` and are out of reach. The server jar and the Warden Agent jar are read-only (`409 protected`). Error codes: `not_found`, `forbidden`, `exists`, `protected`, `invalid_syntax`, `too_large`, `bad_request`.
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/instances/{id}/fs?path=plugins` | `{path, entries:[{name,dir,size,modifiedAt,symlink?,protected?}]}` — directories first, then files, by name; hidden entries included. `symlink` marks a link, whose `dir`/`size` describe the target when it resolves; `protected` marks the read-only files (the server jar, the Warden Agent). `400` for a file. |
+| GET | `/instances/{id}/fs/content?path=logs/latest.log` | The file, with `Range` and conditional requests. `Content-Type` is `text/plain` for known text extensions or bytes that look like text, `image/*` for images, `application/octet-stream` otherwise — the panel opens the editor, the picture or a download accordingly. `?download=1` adds `Content-Disposition: attachment`. |
+| PUT | `/instances/{id}/fs/content?path=` | Body is the new content (≤ 2 MiB, `400 too_large`). YAML/JSON are syntax-checked; `server.properties` goes through the properties writer (schema validation, the rewrite-on-stop snapshot). Written atomically → `{"restartRequired":bool}` (true while running, for config file types). A missing parent directory is `404`. |
+| POST | `/instances/{id}/fs/upload?path=plugins[&overwrite=1]` | `multipart/form-data`, one or more `file` parts streamed to disk (4 GiB per request, `413` beyond) → `201 {"entries":[…]}`. A name already taken is `409 exists` unless `overwrite=1`; a directory of that name is `400`. |
+| POST | `/instances/{id}/fs/mkdir` | `{"path":"plugins/MyPlugin"}` → `201 {"entry"}`. One level; the parent must exist (`404`); `409 exists`. |
+| POST | `/instances/{id}/fs/rename` | `{"from":"world","to":"world_old"}` → `204`. Also moves (`to` in another directory). `409 exists` when the target is taken; `400` when moving a directory into itself. |
+| DELETE | `/instances/{id}/fs?path=world_old` | Removes a file, a link (the link only) or a directory with everything in it → `204`. The root cannot be removed (`400`). |
 
 ## Plugins
 | Method | Path | Description |

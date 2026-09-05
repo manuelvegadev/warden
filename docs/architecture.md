@@ -22,7 +22,7 @@ daemon/                 Go — the `wardend` daemon
     api/                HTTP router, middlewares (auth, CORS), REST handlers
     ws/                 WebSocket hub: per-instance subscriptions
     auth/               users, JWT, password hashing
-    instance/           manifest, state machine, process supervisor, console ring buffer
+    instance/           manifest, state machine, process supervisor, console ring buffer, the file manager's confined fs (ADR-020)
     mc/                 log parser, RCON, ping, server.properties (schema), whitelist/ops/bans, advancements/stats
     world/              live world view: agent WebSocket listener, chunk cache, `world.*` bus messages (ADR-018)
     voice/              voice chat relay: the agent's voice frames fanned out to listening browsers over `/instances/{id}/voice/ws` (ADR-019)

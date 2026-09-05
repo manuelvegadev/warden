@@ -22,6 +22,7 @@ The browser connects to the daemon (REST + WebSocket with JWT); the panel only s
 - Start / stop / restart / autostart / restart on crash.
 - Live console and command sending.
 - `server.properties` with schema, whitelist, ops, bans, config file editor.
+- File manager: the server directory in Finder-style columns, with a text editor, uploads and downloads.
 - Plugins: search Hangar and Modrinth, install, update, enable/disable, upload jar.
 - Per-instance resources: CPU, RAM, disk, network, TPS.
 - Players: online, history, advancements, statistics, messages, kick/ban.
@@ -64,3 +65,5 @@ cd beacon && pnpm auth:migrate && pnpm dev   # http://localhost:3000
 pnpm --filter landing dev                    # http://localhost:3100
 ```
 For wardend to accept Beacon's JWTs locally: `WARDEND_PANEL_JWKS_URL=http://localhost:3000/api/auth/jwks WARDEND_PANEL_ISSUER=http://localhost:3000 make run`.
+
+To open the dev panel from a phone on the same network, run Beacon with the LAN origin trusted: `BETTER_AUTH_TRUSTED_ORIGINS=http://192.168.1.20:3000 pnpm dev` (Better Auth refuses the sign-in from other origins, and `next dev` refuses to serve its assets to other hosts; the same variable feeds both). In development only, `GET /api/dev/login?email=&password=&next=` signs in on the server and lands on `next`, handy behind a QR code; a production build answers 404.

@@ -113,7 +113,8 @@ immediately.
 - **Organization capability** (`caps`): `POST /instances`, `POST /instances/import`, `DELETE /instances/{id}`.
 - **Per-instance `manager`**: `PATCH /instances/{id}`, `/install`, `/eula`, `PUT /properties`,
   `PUT /properties/raw`, `PUT /files/content`, `POST /upgrade`, every `/backups` write, every `/plugins`
-  write, `POST|DELETE /ops/{name}`.
+  write, `POST|DELETE /ops/{name}`, and the whole `/fs` tree (reads included: the file manager of
+  ADR-020, action `files`).
 - **Per-instance `operator`**: `/start`, `/stop`, `/restart`, `/kill`, `/command`, `/players/{name}/action`,
   `/whitelist/*`, `/bans/*`. (This tightens `whitelist` and `bans`, which are unauthenticated beyond "logged
   in" today.)
