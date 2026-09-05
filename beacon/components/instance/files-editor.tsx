@@ -7,9 +7,10 @@ import { FileText, Search } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { languageFor } from "@/components/instance/code-editor";
+import { languageFor } from "@/components/instance/code-language";
 import { SaveBar } from "@/components/instance/section-card";
 import { useTextDraft } from "@/hooks/use-text-draft";
+import { useUnsavedWarning } from "@/hooks/use-unsaved-warning";
 import { type ConfigFile, files, formatBytes } from "@/lib/api";
 import { mono } from "@/lib/utils";
 
@@ -129,14 +130,7 @@ function FileDraft({
   const load = useCallback(() => files.read(id, path), [id, path]);
   const write = useCallback((t: string) => files.write(id, path, t), [id, path]);
   const draft = useTextDraft(load, write);
-
-  // Leaving with unsaved edits closes the tab silently otherwise.
-  useEffect(() => {
-    if (!draft.dirty) return;
-    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
-    window.addEventListener("beforeunload", warn);
-    return () => window.removeEventListener("beforeunload", warn);
-  }, [draft.dirty]);
+  useUnsavedWarning(draft.dirty);
 
   if (draft.original === null) return <p className="py-4 text-sm text-muted-foreground">Loading {path}…</p>;
   return (

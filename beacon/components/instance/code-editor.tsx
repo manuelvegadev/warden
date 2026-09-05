@@ -1,22 +1,19 @@
 "use client";
 
 import { json } from "@codemirror/lang-json";
+import { markdown } from "@codemirror/lang-markdown";
 import { yaml } from "@codemirror/lang-yaml";
 import { StreamLanguage } from "@codemirror/language";
+import { javascript } from "@codemirror/legacy-modes/mode/javascript";
 import { properties } from "@codemirror/legacy-modes/mode/properties";
+import { shell } from "@codemirror/legacy-modes/mode/shell";
+import { standardSQL } from "@codemirror/legacy-modes/mode/sql";
+import { toml } from "@codemirror/legacy-modes/mode/toml";
+import { xml } from "@codemirror/legacy-modes/mode/xml";
 import { oneDark } from "@codemirror/theme-one-dark";
 import CodeMirror, { EditorView, type Extension } from "@uiw/react-codemirror";
-
-export type CodeLanguage = "properties" | "yaml" | "json" | "text";
-
-/** Picks the editor language from a file name. */
-export function languageFor(path: string): CodeLanguage {
-  const ext = path.slice(path.lastIndexOf(".") + 1).toLowerCase();
-  if (ext === "yml" || ext === "yaml") return "yaml";
-  if (ext === "json") return "json";
-  if (ext === "properties") return "properties";
-  return "text";
-}
+import { cn } from "@warden/ui/lib/utils";
+import type { CodeLanguage } from "@/components/instance/code-language";
 
 const editorTheme = EditorView.theme({
   "&": { fontSize: "12px", backgroundColor: "#0a0a0a" },
@@ -31,10 +28,18 @@ const SETUP = {
   folding: { foldGutter: true, highlightActiveLine: true },
   plain: { foldGutter: false, highlightActiveLine: true },
 };
+/** Languages with a real parser, where folding by block makes sense. */
+const FOLDING = new Set<CodeLanguage>(["yaml", "json", "markdown"]);
 const EXTENSIONS: Record<CodeLanguage, Extension[]> = {
   properties: [StreamLanguage.define(properties), ...base],
   yaml: [yaml(), ...base],
   json: [json(), ...base],
+  toml: [StreamLanguage.define(toml), ...base],
+  shell: [StreamLanguage.define(shell), ...base],
+  markdown: [markdown(), ...base],
+  xml: [StreamLanguage.define(xml), ...base],
+  javascript: [StreamLanguage.define(javascript), ...base],
+  sql: [StreamLanguage.define(standardSQL), ...base],
   text: base,
 };
 
@@ -44,20 +49,26 @@ export function CodeEditor({
   onChange,
   language = "text",
   readOnly,
+  height = "520px",
+  className,
 }: {
   value: string;
   onChange: (v: string) => void;
   language?: CodeLanguage;
   readOnly?: boolean;
+  /** CSS height of the editor; "100%" fills a flex parent with a definite height. */
+  height?: string;
+  className?: string;
 }) {
   return (
-    <div className="overflow-hidden rounded-md border">
+    <div className={cn("overflow-hidden rounded-md border", className)}>
       <CodeMirror
         value={value}
-        height="520px"
+        height={height}
+        className="h-full"
         theme={oneDark}
         extensions={EXTENSIONS[language]}
-        basicSetup={language === "yaml" || language === "json" ? SETUP.folding : SETUP.plain}
+        basicSetup={FOLDING.has(language) ? SETUP.folding : SETUP.plain}
         onChange={onChange}
         readOnly={readOnly}
       />
