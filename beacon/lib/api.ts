@@ -497,6 +497,17 @@ type ApiInit = RequestInit & {
  * an ArrayBuffer. Errors map to ApiError.
  */
 export async function api<T>(path: string, { text, binary, own, ...init }: ApiInit = {}): Promise<T> {
+  const res = await apiResponse(path, { text, own, ...init });
+  if (res.status === 204) return undefined as T;
+  if (binary) return (await res.arrayBuffer()) as T;
+  return (text ? await res.text() : await res.json()) as T;
+}
+
+/** The raw Response of a call, for callers that need the headers; errors map to ApiError as in `api`. */
+export async function apiResponse(
+  path: string,
+  { text, own, ...init }: Omit<ApiInit, "binary"> = {},
+): Promise<Response> {
   // FormData bodies set their own multipart Content-Type (with boundary); never override it.
   const headers = new Headers(init.headers);
   if (!(init.body instanceof FormData) && !headers.has("Content-Type")) {
@@ -508,9 +519,36 @@ export async function api<T>(path: string, { text, binary, own, ...init }: ApiIn
     const e = body?.error ?? {};
     throw new ApiError(res.status, e.code ?? "unknown", e.message ?? res.statusText);
   }
-  if (res.status === 204) return undefined as T;
-  if (binary) return (await res.arrayBuffer()) as T;
-  return (text ? await res.text() : await res.json()) as T;
+  return res;
+}
+
+/**
+ * Multipart POST over XHR — the one transport that reports upload progress. Resolves with the
+ * decoded JSON body of a 2xx answer; anything else becomes an ApiError like `api` makes them.
+ */
+function uploadForm<T>(
+  path: string,
+  body: FormData,
+  size: number,
+  onProgress?: (sent: number, total: number) => void,
+): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", `/api/wardend${path}`);
+    xhr.upload.onprogress = (e) => onProgress?.(e.loaded, e.lengthComputable ? e.total : size);
+    xhr.onerror = () => reject(new ApiError(0, "network", "Upload failed"));
+    xhr.onload = () => {
+      let json: { error?: { code: string; message: string } } = {};
+      try {
+        json = JSON.parse(xhr.responseText);
+      } catch {
+        /* non-JSON error page */
+      }
+      if (xhr.status >= 200 && xhr.status < 300) resolve(json as T);
+      else reject(new ApiError(xhr.status, json.error?.code ?? "unknown", json.error?.message ?? xhr.statusText));
+    };
+    xhr.send(body);
+  });
 }
 
 const post = <T>(path: string, body?: unknown) =>
@@ -535,31 +573,20 @@ export const instances = {
    * Creates an instance from an uploaded server directory archive. XHR rather than fetch so the
    * upload progress (bytes sent) can be shown; the daemon answers 202 with the import task.
    */
-  import: (input: ImportInstanceInput, file: File, onProgress?: (sent: number, total: number) => void) =>
-    new Promise<{ instance: InstanceSummary; task: Task }>((resolve, reject) => {
-      const body = new FormData();
-      // Text fields go first: the daemon needs them before it starts streaming the file to disk.
-      for (const [k, v] of Object.entries(input)) if (v !== undefined && v !== "") body.append(k, String(v));
-      body.append("file", file, file.name);
-      const xhr = new XMLHttpRequest();
-      xhr.open("POST", "/api/wardend/instances/import");
-      xhr.upload.onprogress = (e) => onProgress?.(e.loaded, e.lengthComputable ? e.total : file.size);
-      xhr.onerror = () => reject(new ApiError(0, "network", "Upload failed"));
-      xhr.onload = () => {
-        let json: { instance?: InstanceSummary; task?: Task; error?: { code: string; message: string } } = {};
-        try {
-          json = JSON.parse(xhr.responseText);
-        } catch {
-          /* non-JSON error page */
-        }
-        if (xhr.status >= 200 && xhr.status < 300 && json.instance && json.task) {
-          resolve({ instance: json.instance, task: json.task });
-        } else {
-          reject(new ApiError(xhr.status, json.error?.code ?? "unknown", json.error?.message ?? xhr.statusText));
-        }
-      };
-      xhr.send(body);
-    }),
+  import: async (input: ImportInstanceInput, file: File, onProgress?: (sent: number, total: number) => void) => {
+    const body = new FormData();
+    // Text fields go first: the daemon needs them before it starts streaming the file to disk.
+    for (const [k, v] of Object.entries(input)) if (v !== undefined && v !== "") body.append(k, String(v));
+    body.append("file", file, file.name);
+    const json = await uploadForm<{ instance?: InstanceSummary; task?: Task }>(
+      "/instances/import",
+      body,
+      file.size,
+      onProgress,
+    );
+    if (!json.instance || !json.task) throw new ApiError(0, "unknown", "Unexpected response");
+    return { instance: json.instance, task: json.task };
+  },
   install: (id: string, acceptEula: boolean) =>
     post<{ task: Task }>(`/instances/${id}/install`, { AcceptEULA: acceptEula }),
   remove: (id: string) => api<void>(`/instances/${id}`, { method: "DELETE" }),
@@ -659,6 +686,95 @@ export const files = {
       body: content,
       headers: { "Content-Type": "text/plain" },
     }),
+};
+
+// ---- File manager (ADR-020): the whole server directory, for managers.
+
+export interface FsEntry {
+  name: string;
+  dir: boolean;
+  size: number;
+  modifiedAt: string;
+  /** A symbolic link; `dir` and `size` describe its target when it resolves. */
+  symlink?: boolean;
+  /** Kept read-only by the daemon (the server jar, the Warden Agent): no rename, delete or edit. */
+  protected?: boolean;
+}
+
+export interface FsListing {
+  /** Slash-separated directory relative to the server root; "" is the root. */
+  path: string;
+  entries: FsEntry[];
+}
+
+/** What the preview does with a file, read off the daemon's Content-Type. */
+export type FsKind = "text" | "image" | "binary";
+
+export interface FsContent {
+  kind: FsKind;
+  size: number;
+  /** The text, for a text file within the edit limit. */
+  text?: string;
+}
+
+/** Text files bigger than this are not opened in the editor (the daemon refuses to write them too). */
+export const FS_EDIT_LIMIT = 2 * 1024 * 1024;
+
+const fsContent = (instanceId: string, path: string) =>
+  `/instances/${instanceId}/fs/content?path=${encodeURIComponent(path)}`;
+
+export const fs = {
+  list: (instanceId: string, path: string) =>
+    api<FsListing>(`/instances/${instanceId}/fs?path=${encodeURIComponent(path)}`),
+  contentUrl: (instanceId: string, path: string) => `/api/wardend${fsContent(instanceId, path)}`,
+  downloadUrl: (instanceId: string, path: string) => `/api/wardend${fsContent(instanceId, path)}&download=1`,
+  /**
+   * Reads a file for the preview: its kind, and the text when it is text and small enough to edit.
+   * A file known (from its listing) to be over the limit is only asked for its headers.
+   */
+  read: async (instanceId: string, path: string, knownSize = 0): Promise<FsContent> => {
+    const method = knownSize > FS_EDIT_LIMIT ? "HEAD" : "GET";
+    const res = await apiResponse(fsContent(instanceId, path), { method });
+    const type = res.headers.get("content-type") ?? "";
+    const size = Number(res.headers.get("content-length") ?? knownSize);
+    const kind: FsKind = type.startsWith("text/") ? "text" : type.startsWith("image/") ? "image" : "binary";
+    if (method === "GET" && kind === "text" && size <= FS_EDIT_LIMIT) return { kind, size, text: await res.text() };
+    await res.body?.cancel();
+    return { kind, size };
+  },
+  write: (instanceId: string, path: string, content: string) =>
+    api<{ restartRequired: boolean }>(fsContent(instanceId, path), {
+      method: "PUT",
+      body: content,
+      headers: { "Content-Type": "text/plain" },
+    }),
+  /**
+   * Uploads one file into `dir`. XHR rather than fetch so the progress can be shown. Rejects with
+   * `ApiError` code `exists` when the name is taken and `overwrite` was not set.
+   */
+  upload: async (
+    instanceId: string,
+    dir: string,
+    file: File,
+    { overwrite, onProgress }: { overwrite?: boolean; onProgress?: (sent: number, total: number) => void } = {},
+  ): Promise<FsEntry> => {
+    const body = new FormData();
+    body.append("file", file, file.name);
+    const q = `path=${encodeURIComponent(dir)}${overwrite ? "&overwrite=1" : ""}`;
+    const json = await uploadForm<{ entries?: FsEntry[] }>(
+      `/instances/${instanceId}/fs/upload?${q}`,
+      body,
+      file.size,
+      onProgress,
+    );
+    if (!json.entries?.[0]) throw new ApiError(0, "unknown", "Unexpected response");
+    return json.entries[0];
+  },
+  mkdir: (instanceId: string, path: string) => post<{ entry: FsEntry }>(`/instances/${instanceId}/fs/mkdir`, { path }),
+  rename: (instanceId: string, from: string, to: string) =>
+    post<void>(`/instances/${instanceId}/fs/rename`, { from, to }),
+  remove: (instanceId: string, path: string) =>
+    api<void>(`/instances/${instanceId}/fs?path=${encodeURIComponent(path)}`, { method: "DELETE" }),
 };
 
 export const plugins = {

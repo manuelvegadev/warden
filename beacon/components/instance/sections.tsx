@@ -5,6 +5,7 @@ import {
   Archive,
   Box,
   FileCode2,
+  FolderTree,
   Puzzle,
   Settings,
   Shield,
@@ -12,6 +13,7 @@ import {
   Terminal,
   Users,
 } from "lucide-react";
+import dynamic from "next/dynamic";
 import { AccessLists } from "@/components/instance/access-lists";
 import { BackupsTab } from "@/components/instance/backups-tab";
 import { Console } from "@/components/instance/console";
@@ -27,6 +29,11 @@ import { SettingsForm } from "@/components/instance/settings-form";
 import { UpgradeCard } from "@/components/instance/upgrade-card";
 import { can, type InstanceAction, type InstanceRole } from "@/lib/access";
 import { hasPlugins, isStopped } from "@/lib/api";
+
+// The file manager brings its icon table and the editor modes: loaded with its section, not the shell.
+const FileManager = dynamic(() => import("@/components/instance/files/file-manager").then((m) => m.FileManager), {
+  ssr: false,
+});
 
 /**
  * Sidebar groups, in the order they are shown: what you watch while it runs, what you edit, and
@@ -105,6 +112,16 @@ export const SECTIONS: Section[] = [
     slug: "files",
     group: "Configuration",
     label: "Files",
+    icon: FolderTree,
+    needs: "files",
+    // Finder-style columns want the width and the height of the page (ADR-020).
+    layout: "viewer",
+    render: (s) => <FileManager id={s.manifest.id} running={s.status.state === "running"} canManage={s.canManage} />,
+  },
+  {
+    slug: "config",
+    group: "Configuration",
+    label: "Config files",
     icon: FileCode2,
     needs: "config.write",
     render: (s) => <FilesEditor id={s.manifest.id} running={s.status.state === "running"} canManage={s.canManage} />,
