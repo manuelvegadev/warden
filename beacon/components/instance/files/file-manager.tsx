@@ -48,6 +48,7 @@ function promptSpec(prompt: Prompt) {
  * files dropped on a column land in that directory.
  */
 export function FileManager({ id, running, canManage }: { id: string; running: boolean; canManage: boolean }) {
+  // No padding of its own: the shell's `page-pad` already gutters the section on all four sides.
   const { columns, file, open, choose, deselect, refresh } = useFileBrowser(id);
   // A phone has room for one level: the open directory, full width, with a way back up; a chosen
   // file then covers the screen like a modal. Wider screens get the columns.
@@ -212,7 +213,7 @@ export function FileManager({ id, running, canManage }: { id: string; running: b
     ) : null;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3 py-4">
+    <div className="flex min-h-0 flex-1 flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2">
         <InputGroup className="min-w-64 flex-1">
           <InputGroupAddon>
