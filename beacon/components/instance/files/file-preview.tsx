@@ -1,12 +1,15 @@
 "use client";
 
 import { Button } from "@warden/ui/components/button";
+import { cn } from "@warden/ui/lib/utils";
 import { ArrowLeft, Download, Pencil, Trash2, X } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { languageFor } from "@/components/instance/code-language";
+import { DetachControls } from "@/components/instance/detach-controls";
 import { FileIcon } from "@/components/instance/files/file-icon";
 import { CopyButton, SaveBar } from "@/components/instance/section-card";
+import { useDetachable } from "@/hooks/use-detachable";
 import { useTextDraft } from "@/hooks/use-text-draft";
 import { useUnsavedWarning } from "@/hooks/use-unsaved-warning";
 import { FS_EDIT_LIMIT, type FsContent, type FsEntry, formatBytes, fs } from "@/lib/api";
@@ -21,7 +24,8 @@ const CodeEditor = dynamic(() => import("../code-editor").then((m) => m.CodeEdit
 /**
  * The last column of the browser: what the chosen file is, and the file itself — an editor for
  * text, the picture for an image, a download for anything else. Mounted with the path as its key,
- * so a different file is a fresh instance.
+ * so a different file is a fresh instance. Detachable like the console: full screen, or its own
+ * window (`popout` is set by that window's route).
  */
 export function FilePreview({
   id,
@@ -34,6 +38,7 @@ export function FilePreview({
   onDelete,
   onSaved,
   fullScreen,
+  popout,
 }: {
   id: string;
   path: string;
@@ -42,14 +47,19 @@ export function FilePreview({
   canManage: boolean;
   /** Filling the screen (phones): a back arrow leads the header instead of a close cross on the right. */
   fullScreen?: boolean;
-  onClose: () => void;
-  onRename: () => void;
-  onDelete: () => void;
+  /** Its own browser window: no way back, no rename or delete (the listing is not there to refresh). */
+  popout?: boolean;
+  onClose?: () => void;
+  onRename?: () => void;
+  onDelete?: () => void;
   /** After a save, so the listing (size, modified) catches up. */
-  onSaved: () => void;
+  onSaved?: () => void;
 }) {
+  // The daemon keeps the server jar and the agent read-only; the editor must say so, not the caller.
+  const editable = canManage && !entry.protected;
   const [content, setContent] = useState<FsContent | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const detach = useDetachable(`/file/${id}?path=${encodeURIComponent(path)}`, `file-${id}-${path}`, popout);
 
   useEffect(() => {
     let cancelled = false;
@@ -62,14 +72,14 @@ export function FilePreview({
   }, [id, path, entry.size]);
 
   return (
-    <div className="flex h-full min-w-0 flex-col">
-      <div className="flex shrink-0 items-start gap-3 border-b px-4 py-3">
-        {fullScreen && (
-          <Button variant="ghost" size="icon" aria-label="Back to the folder" title="Back" onClick={onClose}>
+    <div ref={detach.rootRef} className={cn("flex h-full min-w-0 flex-col", detach.fullscreen && "bg-background")}>
+      <div className="flex shrink-0 items-center gap-3 border-b px-4 py-3">
+        {fullScreen && onClose && (
+          <Button variant="ghost" size="icon-sm" aria-label="Back to the folder" title="Back" onClick={onClose}>
             <ArrowLeft className="size-4" />
           </Button>
         )}
-        <FileIcon name={entry.name} dir={false} path={path} className="mt-0.5 size-8" />
+        <FileIcon name={entry.name} dir={false} path={path} className="size-8" />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1">
             <h3 className={`${mono} truncate text-sm font-medium`} title={entry.name}>
@@ -77,14 +87,14 @@ export function FilePreview({
             </h3>
             <CopyButton value={path} label="Copy path" className="size-6 text-muted-foreground" />
           </div>
-          <p className="text-xs text-muted-foreground">
+          <p className="truncate text-xs text-muted-foreground">
             {formatBytes(entry.size)} · {formatDateTime(entry.modifiedAt)}
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-1">
           <Button
             variant="ghost"
-            size="icon"
+            size="icon-sm"
             aria-label="Download"
             title="Download"
             render={<a href={fs.downloadUrl(id, path)} download={entry.name} />}
@@ -92,14 +102,14 @@ export function FilePreview({
           >
             <Download className="size-4" />
           </Button>
-          {canManage && (
+          {editable && onRename && onDelete && (
             <>
-              <Button variant="ghost" size="icon" aria-label="Rename" title="Rename" onClick={onRename}>
+              <Button variant="ghost" size="icon-sm" aria-label="Rename" title="Rename" onClick={onRename}>
                 <Pencil className="size-4" />
               </Button>
               <Button
                 variant="ghost"
-                size="icon"
+                size="icon-sm"
                 aria-label="Delete"
                 title="Delete"
                 className="text-destructive hover:text-destructive"
@@ -109,8 +119,18 @@ export function FilePreview({
               </Button>
             </>
           )}
+          {/* A phone already gives the file the whole screen; a pop-up window there is a tab. */}
           {!fullScreen && (
-            <Button variant="ghost" size="icon" aria-label="Close preview" title="Close" onClick={onClose}>
+            <DetachControls
+              fullscreen={detach.fullscreen}
+              showPopout={detach.showPopout}
+              onPopout={detach.openPopout}
+              onToggleFullscreen={detach.toggleFullscreen}
+              label="file"
+            />
+          )}
+          {!fullScreen && onClose && (
+            <Button variant="ghost" size="icon-sm" aria-label="Close preview" title="Close" onClick={onClose}>
               <X className="size-4" />
             </Button>
           )}
@@ -125,7 +145,7 @@ export function FilePreview({
           path={path}
           initial={content.text}
           running={running}
-          canManage={canManage}
+          canManage={editable}
           onSaved={onSaved}
         />
       )}
@@ -174,7 +194,7 @@ function TextDraft({
   initial: string;
   running: boolean;
   canManage: boolean;
-  onSaved: () => void;
+  onSaved?: () => void;
 }) {
   const cached = useRef<string | null>(initial);
   const load = useCallback(async () => {
@@ -214,14 +234,11 @@ function TextDraft({
                 : undefined
           }
           onDiscard={draft.discard}
+          onReload={draft.reload}
           onSave={async () => {
-            if (await draft.save()) onSaved();
+            if (await draft.save()) onSaved?.();
           }}
-        >
-          <Button variant="outline" onClick={draft.reload} disabled={draft.pending}>
-            Reload
-          </Button>
-        </SaveBar>
+        />
       )}
     </>
   );

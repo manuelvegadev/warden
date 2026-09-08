@@ -202,7 +202,7 @@ export function FileManager({ id, running, canManage }: { id: string; running: b
         path={file}
         entry={fileEntry}
         running={running}
-        canManage={canManage && !fileEntry.protected}
+        canManage={canManage}
         fullScreen={fullScreen}
         onClose={deselect}
         onRename={() => onRename(fileDir, fileEntry)}
