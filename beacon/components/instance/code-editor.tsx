@@ -10,20 +10,24 @@ import { shell } from "@codemirror/legacy-modes/mode/shell";
 import { standardSQL } from "@codemirror/legacy-modes/mode/sql";
 import { toml } from "@codemirror/legacy-modes/mode/toml";
 import { xml } from "@codemirror/legacy-modes/mode/xml";
-import { oneDark } from "@codemirror/theme-one-dark";
 import CodeMirror, { EditorView, type Extension } from "@uiw/react-codemirror";
 import { cn } from "@warden/ui/lib/utils";
+import { editorTheme } from "@/components/instance/code-editor-theme";
 import type { CodeLanguage } from "@/components/instance/code-language";
 
-const editorTheme = EditorView.theme({
-  "&": { fontSize: "12px", backgroundColor: "#0a0a0a" },
-  ".cm-gutters": { backgroundColor: "#0a0a0a", borderRight: "1px solid var(--border)" },
-  ".cm-content, .cm-gutters": { fontFamily: "var(--font-console)", lineHeight: "var(--console-line-height)" },
+// The panel's code font (Google Sans Code, docs/design.md), a size and leading a notch above the
+// console's: the console packs lines, an editor is read and written line by line.
+const typography = EditorView.theme({
+  "&": { fontSize: "13px" },
+  ".cm-content, .cm-gutters": { fontFamily: "var(--font-console)", lineHeight: "1.6" },
+  ".cm-content": { padding: "8px 0" },
+  ".cm-gutters": { borderRight: "1px solid var(--border)", paddingRight: "2px" },
+  ".cm-lineNumbers .cm-gutterElement": { paddingLeft: "12px", paddingRight: "8px" },
   ".cm-scroller": { fontFamily: "var(--font-console)" },
 });
 
 // Stable references: react-codemirror reconfigures the editor whenever the extensions array identity changes.
-const base: Extension[] = [editorTheme, EditorView.lineWrapping];
+const base: Extension[] = [typography, EditorView.lineWrapping];
 const SETUP = {
   folding: { foldGutter: true, highlightActiveLine: true },
   plain: { foldGutter: false, highlightActiveLine: true },
@@ -43,7 +47,7 @@ const EXTENSIONS: Record<CodeLanguage, Extension[]> = {
   text: base,
 };
 
-/** CodeMirror with the panel's console font and dark theme; validation happens server-side on save. */
+/** CodeMirror with the panel's console font and a dark palette of its own; validation happens server-side on save. */
 export function CodeEditor({
   value,
   onChange,
@@ -66,7 +70,7 @@ export function CodeEditor({
         value={value}
         height={height}
         className="h-full"
-        theme={oneDark}
+        theme={editorTheme}
         extensions={EXTENSIONS[language]}
         basicSetup={FOLDING.has(language) ? SETUP.folding : SETUP.plain}
         onChange={onChange}
