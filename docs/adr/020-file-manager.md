@@ -58,7 +58,9 @@ move and delete.
 - The preview pane: text in CodeMirror (YAML, JSON, properties, TOML, shell, Markdown, XML, INI,
   JavaScript, SQL, or plain) with the same draft/save cycle as the other editors, images inline,
   everything else download-only. The daemon decides which is which from the extension and the
-  first bytes (`Content-Type`).
+  first bytes (`Content-Type`). The editor uses the panel's code font at 13 px with a 1.6 leading
+  and a palette of its own on the console's ground (`code-editor-theme.ts`); like the console,
+  the pane can go full screen or open in its own window (`/file/{id}?path=`).
 - **Phones** (under 768 px, `useIsMobile`): one level at a time — the open directory at full width
   with a back chevron in its header — and a chosen file covers the page like a modal, header to
   save bar, until its back arrow. The toolbar keeps the path bar and turns the buttons into icons.
