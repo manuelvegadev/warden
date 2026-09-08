@@ -1,6 +1,5 @@
 "use client";
 
-import { Button } from "@warden/ui/components/button";
 import { useCallback } from "react";
 import { CodeEditor } from "@/components/instance/code-editor";
 import { SaveBar } from "@/components/instance/section-card";
@@ -28,12 +27,9 @@ export function PropertiesRawEditor({ id, running, onSaved }: { id: string; runn
         dirty={draft.dirty}
         pending={draft.pending}
         onDiscard={draft.discard}
+        onReload={draft.reload}
         onSave={async () => (await draft.save()) && onSaved()}
-      >
-        <Button variant="outline" onClick={draft.reload} disabled={draft.pending}>
-          Reload
-        </Button>
-      </SaveBar>
+      />
     </div>
   );
 }

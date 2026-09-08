@@ -1,6 +1,5 @@
 "use client";
 
-import { Button } from "@warden/ui/components/button";
 import { Input } from "@warden/ui/components/input";
 import { cn } from "@warden/ui/lib/utils";
 import { FileText, Search } from "lucide-react";
@@ -146,11 +145,13 @@ function FileDraft({
         </p>
       )}
       {canManage && (
-        <SaveBar dirty={draft.dirty} pending={draft.pending} onDiscard={draft.discard} onSave={draft.save}>
-          <Button variant="outline" onClick={draft.reload} disabled={draft.pending}>
-            Reload
-          </Button>
-        </SaveBar>
+        <SaveBar
+          dirty={draft.dirty}
+          pending={draft.pending}
+          onDiscard={draft.discard}
+          onReload={draft.reload}
+          onSave={draft.save}
+        />
       )}
     </>
   );

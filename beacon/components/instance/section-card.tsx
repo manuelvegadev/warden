@@ -5,7 +5,7 @@ import { Button } from "@warden/ui/components/button";
 import { Card, CardContent } from "@warden/ui/components/card";
 import { Label } from "@warden/ui/components/label";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@warden/ui/components/tooltip";
-import { Check, ChevronDown, Copy } from "lucide-react";
+import { Check, ChevronDown, Copy, Loader2, RefreshCw, Save, Undo2 } from "lucide-react";
 import { useId, useState } from "react";
 import { toast } from "sonner";
 
@@ -219,6 +219,7 @@ export function SaveBar({
   count,
   hint,
   onDiscard,
+  onReload,
   onSave,
   children,
 }: {
@@ -227,6 +228,8 @@ export function SaveBar({
   count?: number;
   hint?: React.ReactNode;
   onDiscard: () => void;
+  /** Editors of a single document: re-read it from the daemon, dropping the draft. */
+  onReload?: () => void;
   onSave: () => void;
   children?: React.ReactNode;
 }) {
@@ -235,11 +238,19 @@ export function SaveBar({
       {hint && <span className="mr-auto text-xs text-muted-foreground">{hint}</span>}
       {dirty && (
         <Button variant="ghost" onClick={onDiscard}>
+          <Undo2 />
           Discard
+        </Button>
+      )}
+      {onReload && (
+        <Button variant="outline" onClick={onReload} disabled={pending}>
+          <RefreshCw />
+          Reload
         </Button>
       )}
       {children}
       <Button onClick={onSave} disabled={!dirty || pending}>
+        {pending ? <Loader2 className="animate-spin" /> : <Save />}
         {pending ? "Saving…" : dirty && count ? `Save (${count})` : "Save"}
       </Button>
     </div>
