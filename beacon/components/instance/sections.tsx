@@ -59,23 +59,32 @@ export interface Section {
    * files carry rcon.password) must name it here, or the tab would open onto a 403 (ADR-017 §3).
    */
   needs?: InstanceAction;
-  /** Set when the section already shows what the header tiles show, so the shell drops them. */
-  hidesResourceCards?: boolean;
-  /** A viewer takes the whole page: no header tiles, no facts sidebar, stretched to the bottom. */
-  layout?: "viewer";
+  /**
+   * A viewer takes the whole page: no header tiles, no facts sidebar, stretched to the bottom.
+   * A fill section keeps the chrome and stretches to the bottom from `lg` up.
+   */
+  layout?: "viewer" | "fill";
 }
 
 /** Single source of truth for instance sections: sidebar items, breadcrumb labels and the [section] route. */
 export const SECTIONS: Section[] = [
-  { slug: "console", group: "Server", label: "Console", icon: Terminal, render: () => <Console /> },
+  // The console is worth every line of height the screen has.
+  {
+    slug: "console",
+    group: "Server",
+    label: "Console",
+    icon: Terminal,
+    layout: "fill",
+    render: () => <Console fill />,
+  },
   {
     slug: "metrics",
     group: "Server",
     label: "Metrics",
     icon: Activity,
-    // The header tiles chart the same four series; showing both is the same data twice.
-    hidesResourceCards: true,
-    render: (s) => <MetricsChart data={s.history} memoryMb={s.manifest.memoryMb} instanceId={s.manifest.id} />,
+    // The header tiles chart the same four series, and the charts want the width and the height.
+    layout: "viewer",
+    render: (s) => <MetricsChart data={s.history} memoryMb={s.manifest.memoryMb} instanceId={s.manifest.id} fill />,
   },
   {
     slug: "map",
@@ -125,6 +134,7 @@ export const SECTIONS: Section[] = [
     label: "Config files",
     icon: FileCode2,
     needs: "config.write",
+    layout: "fill",
     render: (s) => <FilesEditor id={s.manifest.id} running={s.status.state === "running"} canManage={s.canManage} />,
   },
   {

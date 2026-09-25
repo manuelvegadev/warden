@@ -6,7 +6,8 @@ import { Card, CardContent } from "@warden/ui/components/card";
 import { Label } from "@warden/ui/components/label";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@warden/ui/components/tooltip";
 import { Check, ChevronDown, Copy, Loader2, RefreshCw, Save, Undo2 } from "lucide-react";
-import { useId, useState } from "react";
+import { createContext, useContext, useId, useState } from "react";
+import { createPortal } from "react-dom";
 import { toast } from "sonner";
 
 /**
@@ -213,6 +214,13 @@ export function CopyButton({
 }
 
 /** Sticky footer for editors: Discard while dirty, optional extra buttons, and Save. */
+/**
+ * Where a page's save bar goes: the foot of the instance page's main column, full width and pinned
+ * to the bottom of the view (the shell provides it). Without one — a file's own pane, a pop-out —
+ * the bar stays where it is rendered, sticky at the bottom of its container.
+ */
+export const SaveBarSlot = createContext<HTMLElement | null>(null);
+
 export function SaveBar({
   dirty,
   pending,
@@ -233,8 +241,9 @@ export function SaveBar({
   onSave: () => void;
   children?: React.ReactNode;
 }) {
-  return (
-    <div className="sticky bottom-0 flex items-center justify-end gap-3 border-t bg-background/95 px-4 py-3 backdrop-blur">
+  const slot = useContext(SaveBarSlot);
+  const bar = (
+    <div className="sticky bottom-0 flex items-center justify-end gap-3 border-t bg-background/95 px-4 py-3 backdrop-blur sm:px-5">
       {hint && <span className="mr-auto text-xs text-muted-foreground">{hint}</span>}
       {dirty && (
         <Button variant="ghost" onClick={onDiscard}>
@@ -255,4 +264,5 @@ export function SaveBar({
       </Button>
     </div>
   );
+  return slot ? createPortal(bar, slot) : bar;
 }

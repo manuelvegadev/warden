@@ -49,8 +49,10 @@ export function FilesEditor({ id, running, canManage }: { id: string; running: b
   }, [list, query]);
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[260px_minmax(0,1fr)]">
-      <aside className="grid content-start gap-2">
+    // From `lg` up the list and the editor stretch to the bottom of the section; below it they keep
+    // fixed heights, stacked.
+    <div className="grid gap-4 lg:min-h-0 lg:flex-1 lg:grid-cols-[260px_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)]">
+      <aside className="flex flex-col gap-2 lg:min-h-0">
         <div className="relative">
           <Search className="pointer-events-none absolute top-2.5 left-2.5 size-3.5 text-muted-foreground" />
           <Input
@@ -61,7 +63,7 @@ export function FilesEditor({ id, running, canManage }: { id: string; running: b
             className="pl-8"
           />
         </div>
-        <nav className="max-h-[560px] overflow-y-auto rounded-md border">
+        <nav className="max-h-[560px] overflow-y-auto rounded-md border lg:max-h-none lg:min-h-0 lg:flex-1">
           {list === null && <p className="px-3 py-3 text-sm text-muted-foreground">Loading…</p>}
           {list?.length === 0 && <p className="px-3 py-3 text-sm text-muted-foreground">No editable files yet.</p>}
           {groups.map(([group, items]) => (
@@ -77,11 +79,11 @@ export function FilesEditor({ id, running, canManage }: { id: string; running: b
         </nav>
       </aside>
 
-      <section className="grid min-w-0 gap-3">
+      <section className="flex min-w-0 flex-col gap-3 lg:min-h-0">
         {selected ? (
           <FileDraft key={selected} id={id} path={selected} running={running} canManage={canManage} />
         ) : (
-          <div className="flex h-[560px] items-center justify-center rounded-md border text-sm text-muted-foreground">
+          <div className="flex h-[560px] items-center justify-center rounded-md border text-sm text-muted-foreground lg:h-auto lg:flex-1">
             Pick a file to edit. Only Paper, Bukkit, world and plugin config files are exposed here.
           </div>
         )}
@@ -149,7 +151,9 @@ function FileDraft({
         onChange={draft.setText}
         language={languageFor(path)}
         readOnly={!canManage}
+        height="100%"
         wrap={wrap}
+        className="h-[520px] lg:h-auto lg:min-h-80 lg:flex-1"
       />
       {running && (
         <p className="text-xs text-muted-foreground">

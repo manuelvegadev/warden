@@ -78,17 +78,21 @@ export function MetricsChart({
   memoryMb,
   instanceId,
   popout,
+  fill,
 }: {
   data: MetricPoint[];
   memoryMb: number;
   instanceId: string;
   popout?: boolean;
+  /** Fill the section from `sm` up, two charts by two; a phone stacks them at their fixed height. */
+  fill?: boolean;
 }) {
   const { rootRef, fullscreen, toggleFullscreen, openPopout, fillHeight, showPopout } = useDetachable(
     `/metrics/${instanceId}`,
     `beacon-metrics-${instanceId}`,
     popout,
   );
+  const inPlace = fill && !fillHeight;
 
   const memMax = memoryMb || data[data.length - 1]?.memMaxMb || 0;
   const single = (label: string, color: string): ChartConfig => ({ v: { label, color } });
@@ -107,12 +111,24 @@ export function MetricsChart({
   const netTop = useMemo(() => netCeiling(data), [data]);
   const netUnit = axisUnit(netTop, "KB");
   // Filling the screen is only worth it if the panels grow with it.
-  const chartClass = fillHeight ? "h-full min-h-40 w-full" : "h-40 w-full";
+  const chartClass = fillHeight
+    ? "h-full min-h-40 w-full"
+    : inPlace
+      ? "h-40 w-full sm:h-full sm:min-h-40"
+      : "h-40 w-full";
 
   return (
-    <div ref={rootRef} className={cn("flex flex-col gap-2", fillHeight && "h-full", fullscreen && "bg-background p-3")}>
+    <div
+      ref={rootRef}
+      className={cn(
+        "flex flex-col gap-2",
+        fillHeight && "h-full",
+        inPlace && "sm:min-h-0 sm:flex-1",
+        fullscreen && "bg-background p-3",
+      )}
+    >
       <div className="flex items-center justify-between gap-2">
-        <span className="text-xs text-muted-foreground">Last hour · sampled every 2s</span>
+        <span className="text-xs text-muted-foreground">Last hour</span>
         <div className="flex items-center gap-1">
           <DetachControls
             label="metrics"
@@ -128,7 +144,13 @@ export function MetricsChart({
           Metrics appear once the server has been running for a moment.
         </p>
       ) : (
-        <div className={cn("grid gap-4 sm:grid-cols-2", fillHeight && "min-h-0 flex-1 sm:grid-rows-2")}>
+        <div
+          className={cn(
+            "grid gap-4 sm:grid-cols-2",
+            fillHeight && "min-h-0 flex-1 sm:grid-rows-2",
+            inPlace && "sm:min-h-0 sm:flex-1 sm:grid-rows-2",
+          )}
+        >
           <Panel title="CPU" subtitle={cores ? `share of ${cores} cores` : "share of the host"}>
             <ChartContainer config={single("CPU", SERIES_1)} className={chartClass}>
               <AreaChart data={cpuData} margin={{ left: 4, right: 4, top: 8 }}>

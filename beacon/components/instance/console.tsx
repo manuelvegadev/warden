@@ -145,7 +145,8 @@ function RawConsole({ lines, className }: { lines: ConsoleLine[]; className?: st
  * Live console of the current instance (reads the instance context). `popout` is the pop-out
  * window variant: fills its container and has no pop-out button of its own.
  */
-export function Console({ popout }: { popout?: boolean }) {
+/** `fill` stretches the console to the bottom of its section; `popout` is its own window's. */
+export function Console({ popout, fill }: { popout?: boolean; fill?: boolean }) {
   const { manifest, status, sendCommand, canOperate } = useInstance();
   const lines = useConsoleLines();
   const instanceId = manifest.id;
@@ -168,7 +169,13 @@ export function Console({ popout }: { popout?: boolean }) {
     `beacon-console-${instanceId}`,
     popout,
   );
-  const viewClass = fillHeight ? "min-h-0 flex-1" : "h-[min(60vh,640px)]";
+  // Filling in place (the Console section) stretches from `lg` up, where the section is as tall as
+  // the view; below it, stacked on a phone, the console keeps its fixed height.
+  const viewClass = fillHeight
+    ? "min-h-0 flex-1"
+    : fill
+      ? "h-[min(60vh,640px)] lg:h-auto lg:min-h-80 lg:flex-1"
+      : "h-[min(60vh,640px)]";
 
   const [mode, pickMode] = useStoredPreference<ConsoleMode>(MODE_KEY, "pretty", CONSOLE_MODES);
 
@@ -189,7 +196,15 @@ export function Console({ popout }: { popout?: boolean }) {
   }
 
   return (
-    <div ref={rootRef} className={cn("flex flex-col gap-2", fillHeight && "h-full", fullscreen && "bg-background p-3")}>
+    <div
+      ref={rootRef}
+      className={cn(
+        "flex flex-col gap-2",
+        fillHeight && "h-full",
+        fill && !fillHeight && "lg:min-h-0 lg:flex-1",
+        fullscreen && "bg-background p-3",
+      )}
+    >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-3">
           <div className="flex rounded-md border p-0.5">
