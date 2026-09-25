@@ -3,9 +3,7 @@
 import { Alert, AlertDescription, AlertTitle } from "@warden/ui/components/alert";
 import { Button } from "@warden/ui/components/button";
 import { cn } from "@warden/ui/lib/utils";
-import { useParams, useRouter } from "next/navigation";
-import { useCallback } from "react";
-import { Controls } from "@/components/instance/controls";
+import { useParams } from "next/navigation";
 import { useInstance } from "@/components/instance/instance-context";
 import { ResourceCards } from "@/components/instance/resource-cards";
 import { CopyButton } from "@/components/instance/section-card";
@@ -16,13 +14,11 @@ import { StateBadge } from "@/components/state-badge";
 import { useServerAddress } from "@/components/wardend-config";
 
 /**
- * Instance page chrome: a header (name, controls, stat tiles) and below it the section content next
- * to the facts sidebar. Section navigation lives in the app sidebar.
+ * Instance page chrome: a header (name, address, stat tiles) and below it the section content next
+ * to the facts sidebar. Section navigation and the power controls live in the app sidebar.
  */
 export function InstanceShell({ children }: { children: React.ReactNode }) {
-  const { manifest, status, metrics, recent, task, connected, retryInstall, canOperate, canManage } = useInstance();
-  const router = useRouter();
-  const onDeleted = useCallback(() => router.push("/"), [router]);
+  const { manifest, status, metrics, recent, task, connected, retryInstall } = useInstance();
 
   const address = useServerAddress(manifest.port);
   // Metrics charts the same four series as the tiles, so it asks the shell to drop them.
@@ -37,20 +33,17 @@ export function InstanceShell({ children }: { children: React.ReactNode }) {
   return (
     <div className={cn("grid min-w-0 grid-rows-[auto_minmax(0,1fr)]", fills && "h-full")}>
       <header className="page-pad grid gap-4 border-b">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
-            <h1 className="flex items-center gap-3 text-2xl font-semibold">
-              {manifest.name} <StateBadge state={status.state} />
-              {!connected && <span className="text-xs font-normal text-muted-foreground">(reconnecting…)</span>}
-            </h1>
-            <CopyButton
-              value={address}
-              label={address}
-              showLabel
-              className="font-mono text-muted-foreground hover:text-foreground"
-            />
-          </div>
-          {canOperate && <Controls id={manifest.id} state={status.state} onDeleted={onDeleted} canManage={canManage} />}
+        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+          <h1 className="flex items-center gap-3 text-2xl font-semibold">
+            {manifest.name} <StateBadge state={status.state} />
+            {!connected && <span className="text-xs font-normal text-muted-foreground">(reconnecting…)</span>}
+          </h1>
+          <CopyButton
+            value={address}
+            label={address}
+            showLabel
+            className="font-mono text-muted-foreground hover:text-foreground"
+          />
         </div>
         <TaskBanner task={task} onRetryInstall={retryInstall} />
         {/* Only when there is a build to fetch: an unfinished import has no software yet and no task to retry. */}

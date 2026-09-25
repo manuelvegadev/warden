@@ -69,7 +69,9 @@ export function InstanceProvider({
   children: React.ReactNode;
 }) {
   const { manifest } = initial;
-  const setListStatus = useOptionalInstances()?.setStatus;
+  const list = useOptionalInstances();
+  const setListStatus = list?.setStatus;
+  const setListPlayers = list?.setPlayers;
   const [status, setStatusState] = useState<InstanceStatus>(initial.status);
   const [metrics, setMetrics] = useState<MetricSample | null>(initial.metrics);
   const [lines, setLines] = useState<ConsoleLine[]>([]);
@@ -138,6 +140,7 @@ export function InstanceProvider({
           break;
         case "players":
           setStatusState((s) => ({ ...s, players: msg.data as string[] }));
+          setListPlayers?.(manifest.id, msg.data as string[]);
           break;
         case "metrics":
           setMetrics(msg.data as MetricSample);
@@ -156,7 +159,7 @@ export function InstanceProvider({
           for (const fn of listeners.current) fn(msg);
       }
     },
-    [pushLine, setStatus],
+    [pushLine, setStatus, setListPlayers, manifest.id],
   );
 
   const { connected, send } = useWardendSocket([manifest.id], onMessage);

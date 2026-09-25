@@ -17,6 +17,7 @@ import dynamic from "next/dynamic";
 import { AccessLists } from "@/components/instance/access-lists";
 import { BackupsTab } from "@/components/instance/backups-tab";
 import { Console } from "@/components/instance/console";
+import { DeleteInstanceCard } from "@/components/instance/controls";
 import { FilesEditor } from "@/components/instance/files-editor";
 import type { InstanceState } from "@/components/instance/instance-context";
 import { LaunchCommandCard } from "@/components/instance/launch-command-card";
@@ -161,6 +162,7 @@ export const SECTIONS: Section[] = [
         <UpgradeCard manifest={s.manifest} state={s.status.state} canManage={s.canManage} task={s.task} />
         <LaunchCommandCard manifest={s.manifest} />
         <SettingsForm manifest={s.manifest} running={!isStopped(s.status.state)} />
+        {s.canManage && <DeleteInstanceCard id={s.manifest.id} name={s.manifest.name} />}
       </div>
     ),
   },

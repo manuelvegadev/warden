@@ -26,11 +26,13 @@ import {
 import { Coffee, Download, House, KeyRound, LogOut, UserRound, Users } from "lucide-react";
 import Link from "next/link";
 import { useParams, usePathname, useRouter } from "next/navigation";
+import { PowerControls } from "@/components/instance/controls";
 import { sectionGroupsFor } from "@/components/instance/sections";
 import { InstanceSwitcher } from "@/components/instance-switcher";
 import { useInstances } from "@/components/instances-store";
 import { Versions } from "@/components/versions";
 import { useInstallPrompt } from "@/hooks/use-install-prompt";
+import { can } from "@/lib/access";
 import { DEFAULT_SOFTWARE } from "@/lib/api";
 import { signOut } from "@/lib/auth-client";
 import { HOME, instanceHref } from "@/lib/instance-routes";
@@ -64,7 +66,8 @@ export function AppSidebar({
   const install = useInstallPrompt();
   const { id: instanceId } = useParams<{ id?: string }>();
   const { instances, roleOf } = useInstances();
-  const software = instances.find((i) => i.id === instanceId)?.software ?? DEFAULT_SOFTWARE;
+  const current = instances.find((i) => i.id === instanceId);
+  const software = current?.software ?? DEFAULT_SOFTWARE;
 
   // Nine flat entries were a wall; the registry buckets them into Server / World / Players.
   const groups = instanceId
@@ -96,7 +99,10 @@ export function AppSidebar({
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
-        <InstanceSwitcher currentId={instanceId} />
+        <div className="grid gap-2">
+          <InstanceSwitcher currentId={instanceId} />
+          {current && can(roleOf(current.id), "power") && <PowerControls id={current.id} status={current.status} />}
+        </div>
       </SidebarHeader>
 
       <SidebarContent>

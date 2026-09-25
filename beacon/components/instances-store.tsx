@@ -10,6 +10,8 @@ interface InstancesState {
   roleOf: (id: string) => InstanceRole | undefined;
   refresh: () => Promise<void>;
   setStatus: (id: string, status: InstanceStatus) => void;
+  /** Who is online changes on its own message, between state changes. */
+  setPlayers: (id: string, players: string[]) => void;
   openCreate: () => void;
   createOpen: boolean;
   setCreateOpen: (open: boolean) => void;
@@ -44,6 +46,9 @@ export function InstancesProvider({
   const setStatus = useCallback((id: string, status: InstanceStatus) => {
     setInstances((prev) => prev.map((i) => (i.id === id ? { ...i, status } : i)));
   }, []);
+  const setPlayers = useCallback((id: string, players: string[]) => {
+    setInstances((prev) => prev.map((i) => (i.id === id ? { ...i, status: { ...i.status, players } } : i)));
+  }, []);
   const roleOf = useCallback((id: string) => roles[id], [roles]);
   const openCreate = useCallback(() => setCreateOpen(true), []);
   const openImport = useCallback(() => setImportOpen(true), []);
@@ -54,6 +59,7 @@ export function InstancesProvider({
       roleOf,
       refresh,
       setStatus,
+      setPlayers,
       openCreate,
       createOpen,
       setCreateOpen,
@@ -61,7 +67,7 @@ export function InstancesProvider({
       importOpen,
       setImportOpen,
     }),
-    [instances, roleOf, refresh, setStatus, openCreate, createOpen, openImport, importOpen],
+    [instances, roleOf, refresh, setStatus, setPlayers, openCreate, createOpen, openImport, importOpen],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
