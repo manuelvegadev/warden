@@ -10,7 +10,7 @@ import {
 import { Skeleton } from "@warden/ui/components/skeleton";
 import { cn } from "@warden/ui/lib/utils";
 import { ChevronLeft, ChevronRight, Download, FolderOpen, Link2, Pencil, Trash2 } from "lucide-react";
-import { type KeyboardEvent, memo } from "react";
+import { type KeyboardEvent, type MouseEvent, memo, useEffect, useRef } from "react";
 import { FileIcon } from "@/components/instance/files/file-icon";
 import type { Column } from "@/components/instance/files/use-file-browser";
 import { useDropZone } from "@/hooks/use-drop-zone";
@@ -20,6 +20,9 @@ import { mono } from "@/lib/utils";
 
 /** The column width; the container scrolls the strip to keep the newest columns in view. */
 export const COLUMN_WIDTH = 240;
+
+/** A phone's column: most of the strip, so the parent peeks in at the left edge. */
+const MOBILE_COLUMN_WIDTH = "min(85%, 22rem)";
 
 /**
  * One Miller column: the entries of a directory, the chosen one highlighted, a context menu per
@@ -36,15 +39,15 @@ export const FileColumn = memo(function FileColumn({
   onDelete,
   onDrop,
   downloadUrl,
-  fluid,
+  mobile,
   onBack,
 }: {
   index: number;
   column: Column;
   canManage: boolean;
-  /** Take the whole strip instead of the fixed column width (the one-level layout of a phone). */
-  fluid?: boolean;
-  /** Shown as a back chevron in the header: go up from this directory (phones, one level at a time). */
+  /** A phone's column: wider, snapping in the strip, with rows sized for a finger. */
+  mobile?: boolean;
+  /** Shown as a back chevron in the header: go up from this directory (the last column on a phone). */
   onBack?: (dir: string) => void;
   onChoose: (columnPath: string, entry: FsEntry) => void;
   onRename: (dir: string, entry: FsEntry) => void;
@@ -55,6 +58,35 @@ export const FileColumn = memo(function FileColumn({
   const drop = useDropZone(canManage, (files) => onDrop(column.path, files));
   const entries = column.listing?.entries ?? [];
   const title = baseName(column.path) || "server";
+
+  // The chosen entry stays in view when the listing arrives or the choice changes — a typed path
+  // or a deep link can choose a row far down. The listbox is scrolled by hand: `scrollIntoView`
+  // would also scroll the strip sideways, and the page.
+  const listRef = useRef<HTMLDivElement>(null);
+  const loaded = column.listing !== null;
+  useEffect(() => {
+    const list = listRef.current;
+    if (!list || !loaded || !column.selected) return;
+    const row = list.querySelector<HTMLElement>('button[data-entry][aria-selected="true"]');
+    if (!row) return;
+    if (row.offsetTop < list.scrollTop) list.scrollTop = row.offsetTop;
+    else if (row.offsetTop + row.offsetHeight > list.scrollTop + list.clientHeight)
+      list.scrollTop = row.offsetTop + row.offsetHeight - list.clientHeight;
+  }, [loaded, column.selected]);
+
+  // On a phone a tap on a column the strip shows only in part brings it into view instead of
+  // choosing the row under the finger, which would close every column after it.
+  const onClickCapture = (e: MouseEvent<HTMLDivElement>) => {
+    if (!mobile) return;
+    const strip = e.currentTarget.closest("[data-strip]");
+    if (!strip) return;
+    const col = e.currentTarget.getBoundingClientRect();
+    const view = strip.getBoundingClientRect();
+    if (col.left >= view.left - 1 && col.right <= view.right + 1) return;
+    e.preventDefault();
+    e.stopPropagation();
+    strip.scrollBy({ left: col.left < view.left ? col.left - view.left : col.right - view.right, behavior: "smooth" });
+  };
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {
@@ -83,20 +115,24 @@ export const FileColumn = memo(function FileColumn({
       data-column={index}
       className={cn(
         "relative flex h-full shrink-0 flex-col border-r transition-colors",
-        fluid && "w-full",
+        mobile && "snap-end",
         drop.over && "bg-primary/5",
       )}
-      style={fluid ? undefined : { width: COLUMN_WIDTH }}
+      style={{ width: mobile ? MOBILE_COLUMN_WIDTH : COLUMN_WIDTH }}
+      onClickCapture={onClickCapture}
       {...drop.handlers}
     >
-      <div className="flex h-8 shrink-0 items-center gap-1.5 border-b bg-muted/30 px-3">
+      <div className={cn("flex shrink-0 items-center gap-1.5 border-b bg-muted/30 px-3", mobile ? "h-11" : "h-8")}>
         {onBack && (
           <button
             type="button"
             aria-label="Up one level"
             title="Up one level"
             onClick={() => onBack(column.path)}
-            className="-ml-1.5 flex size-6 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+            className={cn(
+              "-ml-1.5 flex items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground",
+              mobile ? "size-9" : "size-6",
+            )}
           >
             <ChevronLeft className="size-4" />
           </button>
@@ -107,7 +143,13 @@ export const FileColumn = memo(function FileColumn({
           <span className="ml-auto text-[10px] text-muted-foreground tabular-nums">{entries.length}</span>
         )}
       </div>
-      <div role="listbox" tabIndex={-1} className="min-h-0 flex-1 overflow-y-auto py-1" onKeyDown={onKeyDown}>
+      <div
+        ref={listRef}
+        role="listbox"
+        tabIndex={-1}
+        className="relative min-h-0 flex-1 overflow-y-auto py-1"
+        onKeyDown={onKeyDown}
+      >
         {column.listing === null && column.error === null && (
           <div className="grid gap-1 px-2 py-1">
             {Array.from({ length: 6 }).map((_, i) => (
@@ -136,6 +178,8 @@ export const FileColumn = memo(function FileColumn({
                   className={cn(
                     "flex w-full items-center gap-2 px-3 py-1 text-left text-sm outline-none",
                     "hover:bg-accent/50 focus-visible:bg-accent/50",
+                    // A long press opens the entry's menu, not the text-selection callout.
+                    mobile && "py-2.5 select-none [-webkit-touch-callout:none]",
                     selected && "bg-accent hover:bg-accent",
                   )}
                 >

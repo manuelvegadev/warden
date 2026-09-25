@@ -61,9 +61,15 @@ move and delete.
   first bytes (`Content-Type`). The editor uses the panel's code font at 13 px with a 1.6 leading
   and a palette of its own on the console's ground (`code-editor-theme.ts`); like the console,
   the pane can go full screen or open in its own window (`/file/{id}?path=`).
-- **Phones** (under 768 px, `useIsMobile`): one level at a time — the open directory at full width
-  with a back chevron in its header — and a chosen file covers the page like a modal, header to
-  save bar, until its back arrow. The toolbar keeps the path bar and turns the buttons into icons.
+- **Phones** (under 768 px, `useIsMobile`): the same columns, each `min(85%, 22rem)` wide so the
+  parent peeks in at the left, snapping to their right edge as the strip is swiped. The strip
+  scrolls to its end whenever the open directory changes; a tap on a column shown only in part
+  brings it into view rather than choosing the row under the finger; rows and the header are
+  sized for a finger, and the last column's header has a back chevron that goes up a level. A
+  chosen file covers the page like a modal, header to save bar, until its back arrow, and the
+  columns underneath are where they were. The toolbar keeps the path bar and turns the buttons
+  into icons. (Revised 2026-09-25: phones first showed one level at a time, which left nothing to
+  scroll to.)
 - **Icons** are the Atom Material Icons set (MIT, Elior "Mallowigi" Boukhobza), the icons behind
   the IntelliJ *Atom Material Icons* plugin. `scripts/file-icons.mjs` takes a curated subset of
   its name → icon rules — what a Minecraft server directory holds plus the usual text and code

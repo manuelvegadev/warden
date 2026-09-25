@@ -4,6 +4,7 @@ import { Button } from "@warden/ui/components/button";
 import { Dialog, DialogContent } from "@warden/ui/components/dialog";
 import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from "@warden/ui/components/input-group";
 import { useIsMobile } from "@warden/ui/hooks/use-mobile";
+import { cn } from "@warden/ui/lib/utils";
 import { FilePlus2, FolderPlus, RefreshCw, Upload } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -50,8 +51,8 @@ function promptSpec(prompt: Prompt) {
 export function FileManager({ id, running, canManage }: { id: string; running: boolean; canManage: boolean }) {
   // No padding of its own: the shell's `page-pad` already gutters the section on all four sides.
   const { columns, file, open, choose, deselect, refresh } = useFileBrowser(id);
-  // A phone has room for one level: the open directory, full width, with a way back up; a chosen
-  // file then covers the screen like a modal. Wider screens get the columns.
+  // A phone gets the same columns, each most of the screen wide so the parent peeks in at the
+  // left, snapping as they are swiped; a chosen file covers the screen like a modal.
   const mobile = useIsMobile();
   const last = columns[columns.length - 1];
   const activeDir = last?.path ?? "";
@@ -70,6 +71,9 @@ export function FileManager({ id, running, canManage }: { id: string; running: b
   // above them off to the left. The strip must be scrollable even when every column would fit,
   // so a spacer — or the preview, sized to the same end — pads the strip to the width that puts
   // the last two levels at its left edge. The first placement is instant, the rest slide.
+  // On a phone the strip simply ends at the open directory: it scrolls to its end whenever that
+  // directory changes — opening a sibling from a column swiped back to included — and not when a
+  // file is chosen, so closing the file returns to the columns exactly as they were.
   const stripRef = useRef<HTMLDivElement>(null);
   const [stripWidth, setStripWidth] = useState(0);
   useEffect(() => {
@@ -89,6 +93,13 @@ export function FileManager({ id, running, canManage }: { id: string; running: b
     el.scrollTo({ left: Math.max(0, (levels - 2) * COLUMN_WIDTH), behavior: placed.current ? "smooth" : "instant" });
     placed.current = true;
   }, [columns.length, file, measured, mobile]);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: activeDir is the trigger, not a value read
+  useEffect(() => {
+    const el = stripRef.current;
+    if (!el || !measured || !mobile) return;
+    el.scrollTo({ left: el.scrollWidth, behavior: placed.current ? "smooth" : "instant" });
+    placed.current = true;
+  }, [activeDir, measured, mobile]);
   const spacerWidth = Math.max(0, stripWidth - 2 * COLUMN_WIDTH);
   const previewWidth = Math.max(PREVIEW_MIN_WIDTH, stripWidth - COLUMN_WIDTH);
 
@@ -269,15 +280,22 @@ export function FileManager({ id, running, canManage }: { id: string; running: b
       <UploadStatus uploads={uploads} />
 
       <div className="flex min-h-0 flex-1 overflow-hidden rounded-md border">
-        <div ref={stripRef} data-strip className="flex h-full min-w-0 flex-1 overflow-x-auto overflow-y-hidden">
-          {(mobile ? columns.slice(-1) : columns).map((col) => (
+        <div
+          ref={stripRef}
+          data-strip
+          className={cn(
+            "flex h-full min-w-0 flex-1 overflow-x-auto overflow-y-hidden",
+            mobile && "snap-x snap-mandatory overscroll-x-contain",
+          )}
+        >
+          {columns.map((col, i) => (
             <FileColumn
               key={col.path}
-              index={columns.indexOf(col)}
+              index={i}
               column={col}
               canManage={canManage}
-              fluid={mobile}
-              onBack={mobile && col.path !== "" ? onBack : undefined}
+              mobile={mobile}
+              onBack={mobile && col === last && col.path !== "" ? onBack : undefined}
               onChoose={choose}
               onRename={onRename}
               onDelete={onDelete}
