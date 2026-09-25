@@ -9,7 +9,9 @@ import { languageFor } from "@/components/instance/code-language";
 import { DetachControls } from "@/components/instance/detach-controls";
 import { FileIcon } from "@/components/instance/files/file-icon";
 import { CopyButton, SaveBar } from "@/components/instance/section-card";
+import { WrapToggle } from "@/components/instance/wrap-toggle";
 import { useDetachable } from "@/hooks/use-detachable";
+import { useEditorWrap } from "@/hooks/use-editor-wrap";
 import { useTextDraft } from "@/hooks/use-text-draft";
 import { useUnsavedWarning } from "@/hooks/use-unsaved-warning";
 import { FS_EDIT_LIMIT, type FsContent, type FsEntry, formatBytes, fs } from "@/lib/api";
@@ -60,6 +62,8 @@ export function FilePreview({
   const [content, setContent] = useState<FsContent | null>(null);
   const [error, setError] = useState<string | null>(null);
   const detach = useDetachable(`/file/${id}?path=${encodeURIComponent(path)}`, `file-${id}-${path}`, popout);
+  const [wrap, setWrap] = useEditorWrap(path);
+  const editing = content?.kind === "text" && content.text !== undefined;
 
   useEffect(() => {
     let cancelled = false;
@@ -92,6 +96,7 @@ export function FilePreview({
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-1">
+          {editing && <WrapToggle wrap={wrap} onChange={setWrap} />}
           <Button
             variant="ghost"
             size="icon-sm"
@@ -146,6 +151,7 @@ export function FilePreview({
           initial={content.text}
           running={running}
           canManage={editable}
+          wrap={wrap}
           onSaved={onSaved}
         />
       )}
@@ -187,6 +193,7 @@ function TextDraft({
   initial,
   running,
   canManage,
+  wrap,
   onSaved,
 }: {
   id: string;
@@ -194,6 +201,7 @@ function TextDraft({
   initial: string;
   running: boolean;
   canManage: boolean;
+  wrap: boolean;
   onSaved?: () => void;
 }) {
   const cached = useRef<string | null>(initial);
@@ -219,6 +227,7 @@ function TextDraft({
           language={languageFor(path)}
           readOnly={!canManage}
           height="100%"
+          wrap={wrap}
           className="min-h-0 flex-1"
         />
       </div>

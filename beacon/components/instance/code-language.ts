@@ -40,6 +40,20 @@ const BY_EXTENSION: Record<string, CodeLanguage> = {
   sql: "sql",
 };
 
+/**
+ * What a file is, for line wrapping: a log or a data file reads by column and wants long lines to
+ * scroll sideways; prose and configuration read better wrapped. Each kind remembers its own choice.
+ */
+export type WrapKind = "log" | "data" | "text";
+
+const DATA_EXTENSIONS = new Set(["json", "json5", "mcmeta", "csv", "tsv", "sql", "xml", "svg", "html"]);
+
+export function wrapKindFor(path: string): WrapKind {
+  const lower = path.toLowerCase();
+  if (/\.log(\.\d+)?$/.test(lower) || /(^|\/)(logs|crash-reports)\//.test(lower)) return "log";
+  return DATA_EXTENSIONS.has(lower.slice(lower.lastIndexOf(".") + 1)) ? "data" : "text";
+}
+
 /** Picks the editor language from a file name; anything unknown is plain text. */
 export function languageFor(path: string): CodeLanguage {
   const ext = path.slice(path.lastIndexOf(".") + 1).toLowerCase();

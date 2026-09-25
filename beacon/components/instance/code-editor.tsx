@@ -26,26 +26,32 @@ const typography = EditorView.theme({
   ".cm-scroller": { fontFamily: "var(--font-console)" },
 });
 
-// Stable references: react-codemirror reconfigures the editor whenever the extensions array identity changes.
-const base: Extension[] = [typography, EditorView.lineWrapping];
+// Stable references: react-codemirror reconfigures the editor whenever the extensions array identity
+// changes, so each language gets two fixed lists — wrapping and not — and the toggle swaps them.
 const SETUP = {
   folding: { foldGutter: true, highlightActiveLine: true },
   plain: { foldGutter: false, highlightActiveLine: true },
 };
 /** Languages with a real parser, where folding by block makes sense. */
 const FOLDING = new Set<CodeLanguage>(["yaml", "json", "markdown"]);
-const EXTENSIONS: Record<CodeLanguage, Extension[]> = {
-  properties: [StreamLanguage.define(properties), ...base],
-  yaml: [yaml(), ...base],
-  json: [json(), ...base],
-  toml: [StreamLanguage.define(toml), ...base],
-  shell: [StreamLanguage.define(shell), ...base],
-  markdown: [markdown(), ...base],
-  xml: [StreamLanguage.define(xml), ...base],
-  javascript: [StreamLanguage.define(javascript), ...base],
-  sql: [StreamLanguage.define(standardSQL), ...base],
-  text: base,
+const LANGUAGES: Record<CodeLanguage, Extension[]> = {
+  properties: [StreamLanguage.define(properties)],
+  yaml: [yaml()],
+  json: [json()],
+  toml: [StreamLanguage.define(toml)],
+  shell: [StreamLanguage.define(shell)],
+  markdown: [markdown()],
+  xml: [StreamLanguage.define(xml)],
+  javascript: [StreamLanguage.define(javascript)],
+  sql: [StreamLanguage.define(standardSQL)],
+  text: [],
 };
+const withBase = (base: Extension[]) =>
+  Object.fromEntries(Object.entries(LANGUAGES).map(([k, v]) => [k, [...v, ...base]])) as Record<
+    CodeLanguage,
+    Extension[]
+  >;
+const EXTENSIONS = { wrap: withBase([typography, EditorView.lineWrapping]), nowrap: withBase([typography]) };
 
 /** CodeMirror with the panel's console font and a dark palette of its own; validation happens server-side on save. */
 export function CodeEditor({
@@ -54,6 +60,7 @@ export function CodeEditor({
   language = "text",
   readOnly,
   height = "520px",
+  wrap = true,
   className,
 }: {
   value: string;
@@ -62,6 +69,8 @@ export function CodeEditor({
   readOnly?: boolean;
   /** CSS height of the editor; "100%" fills a flex parent with a definite height. */
   height?: string;
+  /** Wrap long lines; off, they scroll sideways. */
+  wrap?: boolean;
   className?: string;
 }) {
   return (
@@ -71,7 +80,7 @@ export function CodeEditor({
         height={height}
         className="h-full"
         theme={editorTheme}
-        extensions={EXTENSIONS[language]}
+        extensions={EXTENSIONS[wrap ? "wrap" : "nowrap"][language]}
         basicSetup={FOLDING.has(language) ? SETUP.folding : SETUP.plain}
         onChange={onChange}
         readOnly={readOnly}

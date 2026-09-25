@@ -8,6 +8,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { languageFor } from "@/components/instance/code-language";
 import { SaveBar } from "@/components/instance/section-card";
+import { WrapToggle } from "@/components/instance/wrap-toggle";
+import { useEditorWrap } from "@/hooks/use-editor-wrap";
 import { useTextDraft } from "@/hooks/use-text-draft";
 import { useUnsavedWarning } from "@/hooks/use-unsaved-warning";
 import { type ConfigFile, files, formatBytes } from "@/lib/api";
@@ -130,15 +132,25 @@ function FileDraft({
   const write = useCallback((t: string) => files.write(id, path, t), [id, path]);
   const draft = useTextDraft(load, write);
   useUnsavedWarning(draft.dirty);
+  const [wrap, setWrap] = useEditorWrap(path);
 
   if (draft.original === null) return <p className="py-4 text-sm text-muted-foreground">Loading {path}…</p>;
   return (
     <>
       <div className="flex items-center justify-between gap-3">
         <span className={`${mono} truncate text-sm`}>{path}</span>
-        {draft.dirty && <span className="text-xs text-muted-foreground">Unsaved changes</span>}
+        <div className="flex shrink-0 items-center gap-2">
+          {draft.dirty && <span className="text-xs text-muted-foreground">Unsaved changes</span>}
+          <WrapToggle wrap={wrap} onChange={setWrap} />
+        </div>
       </div>
-      <CodeEditor value={draft.text} onChange={draft.setText} language={languageFor(path)} readOnly={!canManage} />
+      <CodeEditor
+        value={draft.text}
+        onChange={draft.setText}
+        language={languageFor(path)}
+        readOnly={!canManage}
+        wrap={wrap}
+      />
       {running && (
         <p className="text-xs text-muted-foreground">
           Paper reads these files at startup: changes apply on the next start.
