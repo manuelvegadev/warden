@@ -79,6 +79,13 @@
 - [ ] Phase 4: effects presets before encoding (clean, conscience, divine, PA) with the bitrate switch and a local monitor
 - [ ] Later: `PlayerAudioListener` mode, WebRTC if WebSocket jitter proves unacceptable, SVC server settings from the instance settings
 
+## Phase 8 — Panel UX, previews and dashboard ([plan](panel-ux-plan.md), agreed 2026-09-25)
+- [x] 8.1 UI fixes (Beacon only, 2026-09-25): every folder column on phones; power controls under the instance switcher with Stop/Restart confirmations; full-height pages; Console, Config files and Metrics fill the page; console history on ArrowUp; editor word-wrap toggle; a player always shown as face + name; small fixes (Members breadcrumb, keyboard player rows, dates, nested `<main>`, host network label, TPS hidden where unsupported)
+- [ ] 8.2 Instance chrome: Overview section as the landing page, a status strip replacing the tiles and right sidebar; Metrics with ranges, server-side buckets, the 1-minute rollup `docs/api.md` promises, gaps and more series
+- [ ] 8.3 Previews: `Range` through the proxy; a View/Edit toggle — log view, JSON tables with faces, properties form, EULA card, image viewer, audio; then `/fs/jar`, `/fs/archive`, `/fs/nbt`, region grid, read-only SQLite
+- [ ] 8.4 Plugins: releases for other Minecraft versions shown dimmed and installable; HTTPS and host allowlist in `Download`; plugin command completion through the agent; Distant Horizons Support and Voxy Server Side integration
+- [ ] 8.5 Home dashboard: resizable columns of modules (react-resizable-panels), edit mode, per-user layouts, mobile stacking
+
 ## Backlog (optional, unscheduled)
 - [ ] Server-list appearance follow-ups, from the cleanup pass over the MOTD/icon work. None block anything; each was judged not worth its blast radius at the time:
   - `hasIcon` on the instance detail (or properties) response. Beacon currently learns whether an instance has an icon by requesting `GET /instances/{id}/icon` and treating the 404 as "no" — a guaranteed 404 in the network panel for the common case. The daemon knows it for free; this is an API contract change, so it wants its own commit.
