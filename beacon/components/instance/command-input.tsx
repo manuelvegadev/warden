@@ -3,6 +3,7 @@
 import { Input } from "@warden/ui/components/input";
 import { cn } from "@warden/ui/lib/utils";
 import { type KeyboardEvent, useEffect, useId, useMemo, useRef, useState } from "react";
+import { PlayerFace } from "@/components/instance/player-face";
 import { type CompletionState, useCommandCompletion } from "@/hooks/use-command-completion";
 import { arrowTarget, type HistoryNav, NOT_NAVIGATING, navigate } from "@/lib/command-history";
 import { mono } from "@/lib/utils";
@@ -232,7 +233,10 @@ export function CommandInput({
                   accept(s.value);
                 }}
               >
-                <span>
+                <span className="flex min-w-0 items-center gap-1.5">
+                  {(s.kind === "online" || s.kind === "player") && (
+                    <PlayerFace name={s.value} className="size-4 shrink-0" />
+                  )}
                   <span className="text-foreground">{s.value.slice(0, current.length)}</span>
                   <span className="text-muted-foreground">{s.value.slice(current.length)}</span>
                 </span>

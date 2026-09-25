@@ -6,6 +6,7 @@ import { Input } from "@warden/ui/components/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@warden/ui/components/select";
 import { type FormEvent, useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { PlayerName } from "@/components/instance/player-face";
 import { PlayerPicker } from "@/components/instance/player-picker";
 import { SectionCard, StatusHint } from "@/components/instance/section-card";
 import { type BanEntry, instances, type OpEntry, type WhitelistEntry } from "@/lib/api";
@@ -121,6 +122,7 @@ export function AccessLists({ id, canManage }: { id: string; canManage: boolean 
           items={whitelist.map((w) => ({
             key: byName(w),
             label: w.name,
+            player: true,
             hint: w.uuid,
             onRemove: () => run("whitelist", "Whitelist", () => instances.whitelistRemove(id, w.name)),
           }))}
@@ -165,6 +167,7 @@ export function AccessLists({ id, canManage }: { id: string; canManage: boolean 
           items={ops.map((o) => ({
             key: byName(o),
             label: o.name,
+            player: true,
             badge: `level ${o.level}`,
             hint: o.uuid,
             onRemove: canManage ? () => run("ops", "Deop", () => instances.opRemove(id, o.name)) : undefined,
@@ -212,6 +215,7 @@ export function AccessLists({ id, canManage }: { id: string; canManage: boolean 
             ...bans.players.map((b) => ({
               key: `p-${byName(b)}`,
               label: b.name ?? "",
+              player: true,
               hint: banHint(b),
               onRemove: () => run("bans", "Pardon", () => instances.pardon(id, b.name ?? "")),
             })),
@@ -236,7 +240,7 @@ function List({
   empty,
   removeLabel = "Remove",
 }: {
-  items: { key: string; label: string; badge?: string; hint?: string; onRemove?: () => void }[];
+  items: { key: string; label: string; player?: boolean; badge?: string; hint?: string; onRemove?: () => void }[];
   empty: string;
   removeLabel?: string;
 }) {
@@ -246,7 +250,8 @@ function List({
       {items.map((it) => (
         <li key={it.key} className="flex items-center justify-between gap-2 px-5 py-2.5 text-sm">
           <div className="min-w-0">
-            <span className={mono}>{it.label}</span> {it.badge && <Badge variant="secondary">{it.badge}</Badge>}
+            {it.player ? <PlayerName name={it.label} /> : <span className={mono}>{it.label}</span>}{" "}
+            {it.badge && <Badge variant="secondary">{it.badge}</Badge>}
             {it.hint && <div className="truncate text-xs text-muted-foreground">{it.hint}</div>}
           </div>
           {it.onRemove && (

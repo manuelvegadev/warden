@@ -22,7 +22,7 @@ import {
   Wrench,
 } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { PlayerFace } from "@/components/instance/player-face";
+import { PlayerName } from "@/components/instance/player-face";
 import { CopyButton } from "@/components/instance/section-card";
 import { useStoredPreference } from "@/hooks/use-stored-preference";
 import type { ConsoleLine } from "@/lib/api";
@@ -225,12 +225,7 @@ const Row = memo(function Row({ line, wrap }: { line: ParsedLine; wrap: boolean 
           meta.text,
         )}
       >
-        {isPlayer && (
-          <span className="mr-1.5 inline-flex items-center gap-1 align-middle font-medium text-foreground">
-            <PlayerFace name={line.player as string} className="size-4" />
-            {line.player}
-          </span>
-        )}
+        {isPlayer && <PlayerName name={line.player as string} className="mr-1.5 gap-1 font-medium text-foreground" />}
         {line.kind === "chat" ? (
           <span className="text-foreground">{line.message}</span>
         ) : line.kind === "command" || line.kind === "stdin" ? (

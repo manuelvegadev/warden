@@ -33,7 +33,7 @@ import {
   type PixelScale,
   type ViewSettings,
 } from "@/components/instance/live-view-settings";
-import { PlayerFace } from "@/components/instance/player-face";
+import { PlayerName } from "@/components/instance/player-face";
 import { SectionCard } from "@/components/instance/section-card";
 import { useVoice, useVoiceStatus, VoiceControls, VoicePresencePill } from "@/components/instance/voice-listen";
 import { useDetachable } from "@/hooks/use-detachable";
@@ -631,8 +631,7 @@ export function LiveView({ popout }: { popout?: boolean }) {
               )}
               title={`${Math.round(p.x)}, ${Math.round(p.y)}, ${Math.round(p.z)}`}
             >
-              <PlayerFace name={p.name} className="size-4" />
-              {p.name}
+              <PlayerName name={p.name} />
             </Button>
           ))}
         </div>

@@ -6,7 +6,7 @@ import { badgeTone } from "@warden/ui/lib/badge-tone";
 import { Headphones, type LucideIcon, Mic } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { PlayerFace } from "@/components/instance/player-face";
+import { PlayerName } from "@/components/instance/player-face";
 import { PlayerSheet } from "@/components/instance/player-sheet";
 import { SectionCard } from "@/components/instance/section-card";
 import { instances, type Player, type ServerEvent } from "@/lib/api";
@@ -61,8 +61,7 @@ export function PlayersTab({ id, online, canManage }: { id: string; online: stri
               <TableRow key={p.name} className="cursor-pointer" onClick={() => setSelected(p.name)}>
                 <TableCell className="pl-5 font-medium">
                   <div className="flex items-center gap-3">
-                    <PlayerFace name={p.name} className="size-7" />
-                    {p.name}
+                    <PlayerName name={p.name} faceClassName="size-7" className="gap-2" />
                     {online.includes(p.name) && (
                       <Badge variant="outline" className={badgeTone.emerald}>
                         online
@@ -87,7 +86,8 @@ export function PlayersTab({ id, online, canManage }: { id: string; online: stri
               <li key={`${e.ts}-${e.kind}-${e.player}`}>
                 <span className="tabular-nums">{new Date(e.ts).toLocaleTimeString()}</span> ·{" "}
                 {Icon && <Icon className="inline size-3 align-[-2px]" aria-hidden="true" />}{" "}
-                <span className="text-foreground">{e.player}</span> {(EVENTS[e.kind]?.describe ?? ((ev) => ev.text))(e)}
+                {e.player && <PlayerName name={e.player} className="text-foreground" />}{" "}
+                {(EVENTS[e.kind]?.describe ?? ((ev) => ev.text))(e)}
               </li>
             );
           })}
