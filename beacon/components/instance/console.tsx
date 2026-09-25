@@ -18,11 +18,13 @@ import { PrettyConsole } from "@/components/instance/console-pretty";
 import { DetachControls } from "@/components/instance/detach-controls";
 import { useConsoleLines, useInstance } from "@/components/instance/instance-context";
 import { Logs } from "@/components/instance/logs";
+import { useCommandHistory } from "@/hooks/use-command-history";
 import { useDetachable } from "@/hooks/use-detachable";
 import { useKnownPlayers } from "@/hooks/use-known-players";
 import { useStoredPreference } from "@/hooks/use-stored-preference";
 import { useWakeLock } from "@/hooks/use-wake-lock";
 import type { ConsoleLine } from "@/lib/api";
+import { useSession } from "@/lib/auth-client";
 import "@xterm/xterm/css/xterm.css";
 
 const colors: Record<ConsoleLine["level"], string> = {
@@ -152,7 +154,9 @@ export function Console({ popout }: { popout?: boolean }) {
   // Hold the screen awake only while there is output to watch; a stopped server should not keep a
   // phone lit up in someone's pocket.
   useWakeLock(status.state === "running" || status.state === "starting");
-  const [history, setHistory] = useState<string[]>([]);
+  // Per person and instance, shared with the pop-out window.
+  const userId = useSession().data?.user.id;
+  const [history, pushHistory] = useCommandHistory(userId ? `beacon.console.history.${userId}.${instanceId}` : null);
   const [value, setValue] = useState("");
   // Remaining commands of a multi-command template: each one is put in the input after the previous is sent.
   const [queue, setQueue] = useState<string[]>([]);
@@ -172,7 +176,7 @@ export function Console({ popout }: { popout?: boolean }) {
     const cmd = command.trim();
     if (!cmd || disabled) return;
     sendCommand(cmd);
-    setHistory((h) => [cmd, ...h.filter((x) => x !== cmd)].slice(0, 50));
+    pushHistory(cmd);
     setValue(queue[0] ?? "");
     setQueue((q) => q.slice(1));
   }

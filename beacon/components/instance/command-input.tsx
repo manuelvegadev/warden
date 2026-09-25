@@ -4,6 +4,7 @@ import { Input } from "@warden/ui/components/input";
 import { cn } from "@warden/ui/lib/utils";
 import { type KeyboardEvent, useEffect, useId, useMemo, useRef, useState } from "react";
 import { type CompletionState, useCommandCompletion } from "@/hooks/use-command-completion";
+import { arrowTarget, type HistoryNav, NOT_NAVIGATING, navigate } from "@/lib/command-history";
 import { mono } from "@/lib/utils";
 
 export interface CommandInputProps {
@@ -11,7 +12,7 @@ export interface CommandInputProps {
   onChange: (value: string) => void;
   /** Called on Enter with the trimmed command; the caller clears the value and records history. */
   onSubmit: (command: string) => void;
-  /** Most recent first; navigated with ↑/↓ while the suggestion list is closed. */
+  /** Most recent first; navigated with ↑/↓ on an empty line, or searched by prefix with the list closed. */
   history?: readonly string[];
   players?: readonly string[];
   knownPlayers?: readonly string[];
@@ -27,8 +28,11 @@ export interface CommandInputProps {
 /**
  * Console command line with shell-style completion: Tab inserts the first match and repeated Tab
  * (Shift+Tab) walks the matches like Warp or zsh — the list of matches is frozen while cycling, so
- * the inserted text does not narrow it. ↑/↓ walk the list when open and the history when closed,
- * Escape closes, Enter submits (or accepts a suggestion chosen with the arrows).
+ * the inserted text does not narrow it. The list opens as you type, not on an empty line. ↑/↓ walk
+ * the list while it is open over typed text; otherwise they walk the history — every command on an
+ * empty line, those starting with the typed text on a line with the list closed — and ↓ past the
+ * newest brings back what was being typed. Escape closes the list, or leaves the history; Enter
+ * submits (or accepts a suggestion chosen with the arrows).
  */
 export function CommandInput({
   value,
@@ -50,7 +54,8 @@ export function CommandInput({
   const [caret, setCaret] = useState(0);
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
-  const [hIdx, setHIdx] = useState(-1);
+  const [nav, setNav] = useState<HistoryNav>(NOT_NAVIGATING);
+  const navigating = nav.index !== -1;
   const pendingCaret = useRef<number | null>(null);
   // Frozen at the first Tab: the matches, the token they were matched against and how to replace it.
   const [cycle, setCycle] = useState<Pick<CompletionState, "suggestions" | "current" | "apply"> | null>(null);
@@ -105,6 +110,8 @@ export function CommandInput({
   }
 
   function onKey(e: KeyboardEvent<HTMLInputElement>) {
+    // An input method composing a character owns the keys until it commits.
+    if (e.nativeEvent.isComposing) return;
     const listOpen = open && selectable.length > 0;
     switch (e.key) {
       case "Tab": {
@@ -123,19 +130,13 @@ export function CommandInput({
       case "ArrowUp": {
         e.preventDefault();
         const up = e.key === "ArrowUp";
-        if (listOpen) return step(up ? -1 : 1);
-        if (up && history.length) {
-          const i = Math.min(hIdx + 1, history.length - 1);
-          setHIdx(i);
-          set({ value: history[i], caret: history[i].length });
-          setOpen(false);
-        } else if (!up) {
-          const i = Math.max(hIdx - 1, -1);
-          setHIdx(i);
-          const v = i === -1 ? "" : history[i];
-          set({ value: v, caret: v.length });
-          setOpen(false);
-        }
+        if (arrowTarget({ listOpen, value, navigating }) === "list") return step(up ? -1 : 1);
+        const next = navigate(nav, up ? "up" : "down", history, value);
+        if (!next) return;
+        setNav(next.nav);
+        set({ value: next.value, caret: next.value.length });
+        setOpen(false);
+        reset();
         return;
       }
       case "Escape":
@@ -143,6 +144,10 @@ export function CommandInput({
           e.preventDefault();
           setOpen(false);
           reset();
+        } else if (navigating) {
+          e.preventDefault();
+          set({ value: nav.draft, caret: nav.draft.length });
+          setNav(NOT_NAVIGATING);
         }
         return;
       case "Enter": {
@@ -151,7 +156,7 @@ export function CommandInput({
         const cmd = value.trim();
         if (!cmd) return;
         onSubmit(cmd);
-        setHIdx(-1);
+        setNav(NOT_NAVIGATING);
         setOpen(false);
         reset();
         return;
@@ -171,13 +176,15 @@ export function CommandInput({
         disabled={disabled}
         onChange={(e) => {
           set({ value: e.target.value, caret: e.target.selectionStart ?? e.target.value.length });
-          setOpen(true);
+          // Suggestions follow what is typed; an emptied line leaves the arrows to history. Editing a
+          // recalled command makes it the new draft.
+          setOpen(e.target.value !== "");
           reset();
-          setHIdx(-1);
+          setNav(NOT_NAVIGATING);
         }}
         onKeyDown={onKey}
         onSelect={(e) => setCaret(e.currentTarget.selectionStart ?? 0)}
-        onFocus={() => setOpen(true)}
+        onFocus={() => setOpen(value !== "")}
         onBlur={() => {
           setOpen(false);
           reset();
