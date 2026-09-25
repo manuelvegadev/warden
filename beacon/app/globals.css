@@ -10,36 +10,68 @@
 }
 
 /* Scrollbars follow the theme (Chrome paints them light unless color-scheme is set) and mimic
-   Safari's overlay bars: no track, a slim pill floating ~2px from the edge that thickens on hover. */
+   macOS's scrollbar while it is shown: a faint track with a hairline on its inner edge, and a
+   rounded pill inset from the edges that darkens under the pointer. Touch screens keep their
+   native overlay bars.
+
+   Chrome 121+ ignores every ::-webkit-scrollbar rule on an element that has scrollbar-width or
+   scrollbar-color, so those two are only set where ::-webkit-scrollbar does not exist (Firefox),
+   which cannot draw the hairline and gets the nearest it can: a thin bar in the same colours. */
 :root {
   color-scheme: light;
+  --scrollbar-track: color-mix(in oklab, var(--foreground) 3%, var(--background));
+  --scrollbar-edge: var(--border);
+  --scrollbar-thumb: color-mix(in oklab, var(--muted-foreground) 50%, transparent);
+  --scrollbar-thumb-hover: color-mix(in oklab, var(--muted-foreground) 80%, transparent);
 }
 .dark {
   color-scheme: dark;
+  --scrollbar-track: color-mix(in oklab, var(--foreground) 4%, var(--background));
+  --scrollbar-thumb: color-mix(in oklab, var(--muted-foreground) 55%, transparent);
+  --scrollbar-thumb-hover: color-mix(in oklab, var(--muted-foreground) 85%, transparent);
 }
-* {
-  scrollbar-width: thin;
-  scrollbar-color: color-mix(in oklab, var(--muted-foreground) 35%, transparent) transparent;
+@supports not selector(::-webkit-scrollbar) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+  }
 }
-*::-webkit-scrollbar {
-  width: 11px;
-  height: 11px;
-}
-*::-webkit-scrollbar-track,
-*::-webkit-scrollbar-corner {
-  background: transparent;
-}
-*::-webkit-scrollbar-thumb {
-  background-color: color-mix(in oklab, var(--muted-foreground) 35%, transparent);
-  border: 3px solid transparent; /* 11px − 2×3px = 5px pill, like Safari at rest */
-  border-radius: 9999px;
-  background-clip: padding-box;
-  min-height: 32px;
-}
-*::-webkit-scrollbar-thumb:hover,
-*::-webkit-scrollbar-thumb:active {
-  background-color: color-mix(in oklab, var(--muted-foreground) 55%, transparent);
-  border-width: 2px; /* grows to 7px while interacting */
+@media (hover: hover) and (pointer: fine) {
+  *::-webkit-scrollbar {
+    width: 15px;
+    height: 15px;
+  }
+  *::-webkit-scrollbar-track {
+    background: var(--scrollbar-track);
+  }
+  *::-webkit-scrollbar-track:vertical {
+    border-left: 1px solid var(--scrollbar-edge);
+  }
+  *::-webkit-scrollbar-track:horizontal {
+    border-top: 1px solid var(--scrollbar-edge);
+  }
+  *::-webkit-scrollbar-corner {
+    background: var(--scrollbar-track);
+  }
+  /* 15px less the hairline and a 4px inset on each side: a 6px pill, centred in the track. */
+  *::-webkit-scrollbar-thumb {
+    background-color: var(--scrollbar-thumb);
+    background-clip: padding-box;
+    border: 4px solid transparent;
+    border-radius: 9999px;
+  }
+  *::-webkit-scrollbar-thumb:vertical {
+    border-left-width: 5px;
+    min-height: 32px;
+  }
+  *::-webkit-scrollbar-thumb:horizontal {
+    border-top-width: 5px;
+    min-width: 32px;
+  }
+  *::-webkit-scrollbar-thumb:hover,
+  *::-webkit-scrollbar-thumb:active {
+    background-color: var(--scrollbar-thumb-hover);
+  }
 }
 
 /* Markdown rendered from catalog READMEs (plugin details). Kept minimal: no typography plugin. */
