@@ -13,6 +13,7 @@ import { InstanceSidebar } from "@/components/instance/sidebar";
 import { TaskBanner } from "@/components/instance/task-banner";
 import { StateBadge } from "@/components/state-badge";
 import { useServerAddress } from "@/components/wardend-config";
+import { hasTps } from "@/lib/api";
 
 /**
  * Instance page chrome: a header (name, address, stat tiles) and below it the section content next
@@ -77,6 +78,7 @@ export function InstanceShell({ children }: { children: React.ReactNode }) {
             history={recent}
             state={status.state}
             tps={status.tps}
+            showTps={hasTps(manifest.software)}
             memoryMb={manifest.memoryMb}
           />
         )}

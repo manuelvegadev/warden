@@ -79,6 +79,7 @@ export function MetricsChart({
   instanceId,
   popout,
   fill,
+  tps = true,
 }: {
   data: MetricPoint[];
   memoryMb: number;
@@ -86,6 +87,8 @@ export function MetricsChart({
   popout?: boolean;
   /** Fill the section from `sm` up, two charts by two; a phone stacks them at their fixed height. */
   fill?: boolean;
+  /** Off for software that has no tick rate to report (Vanilla, Fabric); the network chart takes the row. */
+  tps?: boolean;
 }) {
   const { rootRef, fullscreen, toggleFullscreen, openPopout, fillHeight, showPopout } = useDetachable(
     `/metrics/${instanceId}`,
@@ -241,50 +244,56 @@ export function MetricsChart({
             </ChartContainer>
           </Panel>
 
-          <Panel title="TPS" subtitle="server tick rate · 20 is healthy">
-            <ChartContainer config={single("TPS", SERIES_1)} className={chartClass}>
-              <LineChart data={data} margin={{ left: 4, right: 4, top: 8 }}>
-                <CartesianGrid vertical={false} strokeOpacity={0.25} />
-                <XAxis
-                  dataKey="t"
-                  type="number"
-                  scale="time"
-                  domain={["dataMin", "dataMax"]}
-                  tickFormatter={timeFmt}
-                  minTickGap={48}
-                  tickLine={false}
-                  axisLine={false}
-                />
-                <YAxis
-                  width={48}
-                  tickLine={false}
-                  axisLine={false}
-                  // 20 is the tick rate Minecraft targets; there is no "above 20", so the scale is
-                  // absolute and the distance to the ceiling is the whole story.
-                  domain={tpsWindow}
-                  ticks={tpsFloor === 0 ? [0, 5, 10, 15, 20] : [15, 16, 17, 18, 19, 20]}
-                  label={yLabel("ticks/s")}
-                />
-                <ChartTooltip
-                  content={<ChartTooltipContent labelFormatter={tooltipTime} formatter={(v) => [String(v), "TPS"]} />}
-                />
-                <Threshold y={18} color={WARN} label="lagging" side="left" />
-                {/* At the windowed floor this line would just trace the baseline. */}
-                {tpsFloor === 0 && <Threshold y={TPS_FLOOR} color={CRIT} label="unplayable" />}
-                <Line
-                  dataKey="tps"
-                  type="monotone"
-                  stroke={SERIES_1}
-                  strokeWidth={2}
-                  dot={false}
-                  connectNulls
-                  isAnimationActive={false}
-                />
-              </LineChart>
-            </ChartContainer>
-          </Panel>
+          {tps && (
+            <Panel title="TPS" subtitle="server tick rate · 20 is healthy">
+              <ChartContainer config={single("TPS", SERIES_1)} className={chartClass}>
+                <LineChart data={data} margin={{ left: 4, right: 4, top: 8 }}>
+                  <CartesianGrid vertical={false} strokeOpacity={0.25} />
+                  <XAxis
+                    dataKey="t"
+                    type="number"
+                    scale="time"
+                    domain={["dataMin", "dataMax"]}
+                    tickFormatter={timeFmt}
+                    minTickGap={48}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <YAxis
+                    width={48}
+                    tickLine={false}
+                    axisLine={false}
+                    // 20 is the tick rate Minecraft targets; there is no "above 20", so the scale is
+                    // absolute and the distance to the ceiling is the whole story.
+                    domain={tpsWindow}
+                    ticks={tpsFloor === 0 ? [0, 5, 10, 15, 20] : [15, 16, 17, 18, 19, 20]}
+                    label={yLabel("ticks/s")}
+                  />
+                  <ChartTooltip
+                    content={<ChartTooltipContent labelFormatter={tooltipTime} formatter={(v) => [String(v), "TPS"]} />}
+                  />
+                  <Threshold y={18} color={WARN} label="lagging" side="left" />
+                  {/* At the windowed floor this line would just trace the baseline. */}
+                  {tpsFloor === 0 && <Threshold y={TPS_FLOOR} color={CRIT} label="unplayable" />}
+                  <Line
+                    dataKey="tps"
+                    type="monotone"
+                    stroke={SERIES_1}
+                    strokeWidth={2}
+                    dot={false}
+                    connectNulls
+                    isAnimationActive={false}
+                  />
+                </LineChart>
+              </ChartContainer>
+            </Panel>
+          )}
 
-          <Panel title="Network" subtitle="all host interfaces, not just this server">
+          <Panel
+            title="Host network"
+            subtitle="all host interfaces, not just this server"
+            className={tps ? undefined : "sm:col-span-2"}
+          >
             <ChartContainer
               config={{ rxKb: { label: "In", color: SERIES_1 }, txKb: { label: "Out", color: SERIES_2 } }}
               className={chartClass}
@@ -341,9 +350,19 @@ export function MetricsChart({
   );
 }
 
-function Panel({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) {
+function Panel({
+  title,
+  subtitle,
+  className,
+  children,
+}: {
+  title: string;
+  subtitle: string;
+  className?: string;
+  children: React.ReactNode;
+}) {
   return (
-    <Card className="min-h-0">
+    <Card className={cn("min-h-0", className)}>
       <CardHeader className="pb-0">
         <CardTitle className="text-sm font-medium">
           {title} <span className="ml-1 font-normal text-muted-foreground">{subtitle}</span>

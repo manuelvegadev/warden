@@ -1,5 +1,6 @@
 "use client";
 
+import { cn } from "@warden/ui/lib/utils";
 import { ArrowDownUp, Cpu, Gauge, MemoryStick } from "lucide-react";
 import { useMemo } from "react";
 import { Sparkline } from "@/components/instance/sparkline";
@@ -33,6 +34,7 @@ export function ResourceCards({
   history,
   state,
   tps,
+  showTps = true,
   memoryMb,
 }: {
   metrics: MetricSample | null;
@@ -40,6 +42,8 @@ export function ResourceCards({
   history: MetricPoint[];
   state: InstanceState;
   tps?: [number, number, number];
+  /** Off for software that has no tick rate to report (Vanilla, Fabric). */
+  showTps?: boolean;
   memoryMb: number;
 }) {
   const live = state === "running" || state === "starting" || state === "stopping";
@@ -68,7 +72,8 @@ export function ResourceCards({
       domain: [0, memCeiling(memoryMb)] as const,
     },
     {
-      label: "Network",
+      // Every interface of the host: the daemon cannot tell this server's traffic from the rest.
+      label: "Host network",
       icon: ArrowDownUp,
       value: m ? `↓${rate(m.netRx)} ↑${rate(m.netTx)}/s` : "—",
       keys: ["rxKb", "txKb"],
@@ -82,9 +87,10 @@ export function ResourceCards({
       domain: tpsDomain(history),
     },
   ];
+  const shown = showTps ? tiles : tiles.filter((t) => t.label !== "TPS");
   return (
-    <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-      {tiles.map((c) => (
+    <div className={cn("grid grid-cols-2 gap-3", showTps ? "xl:grid-cols-4" : "xl:grid-cols-3")}>
+      {shown.map((c) => (
         <StatTile key={c.label} label={c.label} icon={c.icon} value={c.value} detail={c.detail} className="h-28">
           {/* sparkline under a gradient scrim — opaque behind the text, transparent at the bottom */}
           {c.keys && c.domain && live && (

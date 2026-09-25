@@ -29,7 +29,7 @@ import { PropertiesEditor } from "@/components/instance/properties-editor";
 import { SettingsForm } from "@/components/instance/settings-form";
 import { UpgradeCard } from "@/components/instance/upgrade-card";
 import { can, type InstanceAction, type InstanceRole } from "@/lib/access";
-import { hasPlugins, isStopped } from "@/lib/api";
+import { hasPlugins, hasTps, isStopped } from "@/lib/api";
 
 // The file manager brings its icon table and the editor modes: loaded with its section, not the shell.
 const FileManager = dynamic(() => import("@/components/instance/files/file-manager").then((m) => m.FileManager), {
@@ -84,7 +84,15 @@ export const SECTIONS: Section[] = [
     icon: Activity,
     // The header tiles chart the same four series, and the charts want the width and the height.
     layout: "viewer",
-    render: (s) => <MetricsChart data={s.history} memoryMb={s.manifest.memoryMb} instanceId={s.manifest.id} fill />,
+    render: (s) => (
+      <MetricsChart
+        data={s.history}
+        memoryMb={s.manifest.memoryMb}
+        instanceId={s.manifest.id}
+        tps={hasTps(s.manifest.software)}
+        fill
+      />
+    ),
   },
   {
     slug: "map",

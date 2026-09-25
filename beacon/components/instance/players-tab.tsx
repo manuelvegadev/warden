@@ -10,7 +10,7 @@ import { PlayerName } from "@/components/instance/player-face";
 import { PlayerSheet } from "@/components/instance/player-sheet";
 import { SectionCard } from "@/components/instance/section-card";
 import { instances, type Player, type ServerEvent } from "@/lib/api";
-import { formatDateTime, formatDuration } from "@/lib/utils";
+import { formatDateTime, formatDuration, formatWhen } from "@/lib/utils";
 
 /** Player history from the daemon store; `online` comes from the live status so it refreshes on join/leave. */
 export function PlayersTab({ id, online, canManage }: { id: string; online: string[]; canManage: boolean }) {
@@ -58,7 +58,18 @@ export function PlayersTab({ id, online, canManage }: { id: string; online: stri
               </TableRow>
             )}
             {players?.map((p) => (
-              <TableRow key={p.name} className="cursor-pointer" onClick={() => setSelected(p.name)}>
+              <TableRow
+                key={p.name}
+                tabIndex={0}
+                aria-label={`${p.name}: statistics and actions`}
+                className="cursor-pointer focus-visible:bg-muted/50 focus-visible:outline-none"
+                onClick={() => setSelected(p.name)}
+                onKeyDown={(e) => {
+                  if (e.key !== "Enter" && e.key !== " ") return;
+                  e.preventDefault();
+                  setSelected(p.name);
+                }}
+              >
                 <TableCell className="pl-5 font-medium">
                   <div className="flex items-center gap-3">
                     <PlayerName name={p.name} faceClassName="size-7" className="gap-2" />
@@ -84,7 +95,7 @@ export function PlayersTab({ id, online, canManage }: { id: string; online: stri
             const Icon = EVENTS[e.kind]?.icon;
             return (
               <li key={`${e.ts}-${e.kind}-${e.player}`}>
-                <span className="tabular-nums">{new Date(e.ts).toLocaleTimeString()}</span> ·{" "}
+                <span className="tabular-nums">{formatWhen(e.ts)}</span> ·{" "}
                 {Icon && <Icon className="inline size-3 align-[-2px]" aria-hidden="true" />}{" "}
                 {e.player && <PlayerName name={e.player} className="text-foreground" />}{" "}
                 {(EVENTS[e.kind]?.describe ?? ((ev) => ev.text))(e)}

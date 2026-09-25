@@ -13,7 +13,7 @@ import {
   type MetricSample,
   softwareLabel,
 } from "@/lib/api";
-import { mono } from "@/lib/utils";
+import { formatWhen, mono } from "@/lib/utils";
 
 const monoNum = `${mono} tabular-nums`;
 
@@ -59,9 +59,7 @@ export function InstanceSidebar({
           </div>
           <Row icon={Clock} label="Uptime" value={live ? uptime : "—"} />
           <Row icon={Hash} label="PID" value={status.pid ?? "—"} />
-          {status.startedAt && (
-            <Row icon={Clock} label="Started" value={new Date(status.startedAt).toLocaleTimeString()} />
-          )}
+          {status.startedAt && <Row icon={Clock} label="Started" value={formatWhen(status.startedAt)} />}
         </CardContent>
       </Card>
 

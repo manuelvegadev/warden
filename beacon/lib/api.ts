@@ -891,6 +891,8 @@ export interface Software {
   /** Badge tone that identifies the software across the panel. */
   tone: keyof typeof badgeTone;
   plugins: boolean;
+  /** Answers the `tps` command the daemon polls quietly; the others have no tick rate to show. */
+  tps: boolean;
   builds: boolean;
   buildLabel: string;
   buildOf: (b: Build) => string;
@@ -902,6 +904,7 @@ export const SOFTWARE: Record<string, Software> = {
     tone: "blue",
     description: "High-performance Spigot fork with plugin support. Downloaded from PaperMC, verified with SHA-256.",
     plugins: true,
+    tps: true,
     builds: true,
     buildLabel: "Build",
     buildOf: numberedBuild,
@@ -912,6 +915,7 @@ export const SOFTWARE: Record<string, Software> = {
     description:
       "Paper fork with extra gameplay options; runs Paper plugins. Downloaded from PurpurMC, verified with MD5.",
     plugins: true,
+    tps: true,
     builds: true,
     buildLabel: "Build",
     buildOf: numberedBuild,
@@ -922,6 +926,7 @@ export const SOFTWARE: Record<string, Software> = {
     description:
       "Lightweight modding platform. Loads Fabric mods (drop them into mods/), not Bukkit plugins. Fabric publishes no checksums.",
     plugins: false,
+    tps: false,
     builds: true,
     buildLabel: "Loader",
     buildOf: (b) => `${b.changes[0]} · ${b.channel.toLowerCase()}`, // the loader version lives in changes[0]
@@ -931,6 +936,7 @@ export const SOFTWARE: Record<string, Software> = {
     tone: "lime",
     description: "Mojang's unmodified server. No plugins or mods. Downloaded from Mojang, verified with SHA-1.",
     plugins: false,
+    tps: false,
     builds: false,
     buildLabel: "Build",
     buildOf: numberedBuild,
@@ -940,6 +946,7 @@ export const DEFAULT_SOFTWARE = "paper";
 export const SOFTWARE_LABELS = Object.fromEntries(Object.entries(SOFTWARE).map(([id, s]) => [id, s.label]));
 export const softwareName = (software: string) => SOFTWARE[software]?.label ?? software;
 export const hasPlugins = (software: string) => SOFTWARE[software]?.plugins ?? true;
+export const hasTps = (software: string) => SOFTWARE[software]?.tps ?? true;
 export const hasBuilds = (software: string) => SOFTWARE[software]?.builds ?? true;
 
 /** "Paper 26.2" — used wherever an instance's software/version pair is shown. */

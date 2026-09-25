@@ -19,6 +19,7 @@ import { HOME } from "@/lib/instance-routes";
 
 const PAGES: Record<string, string> = {
   "/settings/java": "Java runtimes",
+  "/settings/members": "Members",
   "/settings/account": "Account",
 };
 
