@@ -15,6 +15,7 @@ import (
 	"hash"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -57,9 +58,12 @@ type ServerProvider interface {
 	Builds(ctx context.Context, mcVersion string) ([]Build, error)
 }
 
-// Registry holds providers and a shared HTTP client.
+// Registry holds providers, a shared HTTP client for their APIs and the clients downloads go
+// through: one held to the trusted hosts, one for Hangar external links (fetch.go).
 type Registry struct {
 	client    *http.Client
+	trusted   downloader
+	external  downloader
 	userAgent string
 	providers map[string]ServerProvider
 	plugins   map[string]PluginSource
@@ -68,6 +72,8 @@ type Registry struct {
 func NewRegistry(userAgent string) *Registry {
 	r := &Registry{
 		client:    &http.Client{Timeout: 30 * time.Second},
+		trusted:   newDownloader(downloadPolicy{hosts: trustedHosts}, defaultTransport()),
+		external:  newDownloader(downloadPolicy{public: true}, defaultTransport()),
 		userAgent: userAgent,
 		providers: map[string]ServerProvider{},
 	}
@@ -162,9 +168,12 @@ func (r *Registry) getText(ctx context.Context, url string, max int64) (string, 
 
 var imageExt = map[string]string{"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp", "image/gif": ".gif", "image/svg+xml": ".svg"}
 
-// FetchImage downloads an image of at most max bytes and returns its bytes plus the file extension for its type.
+// FetchImage downloads an image of at most max bytes from a trusted host and returns its bytes
+// plus the file extension for its type.
 func (r *Registry) FetchImage(ctx context.Context, url string, max int64) ([]byte, string, error) {
-	resp, err := r.get(ctx, url, "image/*")
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	resp, err := r.fetch(ctx, r.trusted, url, "image/*")
 	if err != nil {
 		return nil, "", err
 	}
@@ -207,21 +216,54 @@ func (c Checksum) hasher() hash.Hash {
 	return nil
 }
 
-// Download fetches url into dest atomically and verifies it against sum when one is given.
-func (r *Registry) Download(ctx context.Context, url string, sum Checksum, dest string, progress Progress) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+// fetch GETs url through d once its policy allows it; d's client holds the redirects to the same policy.
+func (r *Registry) fetch(ctx context.Context, d downloader, rawURL, accept string) (*http.Response, error) {
+	u, err := url.Parse(rawURL)
 	if err != nil {
-		return err
+		return nil, err
+	}
+	if err := d.policy.check(u); err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+	if err != nil {
+		return nil, err
 	}
 	req.Header.Set("User-Agent", r.userAgent)
-	resp, err := (&http.Client{Timeout: 15 * time.Minute}).Do(req)
+	if accept != "" {
+		req.Header.Set("Accept", accept)
+	}
+	resp, err := d.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		resp.Body.Close()
+		return nil, fmt.Errorf("GET %s: %s", u.Redacted(), resp.Status)
+	}
+	return resp, nil
+}
+
+// Download fetches url from a trusted host into dest atomically and verifies it against sum when
+// one is given.
+func (r *Registry) Download(ctx context.Context, url string, sum Checksum, dest string, progress Progress) error {
+	return r.download(ctx, r.trusted, url, sum, dest, progress)
+}
+
+// DownloadExternal fetches a Hangar external link: any host on the public internet, over HTTPS.
+// There is no hash to check it against; the caller checks what it got (a jar with a descriptor).
+func (r *Registry) DownloadExternal(ctx context.Context, url, dest string, progress Progress) error {
+	return r.download(ctx, r.external, url, Checksum{}, dest, progress)
+}
+
+func (r *Registry) download(ctx context.Context, d downloader, url string, sum Checksum, dest string, progress Progress) error {
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Minute)
+	defer cancel()
+	resp, err := r.fetch(ctx, d, url, "")
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("GET %s: %s", url, resp.Status)
-	}
 	if err := os.MkdirAll(filepath.Dir(dest), 0o750); err != nil {
 		return err
 	}

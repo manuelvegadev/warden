@@ -57,7 +57,9 @@ type InstalledPlugin struct {
 	// Unlisted: installed although the release does not list the server's Minecraft version (the
 	// admin chose it knowingly). Its updates are the newest listed release when one appears, else
 	// the newest release there is (ADR-022).
-	Unlisted    bool      `json:"unlisted,omitempty"`
+	Unlisted bool `json:"unlisted,omitempty"`
+	// External: the host a Hangar external link downloaded it from, unverified by any hash (ADR-023).
+	External    string    `json:"external,omitempty"`
 	InstalledAt time.Time `json:"installedAt"`
 }
 

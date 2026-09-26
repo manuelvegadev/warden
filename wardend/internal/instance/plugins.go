@@ -65,6 +65,8 @@ type PluginUpdate struct {
 	VersionID string `json:"versionId"`
 	// Unlisted: the update does not list the server's Minecraft version either.
 	Unlisted bool `json:"unlisted,omitempty"`
+	// External: the host the update downloads from, when it is a Hangar external link.
+	External string `json:"external,omitempty"`
 }
 
 // InstalledPlugin returns the manifest record for a jar wardend installed or uploaded.
@@ -237,11 +239,18 @@ func (i *Instance) installPluginVersion(ctx context.Context, reg *catalog.Regist
 	}
 	defer os.Remove(staged)
 	report(5, "Downloading "+fileName)
-	err = reg.Download(ctx, v.URL, v.Hash, staged, func(done, total int64) {
+	progress := func(done, total int64) {
 		if total > 0 {
 			report(5+int(done*90/total), fmt.Sprintf("Downloading %s (%d/%d KB)", fileName, done>>10, total>>10))
 		}
-	})
+	}
+	var external string
+	if v.External {
+		external = v.Host()
+		err = reg.DownloadExternal(ctx, v.URL, staged, progress)
+	} else {
+		err = reg.Download(ctx, v.URL, v.Hash, staged, progress)
+	}
 	if err != nil {
 		return err
 	}
@@ -249,7 +258,7 @@ func (i *Instance) installPluginVersion(ctx context.Context, reg *catalog.Regist
 		<-iconDone
 	}
 	rec := InstalledPlugin{Source: source, ProjectID: hit.ID, Name: hit.Name, VersionID: v.ID, Version: v.Name,
-		HashAlgo: v.Hash.Algo, Hash: v.Hash.Value, Icon: icon, Unlisted: !v.Listed}
+		HashAlgo: v.Hash.Algo, Hash: v.Hash.Value, Icon: icon, Unlisted: !v.Listed, External: external}
 	_, err = i.placePlugin(staged, fileName, rec, func(p InstalledPlugin) bool {
 		return p.Source == source && slices.Contains(ids, p.ProjectID)
 	})
@@ -492,9 +501,12 @@ func (i *Instance) PluginUpdates(ctx context.Context, reg *catalog.Registry) []P
 				latest, ok = catalog.NewestRelease(versions)
 			}
 			if ok && latest.ID != rec.VersionID {
+				u := PluginUpdate{FileName: rec.FileName, Version: latest.Name, VersionID: latest.ID, Unlisted: !latest.Listed}
+				if latest.External {
+					u.External = latest.Host()
+				}
 				mu.Lock()
-				out = append(out, PluginUpdate{FileName: rec.FileName, Version: latest.Name, VersionID: latest.ID,
-					Unlisted: !latest.Listed})
+				out = append(out, u)
 				mu.Unlock()
 			}
 		}()

@@ -51,6 +51,18 @@ type PluginVersion struct {
 	PublishedAt  time.Time          `json:"publishedAt"`
 	// Listed: the release lists the Minecraft version asked about (MarkListed), or lists none.
 	Listed bool `json:"listed"`
+	// External: a Hangar link to a file hosted elsewhere, on any public HTTPS host, with no hash
+	// to check it against (DownloadExternal, ADR-023). The panel shows the host and asks first.
+	External bool `json:"external,omitempty"`
+}
+
+// Host is where the release downloads from.
+func (v PluginVersion) Host() string {
+	u, err := url.Parse(v.URL)
+	if err != nil {
+		return ""
+	}
+	return u.Hostname()
 }
 
 // SearchResult is one page of hits.

@@ -171,8 +171,8 @@ func (h *hangar) Versions(ctx context.Context, id string) ([]PluginVersion, erro
 			ID: v.Name, Name: v.Name, Channel: hangarChannel(v.Channel.Name), MCVersions: mcs,
 			FileName: d.FileInfo.Name, Size: d.FileInfo.SizeBytes, URL: d.DownloadURL, PublishedAt: v.CreatedAt,
 		}
-		if d.ExternalURL != "" { // hosted elsewhere (e.g. GitHub): no hash available
-			pv.URL = d.ExternalURL
+		if d.ExternalURL != "" { // hosted elsewhere (GitHub, a project's own site): no hash available
+			pv.URL, pv.External = d.ExternalURL, true
 		} else {
 			pv.Hash = Checksum{Algo: "sha256", Value: d.FileInfo.SHA256}
 		}
