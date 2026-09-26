@@ -2,6 +2,7 @@
 
 import { Input } from "@warden/ui/components/input";
 import { cn } from "@warden/ui/lib/utils";
+import { Info } from "lucide-react";
 import { type KeyboardEvent, useEffect, useId, useMemo, useRef, useState } from "react";
 import { PlayerFace } from "@/components/instance/player-face";
 import { type CompletionState, useCommandCompletion } from "@/hooks/use-command-completion";
@@ -246,8 +247,14 @@ export function CommandInput({
         >
           {suggestions.map((s, i) =>
             s.hint ? (
-              <div key={`hint-${s.hint}`} className="px-2 py-1 text-muted-foreground">
-                {s.hint}
+              // A hint is not a choice: set apart as a footnote below the matches (or alone when there
+              // are none), smaller and marked, so it never reads as one more suggestion.
+              <div
+                key={`hint-${s.hint}`}
+                className="mt-1 flex items-start gap-1.5 border-t border-border px-2 pt-1.5 pb-1 text-xs text-muted-foreground italic first:mt-0 first:border-t-0 first:pt-1"
+              >
+                <Info aria-hidden className="mt-px size-3.5 shrink-0" />
+                <span className="min-w-0 break-words">{s.hint}</span>
               </div>
             ) : (
               <div
