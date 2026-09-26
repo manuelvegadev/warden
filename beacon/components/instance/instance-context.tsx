@@ -13,6 +13,7 @@ import {
   instances,
   type Manifest,
   type MetricSample,
+  type ServerCommand,
   type Task,
   taskLabel,
   tasks,
@@ -52,6 +53,8 @@ export interface InstanceState {
 const StateCtx = createContext<InstanceState | null>(null);
 // Console output is the high-frequency stream; it gets its own context so the shell does not re-render per line.
 const LinesCtx = createContext<ConsoleLine[]>([]);
+// The commands the server can run, from its Warden Agent (ADR-024); undefined while no agent has sent them.
+const CommandsCtx = createContext<readonly ServerCommand[] | undefined>(undefined);
 
 export function useInstance(): InstanceState {
   const v = useContext(StateCtx);
@@ -61,6 +64,11 @@ export function useInstance(): InstanceState {
 
 export function useConsoleLines(): ConsoleLine[] {
   return useContext(LinesCtx);
+}
+
+/** The server's commands for console completion; undefined while its agent is not connected. */
+export function useConsoleCommands(): readonly ServerCommand[] | undefined {
+  return useContext(CommandsCtx);
 }
 
 const MAX_LINES = 2000;
@@ -82,6 +90,7 @@ export function InstanceProvider({
   const [status, setStatusState] = useState<InstanceStatus>(initial.status);
   const [metrics, setMetrics] = useState<MetricSample | null>(initial.metrics);
   const [lines, setLines] = useState<ConsoleLine[]>([]);
+  const [commands, setCommands] = useState<readonly ServerCommand[] | undefined>(undefined);
   const [task, setTask] = useState<Task | null>(null);
   // A task that started (or finished) before this page subscribed — an import that failed in
   // milliseconds, an install still running after a reload — is only known through REST.
@@ -142,6 +151,12 @@ export function InstanceProvider({
         case "console":
           pushLine(msg.data as ConsoleLine);
           break;
+        case "console.commands": {
+          // An empty list is the agent leaving: nothing to complete from the server until it is back.
+          const list = (msg.data as { commands?: ServerCommand[] }).commands ?? [];
+          setCommands(list.length ? list : undefined);
+          break;
+        }
         case "state":
           setStatus(msg.data as InstanceStatus);
           break;
@@ -255,7 +270,9 @@ export function InstanceProvider({
 
   return (
     <StateCtx.Provider value={value}>
-      <LinesCtx.Provider value={lines}>{children}</LinesCtx.Provider>
+      <LinesCtx.Provider value={lines}>
+        <CommandsCtx.Provider value={commands}>{children}</CommandsCtx.Provider>
+      </LinesCtx.Provider>
     </StateCtx.Provider>
   );
 }

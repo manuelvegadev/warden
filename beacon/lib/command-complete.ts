@@ -1,4 +1,5 @@
-import { type Arg, argAt, COMMANDS, PAPER_COMMANDS, SELECTORS, tokenize } from "@/lib/command-grammar";
+import { type Arg, argAt, COMMANDS, PAPER_COMMANDS, SELECTORS, type Tokens, tokenize } from "@/lib/command-grammar";
+import { findCommand, matchingLabel, type ServerCommand } from "@/lib/command-remote";
 import { GAMERULES } from "@/lib/mc/gamerules";
 import { STRUCTURES } from "@/lib/mc/structures";
 
@@ -15,8 +16,12 @@ export interface Suggestion {
   value: string;
   /** Placeholder shown in place of the value when nothing can be completed (e.g. `<seconds>`). */
   hint?: string;
-  /** Short label for the list (e.g. "player", "item"). */
+  /** Short label for the list (e.g. "player", "item", or the plugin a command comes from). */
   kind: string;
+  /** Muted text beside the value: the server's tooltip for it, or the command an alias stands for. */
+  detail?: string;
+  /** What the command does, shown on hover. */
+  description?: string;
 }
 
 export interface CompletionState {
@@ -36,6 +41,12 @@ export interface Options {
   knownPlayers?: readonly string[];
   /** Offer the Paper-only commands. */
   paper?: boolean;
+  /**
+   * The commands the server can run, from its Warden Agent (ADR-024); absent while no agent is
+   * connected. With it, command names come from the server, and the arguments of a command the
+   * grammar does not know — or that a plugin took over — are the server's to complete.
+   */
+  commands?: readonly ServerCommand[];
 }
 
 const MAX = 12;
@@ -79,21 +90,62 @@ function candidates(arg: Arg, q: string, o: Options, data: McData | null): Sugge
   }
 }
 
+/** The tokens of the command being typed: inside `execute … run`, the nested one. */
+function commandTokens(tokens: Tokens): Tokens {
+  const run = tokens.indexOf("run");
+  if (tokens[0] === "execute" && run > 0) return commandTokens(tokens.slice(run + 1));
+  return tokens;
+}
+
+/** Command names from the server's list, one row per command however many of its labels match. */
+function serverCommands(commands: readonly ServerCommand[], q: string): Suggestion[] {
+  const out: Suggestion[] = [];
+  for (const c of commands) {
+    const value = matchingLabel(c, q);
+    if (value === undefined) continue;
+    const kind = c.plugin ?? (PAPER_COMMANDS.has(c.name) ? "paper" : "");
+    out.push({ value, kind, detail: value === c.name ? undefined : c.name, description: c.description });
+  }
+  return out;
+}
+
+export interface Completed extends Omit<CompletionState, "apply"> {
+  /** Where the token under the caret starts. */
+  start: number;
+  /**
+   * The line up to the caret when the server answers for this position (a plugin's command, or one
+   * the grammar does not know); null when the grammar does. The suggestions then hold only hints.
+   */
+  remote: string | null;
+}
+
 /** Suggestions for the token under the caret. Pure; see `useCommandCompletion` for the hook. */
-export function complete(o: Options, data: McData | null): Omit<CompletionState, "apply"> & { start: number } {
+export function complete(o: Options, data: McData | null): Completed {
   const head = o.value.slice(0, o.caret);
   const { tokens, current, inJson } = tokenize(head);
   const start = o.caret - current.length;
-  const empty = { suggestions: NONE, current, start };
+  const empty = { suggestions: NONE, current, start, remote: null };
   if (inJson) return empty;
 
-  const arg = argAt(tokens);
   const q = current.toLowerCase();
+  const cmd = commandTokens(tokens);
+  if (cmd.length > 0 && o.commands) {
+    // Arguments: the grammar's, unless a plugin owns the command or the grammar does not know it.
+    const owner = findCommand(o.commands, cmd[0]);
+    if (owner?.plugin || !COMMANDS[cmd[0]]) {
+      const hint = current === "" && owner?.usage ? [{ value: "", hint: owner.usage, kind: "" }] : NONE;
+      return { suggestions: hint, current, start, remote: head };
+    }
+  }
+
+  const arg = argAt(tokens);
   let all: Suggestion[];
   if (arg === "command") {
-    all = Object.keys(COMMANDS)
-      .filter((c) => (o.paper || !PAPER_COMMANDS.has(c)) && c.startsWith(q))
-      .map((value) => ({ value, kind: PAPER_COMMANDS.has(value) ? "paper" : "" }));
+    all = o.commands
+      ? serverCommands(o.commands, q)
+      : Object.keys(COMMANDS)
+          .filter((c) => (o.paper || !PAPER_COMMANDS.has(c)) && c.startsWith(q))
+          .map((value) => ({ value, kind: PAPER_COMMANDS.has(value) ? "paper" : "" }));
   } else if (arg) {
     all = candidates(arg, q, o, data);
   } else {
@@ -102,5 +154,5 @@ export function complete(o: Options, data: McData | null): Omit<CompletionState,
 
   // Only offer a hint while nothing has been typed for that argument.
   const suggestions = (current === "" ? all : all.filter((s) => !s.hint)).slice(0, MAX);
-  return { suggestions, current, start };
+  return { suggestions, current, start, remote: null };
 }

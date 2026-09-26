@@ -5,7 +5,9 @@ import { cn } from "@warden/ui/lib/utils";
 import { type KeyboardEvent, useEffect, useId, useMemo, useRef, useState } from "react";
 import { PlayerFace } from "@/components/instance/player-face";
 import { type CompletionState, useCommandCompletion } from "@/hooks/use-command-completion";
+import type { ServerCommand } from "@/lib/api";
 import { arrowTarget, type HistoryNav, NOT_NAVIGATING, navigate } from "@/lib/command-history";
+import { matchAt } from "@/lib/command-remote";
 import { mono } from "@/lib/utils";
 
 export interface CommandInputProps {
@@ -18,6 +20,10 @@ export interface CommandInputProps {
   players?: readonly string[];
   knownPlayers?: readonly string[];
   software?: string;
+  /** The server's commands (ADR-024): with them, plugins' commands complete from the server itself. */
+  commands?: readonly ServerCommand[];
+  /** The instance whose server is asked for what the grammar does not know. */
+  instanceId?: string;
   placeholder?: string;
   /** Read-only viewers and stopped servers get an inert input rather than one that silently ignores Enter. */
   disabled?: boolean;
@@ -27,13 +33,31 @@ export interface CommandInputProps {
 }
 
 /**
+ * A suggestion with the part that matches the typed token in full colour and the rest muted, as one
+ * run of text: the row's gap belongs between the player face and the name, not inside the name. The
+ * server's suggestions can match inside a word (`stone` in `minecraft:stone`).
+ */
+function MatchedText({ text, typed }: { text: string; typed: string }) {
+  const at = matchAt(text, typed);
+  const end = at < 0 ? 0 : at + typed.length;
+  return (
+    <span className="truncate text-muted-foreground">
+      {text.slice(0, Math.max(at, 0))}
+      <span className="text-foreground">{text.slice(Math.max(at, 0), end)}</span>
+      {text.slice(end)}
+    </span>
+  );
+}
+
+/**
  * Console command line with shell-style completion: Tab inserts the first match and repeated Tab
  * (Shift+Tab) walks the matches like Warp or zsh — the list of matches is frozen while cycling, so
  * the inserted text does not narrow it. The list opens as you type, not on an empty line. ↑/↓ walk
  * the list while it is open over typed text; otherwise they walk the history — every command on an
  * empty line, those starting with the typed text on a line with the list closed — and ↓ past the
  * newest brings back what was being typed. Escape closes the list, or leaves the history; Enter
- * submits (or accepts a suggestion chosen with the arrows).
+ * submits (or accepts a suggestion chosen with the arrows). Plugins' commands complete from the
+ * server as the admin types (ADR-024); a Tab pressed while it answers keeps the focus here.
  */
 export function CommandInput({
   value,
@@ -43,6 +67,8 @@ export function CommandInput({
   players,
   knownPlayers,
   software,
+  commands,
+  instanceId,
   placeholder = "Type a command…",
   disabled,
   inputRef: externalRef,
@@ -61,7 +87,7 @@ export function CommandInput({
   // Frozen at the first Tab: the matches, the token they were matched against and how to replace it.
   const [cycle, setCycle] = useState<Pick<CompletionState, "suggestions" | "current" | "apply"> | null>(null);
 
-  const completion = useCommandCompletion({ value, caret, players, knownPlayers, software });
+  const completion = useCommandCompletion({ value, caret, players, knownPlayers, software, commands, instanceId });
   const { suggestions, current, apply } = cycle ?? completion;
   const selectable = useMemo(() => suggestions.filter((s) => !s.hint), [suggestions]);
 
@@ -116,7 +142,14 @@ export function CommandInput({
     const listOpen = open && selectable.length > 0;
     switch (e.key) {
       case "Tab": {
-        if (selectable.length === 0) return;
+        if (selectable.length === 0) {
+          // The server is still answering: stay here, and the list opens when it does.
+          if (!cycle && completion.pending) {
+            e.preventDefault();
+            setOpen(true);
+          }
+          return;
+        }
         e.preventDefault();
         if (cycle) return step(e.shiftKey ? -1 : 1);
         if (selectable.length === 1) return accept(selectable[0].value);
@@ -207,7 +240,7 @@ export function CommandInput({
           id={listId}
           role="listbox"
           className={cn(
-            "absolute bottom-full left-0 z-20 mb-1 max-h-64 w-full max-w-xs overflow-y-auto rounded-lg border border-border bg-popover p-1 text-sm text-popover-foreground shadow-md",
+            "absolute bottom-full left-0 z-20 mb-1 max-h-64 w-full max-w-sm overflow-y-auto rounded-lg border border-border bg-popover p-1 text-sm text-popover-foreground shadow-md",
             mono,
           )}
         >
@@ -223,6 +256,7 @@ export function CommandInput({
                 role="option"
                 tabIndex={-1}
                 aria-selected={i === active}
+                title={s.description}
                 className={cn(
                   "flex cursor-default items-center justify-between gap-3 rounded-md px-2 py-1",
                   i === active && "bg-accent text-accent-foreground",
@@ -237,13 +271,14 @@ export function CommandInput({
                   {(s.kind === "online" || s.kind === "player") && (
                     <PlayerFace name={s.value} className="size-4 shrink-0" />
                   )}
-                  {/* One run of text: the row's gap belongs between the face and the name. */}
-                  <span className="truncate">
-                    <span className="text-foreground">{s.value.slice(0, current.length)}</span>
-                    <span className="text-muted-foreground">{s.value.slice(current.length)}</span>
-                  </span>
+                  <MatchedText text={s.value} typed={current} />
                 </span>
-                {s.kind && <span className="text-[10px] tracking-wide text-muted-foreground uppercase">{s.kind}</span>}
+                <span className="flex min-w-0 items-center gap-2">
+                  {s.detail && <span className="truncate text-xs text-muted-foreground">{s.detail}</span>}
+                  {s.kind && (
+                    <span className="shrink-0 text-[10px] tracking-wide text-muted-foreground uppercase">{s.kind}</span>
+                  )}
+                </span>
               </div>
             ),
           )}

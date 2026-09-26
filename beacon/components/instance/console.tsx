@@ -16,7 +16,7 @@ import { CommandInput } from "@/components/instance/command-input";
 import { CommandTemplates } from "@/components/instance/command-templates";
 import { PrettyConsole } from "@/components/instance/console-pretty";
 import { DetachControls } from "@/components/instance/detach-controls";
-import { useConsoleLines, useInstance } from "@/components/instance/instance-context";
+import { useConsoleCommands, useConsoleLines, useInstance } from "@/components/instance/instance-context";
 import { Logs } from "@/components/instance/logs";
 import { useCommandHistory } from "@/hooks/use-command-history";
 import { useDetachable } from "@/hooks/use-detachable";
@@ -149,6 +149,7 @@ function RawConsole({ lines, className }: { lines: ConsoleLine[]; className?: st
 export function Console({ popout, fill }: { popout?: boolean; fill?: boolean }) {
   const { manifest, status, sendCommand, canOperate } = useInstance();
   const lines = useConsoleLines();
+  const commands = useConsoleCommands();
   const instanceId = manifest.id;
   // A viewer reads the console but never writes to it; the daemon refuses the command either way.
   const disabled = !canOperate || (status.state !== "running" && status.state !== "starting");
@@ -270,6 +271,8 @@ export function Console({ popout, fill }: { popout?: boolean; fill?: boolean }) 
           players={status.players}
           knownPlayers={knownPlayers}
           software={manifest.software}
+          commands={commands}
+          instanceId={manifest.id}
           placeholder={
             !canOperate
               ? "You have read-only access to this server"

@@ -1,5 +1,8 @@
 import type { badgeTone } from "@warden/ui/lib/badge-tone";
+import type { RemoteAnswer } from "@/lib/command-remote";
 import { formatDate } from "@/lib/utils";
+
+export type { ServerCommand } from "@/lib/command-remote";
 
 // Browser-side client. Everything goes through the BFF /api/wardend (ADR-008): no tokens in JS, no CORS.
 
@@ -625,6 +628,9 @@ export const instances = {
   kill: (id: string) => post<void>(`/instances/${id}/kill`),
   command: (id: string, command: string) => post<void>(`/instances/${id}/command`, { command }),
   console: (id: string, lines = 500) => api<ConsoleLine[]>(`/instances/${id}/console?lines=${lines}`),
+  /** The server's completions of the token that ends `line`, from its Warden Agent (ADR-024). */
+  complete: (id: string, line: string, signal?: AbortSignal) =>
+    api<RemoteAnswer>(`/instances/${id}/console/complete?line=${encodeURIComponent(line)}`, { signal }),
   /** `points` buckets the series into at most that many averages with their peaks (docs/api.md). */
   metrics: (id: string, range = "1h", points?: number) =>
     api<MetricSample[]>(`/instances/${id}/metrics?range=${range}${points ? `&points=${points}` : ""}`),
