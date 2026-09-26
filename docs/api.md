@@ -84,7 +84,7 @@ Instance create/patch accept `javaRuntime` (`"auto"` or a runtime id) and `javaP
 | POST | `/instances/{id}/stop?timeout=60` | Clean `stop` |
 | POST | `/instances/{id}/restart` | |
 | POST | `/instances/{id}/kill` | SIGKILL (confirmation in UI) |
-| POST | `/instances/{id}/command` | `{"command":"say hola"}` → `204`. With `?rcon=true` → `{"response":"..."}` synchronous |
+| POST | `/instances/{id}/command` | `{"command":"say hola"}` → `204`. The daemon has no RCON client (servers run with `enable-rcon=false`); plugin commands whose reply the daemon needs run through the Warden Agent (ADR-025). |
 | GET | `/instances/{id}/console?lines=500` | Last lines of the ring buffer `[{ts,level,text}]`; falls back to the tail of `logs/latest.log` when the buffer is empty (daemon restart) |
 | GET | `/instances/{id}/console/complete?line=lp%20user%20Ste` | The server's completions of the token that ends `line` (≤1024 characters, a leading `/` is ignored), asked of the Warden Agent (ADR-024) → `{"suggestions":[{"text","tooltip"?}],"truncated"?}`; `truncated` when the agent capped the list at 500. `409 agent_unavailable` without a connected agent that completes (stopped server, Vanilla/Fabric, an agent from before the server's last restart); `409 superseded` when a newer request replaced it before the server looked at it; `504 timeout` when the server did not answer within 1 s (the agent gives up after 500 ms on a busy main thread). An aborted request ends the wait. Operator. |
 | GET | `/instances/{id}/logs` | `[{name,size,modTime}]` — `latest.log` first, then rotated `*.log.gz` |
@@ -239,6 +239,20 @@ and when the plugin starts or stops. Nothing about the audio is stored; the star
 listening and speaking session are written to the instance's events (`voice.listen.start`,
 `voice.listen.stop`, `voice.speak.start`, `voice.speak.stop`, with the panel user's name as `player`).
 
+## Distant view (ADR-025)
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/instances/{id}/lod` | `{supported, agent, agentRuns, worlds[], backupIncludeData, providers[], pregens[]}`. `agent`: the Warden Agent is connected; `agentRuns`: it announces the `run` feature, so live actions (pre-generation, live settings, `storeStatus`) work — without it they wait for a restart. A provider: `{kind: dhs|lss, title, client, pregen, brands[{plugin,title,command,folder,config,project{source,id}}], installed?{brand,fileName,version,enabled}, compat{clients?,verified,warning?,link}, disk[{path,bytes}], storeStatus?}`. `compat` is the installed version's, or the newest the table knows. `storeStatus` (VSS/LSS) is asked of the running server through the agent. Install a provider with `POST /instances/{id}/plugins` and its `brands[0].project`. |
+| PUT | `/instances/{id}/lod/settings` | `{"backupIncludeData":bool}` → `204`. Backups leave the LOD stores out unless it is on; then they archive a `VACUUM INTO` snapshot of each. A snapshot reads the whole store, needs free space as large as it and competes with the plugin's writes: one that fails leaves that store out (listed in the backup's `excluded`, with a console line) and the backup goes on. `400 bad_request` without `backupIncludeData`, `500 save_failed`. Backups role. |
+| GET | `/instances/{id}/lod/{kind}/config` | `{path, exists, keys[{name,label,help?,type:int|bool|enum,default,min?,max?,options?,live}], values{}}`: the main settings of the installed plugin; defaults where the file lacks a key, or when there is no file yet; a value still pending for the next start (see PUT) in place of the file's. `422 bad_config` when the file cannot be read. Config role. |
+| PUT | `/instances/{id}/lod/{kind}/config` | `{"values":{…}}` → `{applied[], restart[]}`. Rewrites only those keys (YAML keeps its comments; JSON comes back with sorted keys). On a running server, live keys apply through the agent (`dhs reload`, `vsslod set <key> <value>`); the rest waits for a restart. VSS/LSS saves its whole in-memory configuration over the file on every `set`, with the boot-time value of each restart-only key, so a value saved while it runs that did not apply live is also kept pending in the manifest (`lod.pendingConfig`), written into the file again just before the next start, and then forgotten; a save while the server is stopped writes pending values too and leaves nothing pending. DHS needs none of this (`dhs reload` re-reads the file). `400 bad_request` without `values`; `400 invalid` outside the schema; `409 no_config` before the plugin wrote its file; `422 bad_config` when the file cannot be read; `500 write_failed`. Config role. |
+| DELETE | `/instances/{id}/lod/{kind}/data` | Deletes the plugin's LOD stores → `204`; `409 running` unless the server is stopped; `500 delete_failed`. Files role. |
+| POST | `/instances/{id}/lod/dhs/pregen` | `{"world":"world","x"?:0,"z"?:0,"radius"?:256}` (centre and radius are both optional; the radius needs the centre — DHS reads them positionally — and with neither, DHS pre-generates out to the world border; radius in chunks, 1–4096) → `204`. Runs `dhs pregen start` through the agent and records it; the daemon then asks its status every 5 s, broadcasts `lod.pregen`, and relaunches it when a server restart cut it short. `400 bad_request` when only one of `x`/`z` is given, or `radius` is given without a centre; `409 not_running`, `409 agent_unavailable`, `400 refused` with DHS's message; `504 timeout` when the server did not answer in time — the pre-generation may have started anyway: the next `GET` or `lod.pregen` tells. Settings role. |
+| DELETE | `/instances/{id}/lod/dhs/pregen/{world}` | `dhs pregen stop` and forget it → `204`; `409 agent_unavailable` and `504 timeout` as for `POST`. Settings role. |
+
+Every `{kind}` route (`dhs`, `lss`) answers `404 not_installed` when that plugin is not installed on the instance.
+
 ## Import
 
 `POST /instances/import` streams the upload to `<data>/imports/` and answers as soon as it is on disk; the `import` task then unpacks it into `server/` (a single wrapper folder such as `myserver/…` is unwrapped; `__MACOSX`, `.DS_Store` and friends are dropped; entries are confined to `server/`, symlinks and special files are skipped, and the expansion is capped at 64 GiB / 2 M entries), works out what it is and finishes like an install (Java runtime, `eula.txt`, network properties). The archive is deleted afterwards.
@@ -247,11 +261,11 @@ Detection looks at the jars in the server root: `paper-<mc>-<build>.jar`, `purpu
 
 ## Backups
 
-Archives are `tar.zst` files in `<instance>/backups/` with a JSON sidecar (`<name>.json`: trigger, scope, size, sha256, paths, Paper version/build, time). Scope `full` = worlds + plugins (jars and data) + `config/` + server/Bukkit/Spigot YAML + `server.properties` + whitelist/ops/bans/usercache; `worlds` = directories with `level.dat`. The server jar is never included (re-downloadable from the recorded build). Triggers: `manual`, `schedule`, `pre-upgrade`, `pre-restore`; only the first two rotate.
+Archives are `tar.zst` files in `<instance>/backups/` with a JSON sidecar (`<name>.json`: trigger, scope, size, sha256, paths, `excluded`, Paper version/build, time). Scope `full` = worlds + plugins (jars and data) + `config/` + server/Bukkit/Spigot YAML + `server.properties` + whitelist/ops/bans/usercache; `worlds` = directories with `level.dat`. The server jar is never included (re-downloadable from the recorded build). Triggers: `manual`, `schedule`, `pre-upgrade`, `pre-restore`; only the first two rotate. `excluded` lists the paths genuinely missing from the archive: a LOD plugin's store, left out with nothing to replace it, unless the instance keeps `lod.backupIncludeData` on — then a `VACUUM INTO` snapshot of each store is archived in its place instead (ADR-025). A store whose snapshot fails is left out and listed in `excluded` as without the setting; the backup does not fail for it.
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/instances/{id}/backups` | `[{name,trigger,scope,size,sha256,paths,mcVersion,build,createdAt}]`, newest first |
+| GET | `/instances/{id}/backups` | `[{name,trigger,scope,size,sha256,paths,excluded?,mcVersion,build,createdAt}]`, newest first; `excluded` (omitted when empty) lists the paths left out of the archive (ADR-025) |
 | POST | `/instances/{id}/backups` | `{"scope":"full|worlds"}` (optional; default: the schedule's scope) → `202` task `backup`. Running server: `save-off` → `save-all flush` → wait for "Saved the game" (90 s) → archive → `save-on`. Then retention. Admin only. |
 | GET | `/instances/{id}/backups/{name}/download` | The archive (`application/zstd`, attachment) |
 | POST | `/instances/{id}/backups/{name}/restore` | `409` unless stopped → `202` task `restore`: takes a `pre-restore` backup, then every top-level path in the archive replaces what is on disk. Admin only. |
@@ -276,7 +290,7 @@ Server → client:
 | `console.history` | `{lines:[...]}` on subscribe |
 | `metrics` | `{ts,cpu,memRss,memMax,diskUsed,netRx,netTx,tps:[1m,5m,15m],players:{online,max}}` every 2 s |
 | `state` | `{state,pid,startedAt,exitCode?}` |
-| `event` | `{kind:"player.join|player.leave|player.chat|player.advancement|player.death|server.ready|server.overloaded|voice.listen.start|voice.listen.stop|voice.speak.start|voice.speak.stop", player?, text, ts}`; the `voice.*` kinds are panel actions (ADR-019), `player` is then the panel user's name |
+| `event` | `{kind:"player.join|player.leave|player.chat|player.advancement|player.death|server.ready|server.overloaded|voice.listen.start|voice.listen.stop|voice.speak.start|voice.speak.stop|lod.pregen.done", player?, text, ts}`; the `voice.*` kinds are panel actions (ADR-019), `player` is then the panel user's name; `lod.pregen.done` fires when a DHS pre-generation finishes (ADR-025) |
 | `task.progress` | `{id,type,progress:0-100,message,status}` |
 | `players` | `{online:[{uuid,name}]}` after each join/leave |
 | `world.players` | `{t,players:[PlayerPos…],worlds:{name:{day,time,gameTime,rain,thunder}}}` 5 times a second while anyone is online (ADR-018): positions plus each world's day count, time of day (ticks since 06:00) and weather; an empty list once when the last player leaves or the agent disconnects |
@@ -284,6 +298,7 @@ Server → client:
 | `world.agent` | `{connected,version?,server?}` when the instance's agent connects or drops |
 | `console.commands` | `{commands:[{name,aliases?,plugin?,description?,usage?}]}`: what the server's console can run, from its Warden Agent (ADR-024) — on subscribe when the daemon holds a list, again whenever the agent sends a changed one, and `{commands:[]}` when the agent disconnects. `plugin` is absent for the server's own commands; namespaced labels are left out |
 | `voice.status` | `{available,plugin?,distance,whisper,policy,listeners:[name…],speaking:[name…]}` when the voice plugin's state or the set of listeners or speakers changes (ADR-019); the same object as `GET /instances/{id}/voice` |
+| `lod.pregen` | `{world, state: running|resumed|done|stopped|unknown, progress, done, target, cps, elapsed?, remaining?, raw?}`: a DHS pre-generation's status every 5 s while it runs (ADR-025); `raw` holds a reply the daemon did not recognise |
 | `pong` | |
 
 ## SQLite schema (`<data>/wardend.db`)

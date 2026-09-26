@@ -13,6 +13,7 @@ import (
 	"github.com/manuelvega/warden/wardend/internal/config"
 	"github.com/manuelvega/warden/wardend/internal/instance"
 	"github.com/manuelvega/warden/wardend/internal/java"
+	"github.com/manuelvega/warden/wardend/internal/lod"
 	"github.com/manuelvega/warden/wardend/internal/metrics"
 	"github.com/manuelvega/warden/wardend/internal/skins"
 	"github.com/manuelvega/warden/wardend/internal/store"
@@ -34,6 +35,7 @@ type Deps struct {
 	Skins    *skins.Service
 	World    *world.Service // live world view (ADR-018)
 	Voice    *voice.Service // voice chat relay (ADR-019)
+	LOD      *lod.Service   // Distant view (ADR-025)
 	WS       http.Handler
 	// Sessions closes a user's live WebSocket connections when Beacon revokes their access.
 	Sessions interface{ RevokeUser(string) int }
@@ -121,6 +123,15 @@ func NewRouter(d Deps) http.Handler {
 
 	// Voice chat (ADR-019)
 	read("GET /api/v1/instances/{id}/voice", s.getVoice)
+
+	// Distant view (ADR-025)
+	read("GET /api/v1/instances/{id}/lod", s.getLOD)
+	inst("PUT /api/v1/instances/{id}/lod/settings", auth.ActionBackupsWrite, s.putLODSettings)
+	inst("GET /api/v1/instances/{id}/lod/{kind}/config", auth.ActionConfigWrite, s.getLODConfig)
+	inst("PUT /api/v1/instances/{id}/lod/{kind}/config", auth.ActionConfigWrite, s.putLODConfig)
+	inst("DELETE /api/v1/instances/{id}/lod/{kind}/data", auth.ActionFiles, s.deleteLODData)
+	inst("POST /api/v1/instances/{id}/lod/dhs/pregen", auth.ActionSettingsWrite, s.startPregen)
+	inst("DELETE /api/v1/instances/{id}/lod/dhs/pregen/{world}", auth.ActionSettingsWrite, s.stopPregen)
 
 	// Configuration and access lists. server.properties and the config files are manager-only: they
 	// carry rcon.password.

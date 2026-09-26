@@ -19,6 +19,7 @@ import (
 	"github.com/manuelvega/warden/wardend/internal/installer"
 	"github.com/manuelvega/warden/wardend/internal/instance"
 	"github.com/manuelvega/warden/wardend/internal/java"
+	"github.com/manuelvega/warden/wardend/internal/lod"
 	"github.com/manuelvega/warden/wardend/internal/metrics"
 	"github.com/manuelvega/warden/wardend/internal/mojang"
 	"github.com/manuelvega/warden/wardend/internal/selfupdate"
@@ -116,6 +117,9 @@ func main() {
 	vc := voice.NewService(st, hub, wv, verifier, cfg.AllowedOrigins)
 	wv.SetSink(vc)
 	hub.SetConsoleCommands(wv.ConsoleCommands)
+	// Distant view (ADR-025): LOD plugins' pre-generation, polled through the agent.
+	lodSvc := lod.NewService(lodHosts{mgr}, wv, hub, st)
+	go lodSvc.Run(ctx)
 	mgr.SetAgent(cfg.AgentURL(), agent.Jar, reg.TraitsOf)
 	// Simple Voice Chat is fetched from the catalog on the first start of a server that loads plugins.
 	mgr.SetCatalog(reg)
@@ -144,7 +148,7 @@ func main() {
 
 	srv := &http.Server{
 		Addr:              cfg.Listen,
-		Handler:           api.NewRouter(api.Deps{Config: cfg, Manager: mgr, Verifier: verifier, Catalog: reg, Tasks: tm, Java: jm, Metrics: sampler, Store: st, Skins: sk, World: wv, Voice: vc, WS: hub, Sessions: hub, Version: version, StartedAt: time.Now().UTC()}),
+		Handler:           api.NewRouter(api.Deps{Config: cfg, Manager: mgr, Verifier: verifier, Catalog: reg, Tasks: tm, Java: jm, Metrics: sampler, Store: st, Skins: sk, World: wv, Voice: vc, LOD: lodSvc, WS: hub, Sessions: hub, Version: version, StartedAt: time.Now().UTC()}),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
@@ -195,4 +199,23 @@ func main() {
 	if acmeSrv != nil {
 		_ = acmeSrv.Shutdown(shutdownCtx)
 	}
+}
+
+// lodHosts lets the LOD service reach instances without importing the instance package.
+type lodHosts struct{ m *instance.Manager }
+
+func (h lodHosts) Host(id string) (lod.Host, bool) {
+	i, err := h.m.Get(id)
+	if err != nil {
+		return nil, false
+	}
+	return i, true
+}
+
+func (h lodHosts) IDs() []string {
+	var out []string
+	for _, i := range h.m.List() {
+		out = append(out, i.Manifest.ID)
+	}
+	return out
 }
