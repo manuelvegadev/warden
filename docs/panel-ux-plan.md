@@ -1,6 +1,6 @@
 # Panel UX plan — chrome, previews, plugins, dashboard
 
-Date: 2026-09-25 · Status: agreed; phases 1–3 done, phase 4 up to 4.3 done · Tracked in
+Date: 2026-09-25 · Status: agreed; phases 1–4 done · Tracked in
 [`roadmap.md`](roadmap.md), Phase 8. **Resuming? Start at [Next step](#next-step).**
 
 This plan came out of a research pass over six areas: the file manager on phones, file previews,
@@ -146,7 +146,7 @@ the plan, not the specification.
 | 4.1 | Search and version lists stop filtering by Minecraft version; releases that do not list the instance's version are dimmed ("not listed for 26.2 · up to 26.1.2") and install after a confirmation; the installed record keeps the flag and updates honour it. The search also runs as the admin types. | Done 2026-09-25, [ADR-022](adr/022-plugins-not-listed-for-the-server-version.md) |
 | 4.2 | Downloads: HTTPS only on every hop; what the sources host only from known hosts; Hangar external links to any host but only public addresses, shown and confirmed in the panel. | Done 2026-09-25, [ADR-023](adr/023-where-downloads-may-go.md) |
 | 4.3 | Plugin command completion in the console: the Warden Agent sends the server's command list whenever it changes and answers live tab-completion for the typed line (every plugin, arguments included); the grammar keeps vanilla. The `plugin.yml` fallback was dropped: the agent is on every server that runs plugins. | Done 2026-09-25, [ADR-024](adr/024-console-command-completion.md) |
-| 4.4 | LOD integration for **Distant Horizons Support** and **Voxy Server Side**: install from the panel, a form for their configuration, pre-generation with progress, pause during backups (`/dhs pause`), disk usage, and a client-protocol compatibility note. | To do |
+| 4.4 | LOD integration for **Distant Horizons Support** and **Voxy Server Side**: install from the panel, a form for their configuration, pre-generation with progress (DHS only — VSS has no pre-generation on Paper), LOD data left out of backups by default (an "Include LOD data" switch archives it as a consistent snapshot instead), disk usage, and a client-protocol compatibility note. | Done 2026-09-25, [ADR-025](adr/025-distant-view.md) |
 
 Later: install from URL with a recorded hash and a trust badge; link uploaded jars to a store by
 hash; a GitHub releases source.
@@ -169,24 +169,42 @@ routes), which no ADR documents today.
 
 ## Next step
 
-**4.4 — LOD integration** for Distant Horizons Support and Voxy Server Side (decision 8). Nothing
-of it is built yet, and the findings above about both plugins date from 2026-09-25: start by
-researching their current releases, commands and configuration files, and whether DH Support has
-moved to network protocol 16. It needs an ADR of its own (the next number after ADR-024).
+**Phase 5 — the home dashboard.** Nothing of it is built yet. It needs an ADR of its own (the next
+number after ADR-025), which also takes ownership of the detachable-pane contract
+(`use-detachable`, the `(popout)` routes), which no ADR documents today.
 
-**What exists to build on**
+**What exists to build on** (from the plan's own Phase 5 section)
 
-- Installing from the panel (ADR-022, ADR-023) and the Plugins section; configuration files under
-  `plugins/<name>/` are already editable in Config files and Files.
-- The Warden Agent (ADR-018) and its request/response pair with the daemon (ADR-024): a way to ask
-  the server something and wait for the answer, which pre-generation progress could reuse.
-- Their commands already complete in the console through the agent (4.3).
-- Backups run `save-off` → `save-all flush` → archive → `save-on` (`docs/api.md`, Backups); the
-  pause during backups (`/dhs pause`) would hook in there.
+- `useDetachable` and the `(popout)` routes already detach a pane; a `fill` mode is needed
+  alongside `popout`.
+- Metrics is one component today; splitting it into four charts is part of the embeddability
+  refactor.
+- Viewport breakpoints are used where container queries should be, and instance pages do not yet
+  have one `InstanceProvider` per instance.
 
-**Scope from the plan:** install from the panel, a form for their configuration, pre-generation
-with progress, pause during backups, disk usage, and a client-protocol compatibility note.
+**Scope from the plan:**
+
+1. The embeddability refactors above.
+2. An MVP: columns of modules on react-resizable-panels; edit mode (add, remove, drag to reorder,
+   resize by dividers); one layout per user in a `dashboardLayout` table with versioned module
+   kinds; a single stacked column on phones; a default preset that reproduces today's Home; one
+   Live view per dashboard.
+3. More modules: activity feed, log tail, backups summary, plugin updates, properties quick
+   toggles, pinned file, whitelist quick-add; one shared WebSocket.
+4. Named layouts and organisation-wide presets.
 
 **Checks** — as for every change: `CONTRIBUTING.md`.
 
-After 4.4 comes Phase 5, the home dashboard.
+## After this plan
+
+Agreed on 2026-09-26 to do once Phase 5 is done — not before.
+
+- **World pre-generation with Chunky in the Distant view section** (roadmap 8.6). The LOD plugins
+  build LODs, not the world: Distant Horizons Support 0.14.0 generates chunks to build its LODs and
+  discards them, so players still generate that terrain when they reach it; Voxy Server Side has no
+  pre-generation on Paper and builds LODs as players move, reading the chunks that exist. Chunky
+  therefore stays the way to have terrain generated ahead, and the recommended order is Chunky
+  first, then DHS's pre-generation (running them together slows both). The shape would follow DHS's
+  in ADR-025: install from the panel, per world a centre and radius (or the world border), progress
+  read through the agent's `run` request, resumed after a restart, and a hint on the Voxy card to
+  pre-generate with it. Check Chunky's current commands and progress output first.
