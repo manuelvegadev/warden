@@ -86,6 +86,7 @@ Instance create/patch accept `javaRuntime` (`"auto"` or a runtime id) and `javaP
 | POST | `/instances/{id}/kill` | SIGKILL (confirmation in UI) |
 | POST | `/instances/{id}/command` | `{"command":"say hola"}` → `204`. With `?rcon=true` → `{"response":"..."}` synchronous |
 | GET | `/instances/{id}/console?lines=500` | Last lines of the ring buffer `[{ts,level,text}]`; falls back to the tail of `logs/latest.log` when the buffer is empty (daemon restart) |
+| GET | `/instances/{id}/console/complete?line=lp%20user%20Ste` | The server's completions of the token that ends `line` (≤1024 characters, a leading `/` is ignored), asked of the Warden Agent (ADR-024) → `{"suggestions":[{"text","tooltip"?}],"truncated"?}`; `truncated` when the agent capped the list at 500. `409 agent_unavailable` without a connected agent that completes (stopped server, Vanilla/Fabric, an agent from before the server's last restart); `409 superseded` when a newer request replaced it before the server looked at it; `504 timeout` when the server did not answer within 1 s (the agent gives up after 500 ms on a busy main thread). An aborted request ends the wait. Operator. |
 | GET | `/instances/{id}/logs` | `[{name,size,modTime}]` — `latest.log` first, then rotated `*.log.gz` |
 | GET | `/instances/{id}/logs/{file}?tail=500` | `{file, lines[]}` (max 5000; gz decompressed on the fly). `?download=1` streams the raw file with `Content-Disposition`. Without params: plain text. |
 | GET | `/instances/{id}/events?kind=player.join,player.leave&limit=100` | Persisted server events, newest first `[{ts,kind,player,text}]` |
@@ -281,6 +282,7 @@ Server → client:
 | `world.players` | `{t,players:[PlayerPos…],worlds:{name:{day,time,gameTime,rain,thunder}}}` 5 times a second while anyone is online (ADR-018): positions plus each world's day count, time of day (ticks since 06:00) and weather; an empty list once when the last player leaves or the agent disconnects |
 | `world.chunks` | `{world,chunks:[[cx,cz,hash],…]}`: chunks whose cached content changed, coalesced to one message per world per second |
 | `world.agent` | `{connected,version?,server?}` when the instance's agent connects or drops |
+| `console.commands` | `{commands:[{name,aliases?,plugin?,description?,usage?}]}`: what the server's console can run, from its Warden Agent (ADR-024) — on subscribe when the daemon holds a list, again whenever the agent sends a changed one, and `{commands:[]}` when the agent disconnects. `plugin` is absent for the server's own commands; namespaced labels are left out |
 | `voice.status` | `{available,plugin?,distance,whisper,policy,listeners:[name…],speaking:[name…]}` when the voice plugin's state or the set of listeners or speakers changes (ADR-019); the same object as `GET /instances/{id}/voice` |
 | `pong` | |
 

@@ -136,6 +136,10 @@ Text frames are JSON. The first must be `hello`; wardend answers `hello.ok` or c
 `hello.ok` carries the hashes wardend already holds, so a restarted server does not resend chunks
 that have not changed: `{"type":"hello.ok","known":{"world":[[cx,cz,"hash"],…]}}`.
 
+The same socket carries the console's command list and completions (ADR-024): `hello` adds
+`"features":["complete"]`, the agent sends `commands` when its command map changes, and wardend's
+`complete` requests are answered with `complete.result` carrying the request's `id`.
+
 Binary frames carry one chunk, little-endian:
 
 ```

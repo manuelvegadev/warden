@@ -24,7 +24,7 @@ daemon/                 Go — the `wardend` daemon
     auth/               users, JWT, password hashing
     instance/           manifest, state machine, process supervisor, console ring buffer, the file manager's confined fs (ADR-020)
     mc/                 log parser, RCON, ping, server.properties (schema), whitelist/ops/bans, advancements/stats
-    world/              live world view: agent WebSocket listener, chunk cache, `world.*` bus messages (ADR-018)
+    world/              live world view: agent WebSocket listener, chunk cache, `world.*` bus messages (ADR-018); the console command list and completions the agent answers (ADR-024)
     voice/              voice chat relay: the agent's voice frames fanned out to listening browsers over `/instances/{id}/voice/ws` (ADR-019)
     agent/              the embedded Warden Agent jar (built from agent/ by `make agent`)
     catalog/            providers: paper (Fill v3), hangar, modrinth; cache
