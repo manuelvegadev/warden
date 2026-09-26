@@ -137,15 +137,28 @@ public final class CommandCatalog implements Listener {
     }
 
     /**
-     * The usage line with Bukkit's `<command>` placeholder filled in. Bukkit's default, a bare
-     * `/<command>`, says nothing and is dropped.
+     * The usage line with Bukkit's `<command>` placeholder filled in, or empty when it is not this
+     * command's syntax. Bukkit prints the usage when a command fails, so plenty of plugins put an
+     * error message there ("Invalid command syntax"): only a line that starts with a slash and one
+     * of the command's labels (or the placeholder) is kept, after a leading "Usage:". Bukkit's
+     * default, a bare `/<command>`, says nothing and is dropped too.
      */
     static String usage(Command cmd, String name) {
         String u = clean(cmd.getUsage());
-        if (u.isEmpty() || u.equals("/<command>") || u.equals("/" + name)) {
+        if (u.regionMatches(true, 0, "usage:", 0, 6)) {
+            u = u.substring(6).trim();
+        }
+        if (!u.startsWith("/")) {
             return "";
         }
-        return u.replace("<command>", name);
+        int space = u.indexOf(' ');
+        String label = space < 0 ? u.substring(1) : u.substring(1, space);
+        boolean own = label.equals("<command>") || label.equalsIgnoreCase(name)
+                || label.equalsIgnoreCase(cmd.getName()) || cmd.getAliases().stream().anyMatch(label::equalsIgnoreCase);
+        if (!own || space < 0) {
+            return ""; // another command's syntax, or just the label: nothing to learn from it
+        }
+        return "/" + name + u.substring(space);
     }
 
     /** First line, trimmed, without legacy colour codes (`§a`). */

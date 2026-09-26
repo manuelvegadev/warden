@@ -27,7 +27,10 @@ knows; the agent answers for the rest.
   the server restarts) is never asked.
 - **Command list** (`CommandCatalog`): the command map grouped by command — a name, its aliases, the
   plugin that registered it (`PluginIdentifiableCommand`; absent for the server's own), its
-  description and usage, with Bukkit's `<command>` filled in and colour codes dropped. Namespaced
+  description and usage, with Bukkit's `<command>` filled in and colour codes dropped. Bukkit
+  prints the usage when a command fails, so many plugins put an error message there (Simple Voice
+  Chat: "Invalid command syntax"): a usage is kept only when it starts with a slash and one of the
+  command's labels, after a leading "Usage:". Namespaced
   labels (`luckperms:lp`) are left out. It is rebuilt on the main thread every 2 s and on
   `ServerLoadEvent`, and sent as `{"type":"commands","commands":[…]}` only when it differs from what
   the current socket last carried (always after `hello.ok`). A plugin enabled, disabled or

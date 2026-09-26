@@ -73,6 +73,29 @@ class CommandCatalogTest {
     }
 
     @Test
+    void aUsageIsKeptOnlyWhenItIsTheCommandsSyntax() {
+        String[][] cases = {
+            // declared usage, what Beacon gets ("" = dropped)
+            {"/<command> <player> <item>", "/give <player> <item>"},
+            {"/give <player>", "/give <player>"},
+            {"Usage: /<command> user <player>", "/give user <player>"},
+            {"§cusage: /give <player>", "/give <player>"},
+            {"Invalid command syntax", ""}, // Simple Voice Chat: the message shown when the command fails
+            {"§cWrong usage!", ""},
+            {"/<command>", ""}, // Bukkit's default says nothing
+            {"/other <player>", ""}, // another command's syntax is not this one's
+        };
+        for (String[] c : cases) {
+            assertEquals(c[1], CommandCatalog.usage(new Cmd("give", "", c[0]), "give"), c[0]);
+        }
+    }
+
+    @Test
+    void anAliasLabelsTheSyntaxToo() {
+        assertEquals("/egive <player>", CommandCatalog.usage(new Cmd("give", "", "/egive <player>"), "egive"));
+    }
+
+    @Test
     void descriptionsLoseColourCodesAndExtraLines() {
         assertEquals("Teleports you", CommandCatalog.clean("§aTeleports §lyou\nSecond line"));
         assertEquals("", CommandCatalog.clean(null));
