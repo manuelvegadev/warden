@@ -716,6 +716,59 @@ export interface FsListing {
 /** What the preview does with a file, read off the daemon's Content-Type. */
 export type FsKind = "text" | "image" | "audio" | "binary";
 
+/** What a jar is, read from inside it (`GET /fs/jar`). */
+export interface JarInfo {
+  kind:
+    | "paper-plugin"
+    | "bukkit-plugin"
+    | "velocity-plugin"
+    | "bungee-plugin"
+    | "fabric-mod"
+    | "quilt-mod"
+    | "neoforge-mod"
+    | "forge-mod"
+    | "library";
+  descriptor?: string;
+  /** The descriptor parsed (YAML or JSON), scalars as written. */
+  meta?: Record<string, unknown>;
+  raw?: string;
+  manifest?: Record<string, string>;
+  javaMin?: number;
+  entries: number;
+}
+
+export interface ArchiveEntry {
+  name: string;
+  size: number;
+  compressed: number;
+  modified: string;
+}
+
+/** A tag of an NBT document (`GET /fs/nbt`): names, types, values, children, as docs/api.md spells them. */
+export interface NbtTag {
+  k?: string;
+  t: string;
+  v?: number | string | (number | string)[];
+  c?: NbtTag[];
+  /** The whole length of an array or list shown in part. */
+  n?: number;
+  of?: string;
+}
+
+export interface SqliteTable {
+  name: string;
+  kind: "table" | "view";
+  columns: { name: string; type: string; pk?: boolean }[];
+}
+
+export type SqliteCell = string | number | null | { blob: number };
+
+export interface SqlitePage {
+  columns: string[];
+  rows: SqliteCell[][];
+  more: boolean;
+}
+
 export interface FsContent {
   kind: FsKind;
   size: number;
@@ -774,6 +827,23 @@ export const fs = {
     const total = Number(res.headers.get("content-range")?.split("/")[1] ?? res.headers.get("content-length") ?? 0);
     return { bytes: await res.arrayBuffer(), total };
   },
+  jar: (instanceId: string, path: string) =>
+    api<JarInfo>(`/instances/${instanceId}/fs/jar?path=${encodeURIComponent(path)}`),
+  archive: (instanceId: string, path: string) =>
+    api<{ entries: ArchiveEntry[]; total: number }>(
+      `/instances/${instanceId}/fs/archive?path=${encodeURIComponent(path)}`,
+    ),
+  /** One file inside a zip, for an <img> or a fetch. */
+  archiveEntryUrl: (instanceId: string, path: string, entry: string) =>
+    `/api/wardend/instances/${instanceId}/fs/archive?path=${encodeURIComponent(path)}&entry=${encodeURIComponent(entry)}`,
+  nbt: (instanceId: string, path: string) =>
+    api<{ root: NbtTag; compression: string }>(`/instances/${instanceId}/fs/nbt?path=${encodeURIComponent(path)}`),
+  sqliteTables: (instanceId: string, path: string) =>
+    api<{ tables: SqliteTable[] | null }>(`/instances/${instanceId}/fs/sqlite?path=${encodeURIComponent(path)}`),
+  sqliteRows: (instanceId: string, path: string, table: string, limit: number, offset: number) =>
+    api<SqlitePage>(
+      `/instances/${instanceId}/fs/sqlite?path=${encodeURIComponent(path)}&table=${encodeURIComponent(table)}&limit=${limit}&offset=${offset}`,
+    ),
   write: (instanceId: string, path: string, content: string) =>
     api<{ restartRequired: boolean }>(fsContent(instanceId, path), {
       method: "PUT",

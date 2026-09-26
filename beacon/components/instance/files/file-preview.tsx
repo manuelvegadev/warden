@@ -8,11 +8,16 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { languageFor } from "@/components/instance/code-language";
 import { DetachControls } from "@/components/instance/detach-controls";
 import { FileIcon } from "@/components/instance/files/file-icon";
+import { ArchiveView } from "@/components/instance/files/views/archive-view";
 import { AudioPlayer } from "@/components/instance/files/views/audio-player";
 import { EulaView } from "@/components/instance/files/views/eula-view";
 import { ImageView } from "@/components/instance/files/views/image-view";
+import { JarView } from "@/components/instance/files/views/jar-view";
 import { JsonEditor } from "@/components/instance/files/views/json-editor";
 import { LogView } from "@/components/instance/files/views/log-view";
+import { NbtView } from "@/components/instance/files/views/nbt-view";
+import { RegionView } from "@/components/instance/files/views/region-view";
+import { SqliteView } from "@/components/instance/files/views/sqlite-view";
 import { CopyButton, SaveBar } from "@/components/instance/section-card";
 import { WrapToggle } from "@/components/instance/wrap-toggle";
 import { useDetachable } from "@/hooks/use-detachable";
@@ -34,7 +39,8 @@ type Mode = "view" | "edit";
 /**
  * The last column of the browser: what the chosen file is, and the file itself — an editor for
  * text, and for the files that have one a richer view beside it (lib/file-views.ts: a log, JSON,
- * the EULA), a viewer for a picture, a player for a sound, a download for anything else. Mounted
+ * the EULA), a viewer for a picture, a player for a sound, what the daemon reads out of a jar, a
+ * zip, an NBT document, a region file or a SQLite database, a download for anything else. Mounted
  * with the path as its key, so a different file is a fresh instance. Detachable like the console:
  * full screen, or its own window (`popout` is set by that window's route).
  */
@@ -204,6 +210,12 @@ export function FilePreview({
       {content && view === "audio" && (
         <AudioPlayer src={fs.contentUrl(id, path)} name={entry.name} size={content.size} />
       )}
+      {/* What the daemon reads out of binary files (ADR-020). */}
+      {content && view === "jar" && <JarView id={id} path={path} />}
+      {content && view === "archive" && <ArchiveView id={id} path={path} />}
+      {content && view === "nbt" && <NbtView id={id} path={path} />}
+      {content && view === "region" && <RegionView id={id} path={path} size={content.size} />}
+      {content && view === "sqlite" && <SqliteView id={id} path={path} />}
       {content?.kind === "text" && !textual && view === null && (
         <Notice>
           This file is {formatBytes(content.size)}, more than the {formatBytes(FS_EDIT_LIMIT)} the editor opens.

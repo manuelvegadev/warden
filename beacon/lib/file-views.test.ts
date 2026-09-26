@@ -25,3 +25,14 @@ test("pictures and sounds are shown and played", () => {
   assert.equal(viewFor("server-icon.png", "image"), "image");
   assert.equal(viewFor("plugins/Sounds/click.ogg", "audio"), "audio");
 });
+
+test("binaries the daemon can read have their views; the rest are downloads", () => {
+  assert.equal(viewFor("plugins/LuckPerms.jar", "binary"), "jar");
+  assert.equal(viewFor("world/datapacks/tweaks.zip", "binary"), "archive");
+  assert.equal(viewFor("world/level.dat", "binary"), "nbt");
+  assert.equal(viewFor("world/playerdata/abc.dat_old", "binary"), "nbt");
+  assert.equal(viewFor("plugins/WorldEdit/schematics/house.schem", "binary"), "nbt");
+  assert.equal(viewFor("world/region/r.0.-1.mca", "binary"), "region");
+  assert.equal(viewFor("plugins/CoreProtect/database.db", "binary"), "sqlite");
+  assert.equal(viewFor("cache/mojang_1.21.jar.tmp", "binary"), null);
+});
