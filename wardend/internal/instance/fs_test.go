@@ -281,7 +281,7 @@ func TestSaveUploadRefusesToOverwriteUnlessAsked(t *testing.T) {
 	}
 }
 
-func TestContentTypeTellsTextImagesAndTheRestApart(t *testing.T) {
+func TestContentTypeTellsTextImagesSoundsAndTheRestApart(t *testing.T) {
 	cases := []struct {
 		name string
 		head string
@@ -294,6 +294,10 @@ func TestContentTypeTellsTextImagesAndTheRestApart(t *testing.T) {
 		{"paper.jar", "PK\x03\x04", "application/octet-stream"},
 		{"level.dat", "x", "application/octet-stream"},
 		{"tiny.mca", "", "application/octet-stream"},
+		{"click.ogg", "", "audio/ogg"},
+		{"theme.MP3", "", "audio/mpeg"},
+		{"no-extension", "OggS\x00\x02", "audio/ogg"},
+		{"sample", "RIFF\x24\x00\x00\x00WAVEfmt ", "audio/wave"},
 	}
 	for _, c := range cases {
 		if got := ContentType(c.name, func() []byte { return []byte(c.head) }); got != c.want {

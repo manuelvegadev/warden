@@ -226,13 +226,23 @@ var binaryExt = map[string]bool{
 	".sqlite": true, ".tar": true, ".tgz": true, ".zip": true, ".zst": true,
 }
 
+// Sounds the panel plays: named by extension, because the sniffer only knows some of them by
+// their first bytes (plugin and resource-pack sounds are mostly Ogg Vorbis).
+var audioExt = map[string]string{
+	".ogg": "audio/ogg", ".oga": "audio/ogg", ".opus": "audio/ogg", ".mp3": "audio/mpeg", ".wav": "audio/wav",
+	".flac": "audio/flac",
+}
+
 // ContentType decides what the panel does with a file: `text/plain` opens the editor, `image/*`
-// the preview, anything else is download-only. Known extensions win; `head` (the first bytes,
-// read only when asked for) settles the rest.
+// the picture, `audio/*` a player, anything else is download-only. Known extensions win; `head`
+// (the first bytes, read only when asked for) settles the rest.
 func ContentType(name string, head func() []byte) string {
 	ext := strings.ToLower(path.Ext(name))
 	if textExt[ext] {
 		return "text/plain; charset=utf-8"
+	}
+	if t, ok := audioExt[ext]; ok {
+		return t
 	}
 	if binaryExt[ext] {
 		return "application/octet-stream"
@@ -241,8 +251,10 @@ func ContentType(name string, head func() []byte) string {
 	switch {
 	case strings.HasPrefix(sniffed, "text/"):
 		return "text/plain; charset=utf-8"
-	case strings.HasPrefix(sniffed, "image/"):
+	case strings.HasPrefix(sniffed, "image/"), strings.HasPrefix(sniffed, "audio/"):
 		return sniffed
+	case sniffed == "application/ogg":
+		return "audio/ogg"
 	}
 	return "application/octet-stream"
 }
