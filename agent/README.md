@@ -7,6 +7,9 @@ loopback WebSocket:
 - the chunks within a radius of each player, simplified to one byte per block indexing a per-chunk
   colour palette (the game's own map colours), gzip-compressed and content-hashed.
 
+It also completes console commands for Beacon (ADR-024): it sends the server's command list whenever
+it changes, and answers wardend's `complete` requests the way the server's own console does.
+
 Nothing is rendered in the server and no region file is read: chunks come from `ChunkSnapshot`
 (a thread-safe copy taken on the main thread, at most a few per tick) and are encoded on a worker
 thread. Block-change events mark chunks dirty; a dirty chunk is re-sent at most every 5 s.

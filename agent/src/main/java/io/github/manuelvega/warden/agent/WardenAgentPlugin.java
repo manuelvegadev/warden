@@ -17,6 +17,9 @@ public final class WardenAgentPlugin extends JavaPlugin {
     private WardendClient client;
     private ChunkTracker tracker;
     private VoiceSupport voice;
+    private CommandCatalog catalog;
+    private CommandCompleter completer;
+    private BukkitTask commandsTask;
     private BukkitTask playersTask;
     private BukkitTask chunksTask;
 
@@ -32,8 +35,14 @@ public final class WardenAgentPlugin extends JavaPlugin {
         client = new WardendClient(getLogger(), cfg, () -> hello(cfg), known -> {
             tracker.setKnown(known);
             voice.onConnected();
+            catalog.onConnected();
         });
         tracker = new ChunkTracker(this, cfg, client, encoder);
+        // Console completion in Beacon (ADR-024): the command list, and live answers for a typed line.
+        catalog = new CommandCatalog(this, client);
+        getServer().getPluginManager().registerEvents(catalog, this);
+        completer = new CommandCompleter(this, client);
+        client.on("complete", completer::onRequest);
         VoiceConsent consent = new VoiceConsent(this, cfg.voiceConsent());
         PlayerSampler sampler = new PlayerSampler(client, consent.asks() ? consent::state : null);
         getServer().getPluginManager().registerEvents(tracker, this);
@@ -56,6 +65,8 @@ public final class WardenAgentPlugin extends JavaPlugin {
         }
         playersTask = getServer().getScheduler().runTaskTimer(this, sampler::tick, 20L, 4L);
         chunksTask = getServer().getScheduler().runTaskTimer(this, tracker::tick, 20L, 1L);
+        // Plugins enabled, disabled or registering commands late reach the panel within 2 s.
+        commandsTask = getServer().getScheduler().runTaskTimer(this, catalog::tick, 40L, 40L);
         client.start();
         getLogger().info("Warden Agent " + getPluginMeta().getVersion() + " → " + cfg.url());
     }
@@ -67,6 +78,12 @@ public final class WardenAgentPlugin extends JavaPlugin {
         }
         if (chunksTask != null) {
             chunksTask.cancel();
+        }
+        if (commandsTask != null) {
+            commandsTask.cancel();
+        }
+        if (completer != null) {
+            completer.shutdown();
         }
         if (voice != null) {
             voice.shutdown();
@@ -85,6 +102,10 @@ public final class WardenAgentPlugin extends JavaPlugin {
         o.addProperty("token", cfg.token());
         o.addProperty("agent", "warden-agent/" + getPluginMeta().getVersion());
         o.addProperty("server", Bukkit.getName() + " " + Bukkit.getMinecraftVersion());
+        // What this agent answers beyond the stream, so wardend does not wait on an older one.
+        JsonArray features = new JsonArray();
+        features.add("complete");
+        o.add("features", features);
         JsonArray worlds = new JsonArray();
         for (World w : Bukkit.getWorlds()) {
             JsonObject wo = new JsonObject();
