@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@warden/ui/components/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@warden/ui/components/card";
 import {
   type ChartConfig,
@@ -10,22 +11,35 @@ import {
   ChartTooltipContent,
 } from "@warden/ui/components/chart";
 import { cn } from "@warden/ui/lib/utils";
-import { useMemo } from "react";
-import { Area, AreaChart, CartesianGrid, Line, LineChart, ReferenceLine, XAxis, YAxis } from "recharts";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useMemo, useState } from "react";
+import { Area, AreaChart, CartesianGrid, Line, LineChart, ReferenceArea, ReferenceLine, XAxis, YAxis } from "recharts";
 import { DetachControls } from "@/components/instance/detach-controls";
+import { useInstance } from "@/components/instance/instance-context";
 import { SERIES_1, SERIES_2 } from "@/components/instance/sparkline";
 import { useDetachable } from "@/hooks/use-detachable";
 import { useHostCores } from "@/hooks/use-host-cores";
 import type { MetricPoint } from "@/hooks/use-metrics-history";
-import { formatBytes } from "@/lib/api";
+import { useMetricsRange } from "@/hooks/use-metrics-range";
+import { formatBytes, hasTps } from "@/lib/api";
 import {
   axisUnit,
+  breakAtGaps,
+  bucketMs,
   CPU_DOMAIN,
+  gapsIn,
+  holdTps,
   hostShare,
+  isMetricsRange,
+  METRICS_RANGES,
+  type MetricsRange,
   memCeiling,
   netCeiling,
+  nextPowerOfTwo,
   quarterTicks,
+  RANGE_MS,
   TPS_FLOOR,
+  timeTicks,
   tpsDomain,
 } from "@/lib/metrics-axis";
 
@@ -36,6 +50,8 @@ import {
 // meaning never rests on colour alone.
 const WARN = "#f59e0b";
 const CRIT = "#ef4444";
+// The charts share one crosshair: hovering a time in one shows it in all of them.
+const SYNC_ID = "instance-metrics";
 
 /** A horizontal limit line with its own label, so the reader knows what the colour means. */
 function Threshold({ y, color, label, side }: { y: number; color: string; label: string; side?: "left" }) {
@@ -63,31 +79,99 @@ const yLabel = (value: string) => ({
   style: { fontSize: 10, fill: "var(--muted-foreground)", textAnchor: "middle" as const },
 });
 
-const timeFmt = (v: number | string) => new Date(v).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-const timeFmtFull = (v: number | string) => new Date(v).toLocaleTimeString();
-// The tooltip label is the formatted tick text ("02:20 AM"), not the epoch; read the time off the point.
-const tooltipTime = (_label: unknown, payload: readonly { payload?: { t?: number } }[]) =>
-  timeFmtFull(payload[0]?.payload?.t ?? NaN);
+const RANGE_LABEL: Record<MetricsRange, string> = {
+  "15m": "Last 15 minutes",
+  "1h": "Last hour",
+  "6h": "Last 6 hours",
+  "24h": "Last 24 hours",
+  "7d": "Last 7 days",
+};
+
+/** Ticks read the time of day, or the date once the window spans days. */
+const tickFormat = (range: MetricsRange) =>
+  range === "7d"
+    ? (v: number) => new Date(v).toLocaleDateString([], { month: "short", day: "numeric" })
+    : (v: number) => new Date(v).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+// The tooltip label is the formatted tick text, not the epoch; read the time off the point.
+const tooltipTime = (_label: unknown, payload: readonly { payload?: { t?: number } }[]) => {
+  const t = payload[0]?.payload?.t;
+  return t === undefined
+    ? ""
+    : new Date(t).toLocaleString([], {
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      });
+};
+
+type Plot = MetricPoint & { cpuHost: number; cpuPeakHost?: number };
 
 /**
- * One hour of samples: history from the daemon on mount, then live samples appended. Detachable the
- * same way the console is — full screen, or a pop-out window to leave on a second monitor.
+ * The Metrics section and its pop-out: the range from the URL (`?range=`, one hour by default),
+ * the series from the daemon bucketed to fit the charts, re-read as new buckets appear.
+ */
+export function MetricsView({ popout, fill }: { popout?: boolean; fill?: boolean }) {
+  const { manifest } = useInstance();
+  const params = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  const fromUrl = params.get("range");
+  const [range, setRange] = useState<MetricsRange>(isMetricsRange(fromUrl) ? fromUrl : "1h");
+  const { points, end } = useMetricsRange(manifest.id, range);
+
+  const pick = (r: MetricsRange) => {
+    setRange(r);
+    const next = new URLSearchParams(params);
+    next.set("range", r);
+    router.replace(`${pathname}?${next}`, { scroll: false });
+  };
+
+  return (
+    <MetricsChart
+      data={points}
+      end={end}
+      range={range}
+      onRange={pick}
+      memoryMb={manifest.memoryMb}
+      instanceId={manifest.id}
+      tps={hasTps(manifest.software)}
+      popout={popout}
+      fill={fill}
+    />
+  );
+}
+
+/**
+ * CPU, memory, TPS, players, disk and host network over a range, one bucket per point: the average
+ * drawn, the peak shaded behind it, stretches when the server was off shaded and left as gaps, and
+ * one crosshair across every chart. Detachable the same way the console is — full screen, or a
+ * pop-out window to leave on a second monitor.
  */
 export function MetricsChart({
   data,
+  end,
+  range,
+  onRange,
   memoryMb,
   instanceId,
   popout,
   fill,
   tps = true,
 }: {
-  data: MetricPoint[];
+  /** Null while the range loads. */
+  data: MetricPoint[] | null;
+  /** The end of the window, the time of the last read. */
+  end: number;
+  range: MetricsRange;
+  onRange: (range: MetricsRange) => void;
   memoryMb: number;
   instanceId: string;
   popout?: boolean;
-  /** Fill the section from `sm` up, two charts by two; a phone stacks them at their fixed height. */
+  /** Fill the section from `sm` up; a phone stacks the charts at their fixed height. */
   fill?: boolean;
-  /** Off for software that has no tick rate to report (Vanilla, Fabric); the network chart takes the row. */
+  /** Off for software that has no tick rate to report (Vanilla, Fabric). */
   tps?: boolean;
 }) {
   const { rootRef, fullscreen, toggleFullscreen, openPopout, fillHeight, showPopout } = useDetachable(
@@ -97,28 +181,76 @@ export function MetricsChart({
   );
   const inPlace = fill && !fillHeight;
 
-  const memMax = memoryMb || data[data.length - 1]?.memMaxMb || 0;
+  const points = data ?? [];
+  const memMax = memoryMb || points[points.length - 1]?.memMaxMb || 0;
   const single = (label: string, color: string): ChartConfig => ({ v: { label, color } });
 
   // The daemon reports CPU as a percentage of one core; the header tile divides by the core count
   // and the chart used not to, so the same instant read 300 in one place and 25 in the other.
   const cores = useHostCores();
-  const cpuData = useMemo(() => data.map((p) => ({ ...p, cpuHost: hostShare(p.cpu, cores) })), [data, cores]);
+  const windowStart = end - RANGE_MS[range];
+  const step = bucketMs(RANGE_MS[range]);
+  const gaps = useMemo(() => gapsIn(points, step, end), [points, step, end]);
+  const plot = useMemo(
+    () =>
+      breakAtGaps<Plot>(
+        holdTps(points).map((p) => ({
+          ...p,
+          cpuHost: hostShare(p.cpu, cores),
+          ...(p.cpuPeak !== undefined && { cpuPeakHost: hostShare(p.cpuPeak, cores) }),
+        })),
+        gaps,
+      ),
+    [points, cores, gaps],
+  );
 
-  const tpsWindow = useMemo(() => tpsDomain(data), [data]);
+  const tpsWindow = useMemo(() => tpsDomain(points.map((p) => ({ tps: p.tpsLow ?? p.tps }))), [points]);
   const tpsFloor = tpsWindow[0];
-
   const memTop = memCeiling(memMax);
   const memUnit = axisUnit(memTop, "MB");
   const memTicks = quarterTicks(memTop);
-  const netTop = useMemo(() => netCeiling(data), [data]);
+  const netTop = useMemo(() => netCeiling(points), [points]);
   const netUnit = axisUnit(netTop, "KB");
+  // A round ceiling above the directory's size, so a size that barely changes reads as a line, not a block.
+  const diskTop = useMemo(() => nextPowerOfTwo(Math.max(...points.map((p) => p.diskMb)) * 1.25, 64), [points]);
+  const diskUnit = axisUnit(diskTop, "MB");
+  const playersTop = useMemo(() => Math.max(4, ...points.map((p) => p.players)), [points]);
+  const hasPeaks = points.some((p) => p.cpuPeak !== undefined);
+
   // Filling the screen is only worth it if the panels grow with it.
   const chartClass = fillHeight
-    ? "h-full min-h-40 w-full"
+    ? "h-full min-h-32 w-full"
     : inPlace
-      ? "h-40 w-full sm:h-full sm:min-h-40"
+      ? "h-40 w-full sm:h-full sm:min-h-32"
       : "h-40 w-full";
+
+  // What every chart shares: the time axis over the whole window, the stopped stretches, the crosshair.
+  const common = { data: plot, margin: { left: 4, right: 4, top: 8 }, syncId: SYNC_ID };
+  const timeAxis = (
+    <XAxis
+      dataKey="t"
+      type="number"
+      scale="time"
+      domain={[windowStart, end]}
+      ticks={timeTicks(windowStart, end, range)}
+      tickFormatter={tickFormat(range)}
+      minTickGap={24}
+      tickLine={false}
+      axisLine={false}
+      allowDataOverflow
+    />
+  );
+  const stopped = gaps.map((g) => (
+    <ReferenceArea
+      key={g.from}
+      x1={Math.max(g.from, windowStart)}
+      x2={g.to}
+      fill="var(--muted-foreground)"
+      fillOpacity={0.08}
+      ifOverflow="hidden"
+    />
+  ));
+  const grid = <CartesianGrid vertical={false} strokeOpacity={0.25} />;
 
   return (
     <div
@@ -130,44 +262,60 @@ export function MetricsChart({
         fullscreen && "bg-background p-3",
       )}
     >
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-xs text-muted-foreground">Last hour</span>
-        <div className="flex items-center gap-1">
-          <DetachControls
-            label="metrics"
-            fullscreen={fullscreen}
-            showPopout={showPopout}
-            onPopout={openPopout}
-            onToggleFullscreen={toggleFullscreen}
-          />
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-3">
+          <fieldset className="flex rounded-md border p-0.5">
+            <legend className="sr-only">Range</legend>
+            {METRICS_RANGES.map((r) => (
+              <Button
+                key={r}
+                size="sm"
+                variant={r === range ? "secondary" : "ghost"}
+                className="h-7 px-2"
+                aria-pressed={r === range}
+                title={RANGE_LABEL[r]}
+                onClick={() => onRange(r)}
+              >
+                {r}
+              </Button>
+            ))}
+          </fieldset>
+          <span className="text-xs text-muted-foreground">
+            {RANGE_LABEL[range]}
+            {hasPeaks && " · line the average, shade the peak"}
+            {gaps.length > 0 && " · grey where the server was not running"}
+          </span>
         </div>
+        <DetachControls
+          label="metrics"
+          fullscreen={fullscreen}
+          showPopout={showPopout}
+          onPopout={openPopout}
+          onToggleFullscreen={toggleFullscreen}
+        />
       </div>
-      {data.length < 2 ? (
+      {data === null ? (
+        <p className="py-6 text-sm text-muted-foreground">Loading…</p>
+      ) : points.length < 2 ? (
         <p className="py-6 text-sm text-muted-foreground">
-          Metrics appear once the server has been running for a moment.
+          No samples in this range yet: metrics are recorded while the server runs.
         </p>
       ) : (
         <div
           className={cn(
-            "grid gap-4 sm:grid-cols-2",
-            fillHeight && "min-h-0 flex-1 sm:grid-rows-2",
-            inPlace && "sm:min-h-0 sm:flex-1 sm:grid-rows-2",
+            "grid gap-4 sm:grid-cols-2 xl:grid-cols-3",
+            (fillHeight || inPlace) && "sm:min-h-0 sm:flex-1 sm:grid-rows-3 xl:grid-rows-2",
+            fillHeight && "min-h-0 flex-1",
           )}
         >
           <Panel title="CPU" subtitle={cores ? `share of ${cores} cores` : "share of the host"}>
-            <ChartContainer config={single("CPU", SERIES_1)} className={chartClass}>
-              <AreaChart data={cpuData} margin={{ left: 4, right: 4, top: 8 }}>
-                <CartesianGrid vertical={false} strokeOpacity={0.25} />
-                <XAxis
-                  dataKey="t"
-                  type="number"
-                  scale="time"
-                  domain={["dataMin", "dataMax"]}
-                  tickFormatter={timeFmt}
-                  minTickGap={48}
-                  tickLine={false}
-                  axisLine={false}
-                />
+            <ChartContainer
+              config={{ cpuHost: { label: "CPU", color: SERIES_1 }, cpuPeakHost: { label: "Peak", color: SERIES_1 } }}
+              className={chartClass}
+            >
+              <AreaChart {...common}>
+                {grid}
+                {timeAxis}
                 <YAxis
                   width={48}
                   tickLine={false}
@@ -179,17 +327,30 @@ export function MetricsChart({
                   label={yLabel("% of host")}
                 />
                 <ChartTooltip
-                  content={<ChartTooltipContent labelFormatter={tooltipTime} formatter={(v) => [`${v} %`, "CPU"]} />}
+                  content={<ChartTooltipContent labelFormatter={tooltipTime} formatter={(v, n) => [`${v} %`, n]} />}
                 />
+                {stopped}
                 <Threshold y={90} color={CRIT} label="saturated" />
                 <Threshold y={75} color={WARN} label="busy" side="left" />
+                {hasPeaks && (
+                  <Area
+                    dataKey="cpuPeakHost"
+                    name="Peak"
+                    type="monotone"
+                    stroke="none"
+                    fill={SERIES_1}
+                    fillOpacity={0.12}
+                    isAnimationActive={false}
+                  />
+                )}
                 <Area
                   dataKey="cpuHost"
+                  name="CPU"
                   type="monotone"
                   stroke={SERIES_1}
                   strokeWidth={2}
                   fill={SERIES_1}
-                  fillOpacity={0.12}
+                  fillOpacity={hasPeaks ? 0 : 0.12}
                   dot={false}
                   isAnimationActive={false}
                 />
@@ -197,23 +358,14 @@ export function MetricsChart({
             </ChartContainer>
           </Panel>
 
-          <Panel
-            title="Memory"
-            subtitle={`Resident memory of the Java process · heap max ${formatBytes(memMax * 1048576)}`}
-          >
-            <ChartContainer config={single("Memory", SERIES_1)} className={chartClass}>
-              <AreaChart data={data} margin={{ left: 4, right: 4, top: 8 }}>
-                <CartesianGrid vertical={false} strokeOpacity={0.25} />
-                <XAxis
-                  dataKey="t"
-                  type="number"
-                  scale="time"
-                  domain={["dataMin", "dataMax"]}
-                  tickFormatter={timeFmt}
-                  minTickGap={48}
-                  tickLine={false}
-                  axisLine={false}
-                />
+          <Panel title="Memory" subtitle={`Java process · heap max ${formatBytes(memMax * 1048576)}`}>
+            <ChartContainer
+              config={{ memMb: { label: "RSS", color: SERIES_1 }, memPeakMb: { label: "Peak", color: SERIES_1 } }}
+              className={chartClass}
+            >
+              <AreaChart {...common}>
+                {grid}
+                {timeAxis}
                 <YAxis
                   width={52}
                   tickLine={false}
@@ -227,16 +379,29 @@ export function MetricsChart({
                   label={yLabel(memUnit.label)}
                 />
                 <ChartTooltip
-                  content={<ChartTooltipContent labelFormatter={tooltipTime} formatter={(v) => [`${v} MB`, "RSS"]} />}
+                  content={<ChartTooltipContent labelFormatter={tooltipTime} formatter={(v, n) => [`${v} MB`, n]} />}
                 />
+                {stopped}
                 {memMax > 0 && <Threshold y={memMax} color={WARN} label="heap max" side="left" />}
+                {hasPeaks && (
+                  <Area
+                    dataKey="memPeakMb"
+                    name="Peak"
+                    type="monotone"
+                    stroke="none"
+                    fill={SERIES_1}
+                    fillOpacity={0.12}
+                    isAnimationActive={false}
+                  />
+                )}
                 <Area
                   dataKey="memMb"
+                  name="RSS"
                   type="monotone"
                   stroke={SERIES_1}
                   strokeWidth={2}
                   fill={SERIES_1}
-                  fillOpacity={0.12}
+                  fillOpacity={hasPeaks ? 0 : 0.12}
                   dot={false}
                   isAnimationActive={false}
                 />
@@ -246,19 +411,13 @@ export function MetricsChart({
 
           {tps && (
             <Panel title="TPS" subtitle="server tick rate · 20 is healthy">
-              <ChartContainer config={single("TPS", SERIES_1)} className={chartClass}>
-                <LineChart data={data} margin={{ left: 4, right: 4, top: 8 }}>
-                  <CartesianGrid vertical={false} strokeOpacity={0.25} />
-                  <XAxis
-                    dataKey="t"
-                    type="number"
-                    scale="time"
-                    domain={["dataMin", "dataMax"]}
-                    tickFormatter={timeFmt}
-                    minTickGap={48}
-                    tickLine={false}
-                    axisLine={false}
-                  />
+              <ChartContainer
+                config={{ tps: { label: "TPS", color: SERIES_1 }, tpsLow: { label: "Lowest", color: SERIES_1 } }}
+                className={chartClass}
+              >
+                <LineChart {...common}>
+                  {grid}
+                  {timeAxis}
                   <YAxis
                     width={48}
                     tickLine={false}
@@ -270,24 +429,105 @@ export function MetricsChart({
                     label={yLabel("ticks/s")}
                   />
                   <ChartTooltip
-                    content={<ChartTooltipContent labelFormatter={tooltipTime} formatter={(v) => [String(v), "TPS"]} />}
+                    content={<ChartTooltipContent labelFormatter={tooltipTime} formatter={(v, n) => [String(v), n]} />}
                   />
+                  {stopped}
                   <Threshold y={18} color={WARN} label="lagging" side="left" />
                   {/* At the windowed floor this line would just trace the baseline. */}
                   {tpsFloor === 0 && <Threshold y={TPS_FLOOR} color={CRIT} label="unplayable" />}
+                  {hasPeaks && (
+                    <Line
+                      dataKey="tpsLow"
+                      name="Lowest"
+                      type="monotone"
+                      stroke={SERIES_1}
+                      strokeOpacity={0.35}
+                      strokeWidth={1}
+                      dot={false}
+                      isAnimationActive={false}
+                    />
+                  )}
                   <Line
                     dataKey="tps"
+                    name="TPS"
                     type="monotone"
                     stroke={SERIES_1}
                     strokeWidth={2}
                     dot={false}
-                    connectNulls
                     isAnimationActive={false}
                   />
                 </LineChart>
               </ChartContainer>
             </Panel>
           )}
+
+          <Panel title="Players" subtitle={hasPeaks ? "most online in each step" : "online"}>
+            <ChartContainer config={single("Players", SERIES_1)} className={chartClass}>
+              <LineChart {...common}>
+                {grid}
+                {timeAxis}
+                <YAxis
+                  width={48}
+                  tickLine={false}
+                  axisLine={false}
+                  allowDecimals={false}
+                  domain={[0, playersTop]}
+                  label={yLabel("players")}
+                />
+                <ChartTooltip
+                  content={
+                    <ChartTooltipContent labelFormatter={tooltipTime} formatter={(v) => [String(v), "Players"]} />
+                  }
+                />
+                {stopped}
+                <Line
+                  dataKey="players"
+                  type="stepAfter"
+                  stroke={SERIES_1}
+                  strokeWidth={2}
+                  dot={false}
+                  isAnimationActive={false}
+                />
+              </LineChart>
+            </ChartContainer>
+          </Panel>
+
+          <Panel title="Disk" subtitle="size of the instance directory">
+            <ChartContainer config={single("Disk", SERIES_1)} className={chartClass}>
+              <AreaChart {...common}>
+                {grid}
+                {timeAxis}
+                <YAxis
+                  width={52}
+                  tickLine={false}
+                  axisLine={false}
+                  domain={[0, (max: number) => Math.max(diskTop, max)]}
+                  ticks={quarterTicks(diskTop)}
+                  tickFormatter={diskUnit.format}
+                  label={yLabel(diskUnit.label)}
+                />
+                <ChartTooltip
+                  content={
+                    <ChartTooltipContent
+                      labelFormatter={tooltipTime}
+                      formatter={(v) => [formatBytes(Number(v) * 1048576), "Disk"]}
+                    />
+                  }
+                />
+                {stopped}
+                <Area
+                  dataKey="diskMb"
+                  type="stepAfter"
+                  stroke={SERIES_1}
+                  strokeWidth={2}
+                  fill={SERIES_1}
+                  fillOpacity={0.12}
+                  dot={false}
+                  isAnimationActive={false}
+                />
+              </AreaChart>
+            </ChartContainer>
+          </Panel>
 
           <Panel
             title="Host network"
@@ -298,18 +538,9 @@ export function MetricsChart({
               config={{ rxKb: { label: "In", color: SERIES_1 }, txKb: { label: "Out", color: SERIES_2 } }}
               className={chartClass}
             >
-              <LineChart data={data} margin={{ left: 4, right: 4, top: 8 }}>
-                <CartesianGrid vertical={false} strokeOpacity={0.25} />
-                <XAxis
-                  dataKey="t"
-                  type="number"
-                  scale="time"
-                  domain={["dataMin", "dataMax"]}
-                  tickFormatter={timeFmt}
-                  minTickGap={48}
-                  tickLine={false}
-                  axisLine={false}
-                />
+              <LineChart {...common}>
+                {grid}
+                {timeAxis}
                 {/* Explicit domain: left to itself the axis picks up the epoch `t` column and prints nonsense. */}
                 <YAxis
                   width={52}
@@ -325,6 +556,7 @@ export function MetricsChart({
                 />
                 <ChartTooltip content={<ChartTooltipContent labelFormatter={tooltipTime} />} />
                 <ChartLegend content={<ChartLegendContent />} />
+                {stopped}
                 <Line
                   dataKey="rxKb"
                   type="monotone"

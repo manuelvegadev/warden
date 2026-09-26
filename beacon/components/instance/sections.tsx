@@ -23,7 +23,7 @@ import { FilesEditor } from "@/components/instance/files-editor";
 import type { InstanceState } from "@/components/instance/instance-context";
 import { LaunchCommandCard } from "@/components/instance/launch-command-card";
 import { LiveView } from "@/components/instance/live-view";
-import { MetricsChart } from "@/components/instance/metrics-chart";
+import { MetricsView } from "@/components/instance/metrics-chart";
 import { Overview } from "@/components/instance/overview";
 import { PlayersTab } from "@/components/instance/players-tab";
 import { PluginsTab } from "@/components/instance/plugins-tab";
@@ -31,7 +31,7 @@ import { PropertiesEditor } from "@/components/instance/properties-editor";
 import { SettingsForm } from "@/components/instance/settings-form";
 import { UpgradeCard } from "@/components/instance/upgrade-card";
 import { can, type InstanceAction, type InstanceRole } from "@/lib/access";
-import { hasPlugins, hasTps, isStopped } from "@/lib/api";
+import { hasPlugins, isStopped } from "@/lib/api";
 
 // The file manager brings its icon table and the editor modes: loaded with its section, not the shell.
 const FileManager = dynamic(() => import("@/components/instance/files/file-manager").then((m) => m.FileManager), {
@@ -90,15 +90,7 @@ export const SECTIONS: Section[] = [
     icon: Activity,
     // The charts want the width and the height.
     layout: "viewer",
-    render: (s) => (
-      <MetricsChart
-        data={s.history}
-        memoryMb={s.manifest.memoryMb}
-        instanceId={s.manifest.id}
-        tps={hasTps(s.manifest.software)}
-        fill
-      />
-    ),
+    render: () => <MetricsView fill />,
   },
   {
     slug: "map",

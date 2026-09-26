@@ -14,6 +14,10 @@ export type MetricPoint = {
   tps: number | null;
   rxKb: number;
   txKb: number;
+  /** Bucketed history only: the step's peaks (lowest, for TPS). */
+  cpuPeak?: number;
+  memPeakMb?: number;
+  tpsLow?: number;
 };
 
 const WINDOW_MS = 3600_000;
@@ -30,6 +34,9 @@ export const toPoint = (m: MetricSample): MetricPoint => ({
   // Rates already stored by daemons before v0.5.1 can be MinInt64 (counter wrap); never plot those.
   rxKb: m.netRx > 0 ? Math.round(m.netRx / 1024) : 0,
   txKb: m.netTx > 0 ? Math.round(m.netTx / 1024) : 0,
+  ...(m.cpuMax !== undefined && { cpuPeak: Math.round(m.cpuMax * 10) / 10 }),
+  ...(m.memRssMax !== undefined && { memPeakMb: Math.round(m.memRssMax / 1048576) }),
+  ...(m.tpsMin !== undefined && { tpsLow: Math.round(m.tpsMin * 100) / 100 }),
 });
 
 const RECENT_MS = 5 * 60_000;

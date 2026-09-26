@@ -166,6 +166,10 @@ export interface MetricSample {
   netRx: number; // bytes/s, host interfaces
   netTx: number;
   tps?: [number, number, number];
+  /** Bucketed history only (`?points=`): the peaks behind the averages. */
+  cpuMax?: number;
+  memRssMax?: number;
+  tpsMin?: number;
 }
 
 export interface Player {
@@ -596,7 +600,9 @@ export const instances = {
   kill: (id: string) => post<void>(`/instances/${id}/kill`),
   command: (id: string, command: string) => post<void>(`/instances/${id}/command`, { command }),
   console: (id: string, lines = 500) => api<ConsoleLine[]>(`/instances/${id}/console?lines=${lines}`),
-  metrics: (id: string, range = "1h") => api<MetricSample[]>(`/instances/${id}/metrics?range=${range}`),
+  /** `points` buckets the series into at most that many averages with their peaks (docs/api.md). */
+  metrics: (id: string, range = "1h", points?: number) =>
+    api<MetricSample[]>(`/instances/${id}/metrics?range=${range}${points ? `&points=${points}` : ""}`),
   acceptEula: (id: string) => post<void>(`/instances/${id}/eula`, { accept: true }),
   update: (id: string, input: UpdateInstanceInput) =>
     api<InstanceSummary>(`/instances/${id}`, { method: "PATCH", body: JSON.stringify(input) }),
