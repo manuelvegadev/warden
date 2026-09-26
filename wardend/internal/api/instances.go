@@ -16,6 +16,7 @@ import (
 	"github.com/manuelvega/warden/wardend/internal/auth"
 	"github.com/manuelvega/warden/wardend/internal/backup"
 	"github.com/manuelvega/warden/wardend/internal/instance"
+	"github.com/manuelvega/warden/wardend/internal/metrics"
 	"github.com/manuelvega/warden/wardend/internal/tasks"
 )
 
@@ -479,11 +480,16 @@ func (s *server) instanceMetrics(w http.ResponseWriter, r *http.Request) {
 		writeError(w, 404, "instance_not_found", err.Error())
 		return
 	}
-	rng, _ := time.ParseDuration(r.URL.Query().Get("range"))
-	if rng <= 0 {
-		rng = time.Hour
+	// ?range= a duration or days (1 h by default, a week at most); ?points= buckets the series into
+	// at most that many averages with their peaks, for charts of a day or a week (docs/api.md).
+	q := r.URL.Query()
+	rng := metrics.ParseRange(q.Get("range"))
+	points, _ := strconv.Atoi(q.Get("points"))
+	history := s.Metrics.History(r.Context(), inst.Manifest.ID, time.Now().Add(-rng))
+	if step := metrics.StepFor(rng, min(points, 2000)); step > 0 {
+		history = metrics.Bucket(history, step)
 	}
-	writeJSON(w, 200, s.Metrics.History(r.Context(), inst.Manifest.ID, time.Now().Add(-rng)))
+	writeJSON(w, 200, history)
 }
 
 func (s *server) eula(w http.ResponseWriter, r *http.Request) {

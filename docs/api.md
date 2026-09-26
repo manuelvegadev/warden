@@ -89,7 +89,7 @@ Instance create/patch accept `javaRuntime` (`"auto"` or a runtime id) and `javaP
 | GET | `/instances/{id}/logs` | `[{name,size,modTime}]` — `latest.log` first, then rotated `*.log.gz` |
 | GET | `/instances/{id}/logs/{file}?tail=500` | `{file, lines[]}` (max 5000; gz decompressed on the fly). `?download=1` streams the raw file with `Content-Disposition`. Without params: plain text. |
 | GET | `/instances/{id}/events?kind=player.join,player.leave&limit=100` | Persisted server events, newest first `[{ts,kind,player,text}]` |
-| GET | `/instances/{id}/metrics?range=1h` | Time series `[{ts,cpu,memRss,diskUsed,netRx,netTx,tps,players}]` from SQLite |
+| GET | `/instances/{id}/metrics?range=1h&points=360` | Time series `[{ts,cpu,memRss,diskUsed,netRx,netTx,tps,players}]` from SQLite, oldest first. `range` is a Go duration or whole days (`7d`); 1 h by default, clamped to the 7 days kept. Without `points` every stored sample is returned: 2 s apart for the last 24 h, one per minute before that. With `points` (≤ 2000) the series is bucketed into at most that many steps (whole seconds, ≥ 2 s), each stamped with its start: `cpu`, `memRss`, `netRx`, `netTx` and `tps` averaged, `cpuMax`, `memRssMax` and `tpsMin` beside them, `players` and `diskUsed` the step's highest. A step with no samples (the server was stopped) is left out. |
 | POST | `/instances/{id}/install` | Retry/redo the install task (`{"AcceptEULA":true,"Properties":{}}`) → `202 {task}`. Instance must be stopped. |
 | POST | `/instances/{id}/eula` | `{"accept":true}` → writes `eula.txt` |
 | POST | `/instances/{id}/upgrade` | `{"mcVersion":"1.21.8","build":60}` → `202` task. Takes a backup first. |
