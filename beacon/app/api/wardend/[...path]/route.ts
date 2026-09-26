@@ -1,6 +1,17 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { wardendFetch } from "@/lib/wardend";
 
+const FORWARDED_REQUEST = ["range", "if-range", "if-none-match", "if-modified-since"];
+const FORWARDED_RESPONSE = [
+  "content-disposition",
+  "cache-control",
+  "etag",
+  "last-modified",
+  "content-range",
+  "accept-ranges",
+  "content-length",
+];
+
 // BFF proxy: /api/wardend/<path> → wardend /api/v1/<path>. The browser never receives the JWT.
 async function proxy(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
   const { path } = await ctx.params;
@@ -9,10 +20,17 @@ async function proxy(req: NextRequest, ctx: { params: Promise<{ path: string[] }
   try {
     // Stream the body through untouched so multipart uploads (plugin jars) survive the hop.
     const hasBody = req.method !== "GET" && req.method !== "HEAD";
+    const headers: Record<string, string> = { "Content-Type": req.headers.get("content-type") ?? "application/json" };
+    // Ranges and revalidation reach the daemon (http.ServeContent answers them): the tail of a
+    // big log, Safari's <audio>, a region file's header, a 304 for an unchanged file.
+    for (const h of FORWARDED_REQUEST) {
+      const v = req.headers.get(h);
+      if (v) headers[h] = v;
+    }
     upstream = await wardendFetch(target, {
       method: req.method,
       body: hasBody ? req.body : undefined,
-      headers: { "Content-Type": req.headers.get("content-type") ?? "application/json" },
+      headers,
       // @ts-expect-error -- required by undici for streaming request bodies; not in the DOM lib types
       duplex: "half",
     });
@@ -27,7 +45,7 @@ async function proxy(req: NextRequest, ctx: { params: Promise<{ path: string[] }
   const headers: Record<string, string> = {
     "Content-Type": upstream.headers.get("content-type") ?? "application/json",
   };
-  for (const h of ["content-disposition", "cache-control", "etag", "last-modified"]) {
+  for (const h of FORWARDED_RESPONSE) {
     const v = upstream.headers.get(h);
     if (v) headers[h] = v;
   }
