@@ -44,6 +44,7 @@ type Instance struct {
 	rootReal    string
 	rootErr     error
 	backupLock  sync.Mutex   // one backup/restore at a time per instance
+	lodConfigMu sync.Mutex   // LOD configuration saves and the pre-start write of pending values
 	lineWaiters []lineWaiter // awaitLine subscribers
 	uuidCache   map[string]uuidEntry
 	statsCache  map[string]statsEntry // KnownPlayers: parsed play time per stats file, keyed by path
@@ -144,6 +145,10 @@ func (i *Instance) Start(ctx context.Context) error {
 		// Simple Voice Chat is Beacon's voice on the server side, so it is installed like the agent,
 		// except that it comes from the catalog and a failure only costs voice (ADR-019).
 		if msg := i.ensureVoicePlugin(ctx); msg != "" {
+			i.system(msg)
+		}
+		// LOD settings saved while the server ran that the plugin overwrote meanwhile (ADR-025).
+		if msg := i.applyPendingLODConfig(); msg != "" {
 			i.system(msg)
 		}
 	}
