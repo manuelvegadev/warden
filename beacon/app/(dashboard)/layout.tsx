@@ -6,6 +6,7 @@ import { CreateInstanceDialog } from "@/components/create-instance-dialog";
 import { ImportInstanceDialog } from "@/components/import-instance-dialog";
 import { InstancesProvider } from "@/components/instances-store";
 import { SiteHeader } from "@/components/site-header";
+import { SlotsProvider } from "@/components/slots";
 import { WardendConfigProvider } from "@/components/wardend-config";
 import { roleFor } from "@/lib/access";
 import { canManageMembers, currentAccess, currentMembership } from "@/lib/members";
@@ -33,14 +34,16 @@ export default async function DashboardLayout({ children }: { children: React.Re
       <InstancesProvider initial={instances} roles={roles}>
         {/* The viewport never scrolls: the inset (the bordered "island") is the scroll container. */}
         <SidebarProvider defaultOpen={sidebarOpen} className="h-svh overflow-hidden">
-          <AppSidebar
-            user={{ name: user.name, email: user.email, role: user.role ?? "operator" }}
-            canManageMembers={canManageMembers(membership)}
-          />
-          <SidebarInset className="min-h-0 overflow-hidden">
-            <SiteHeader />
-            <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
-          </SidebarInset>
+          <SlotsProvider>
+            <AppSidebar
+              user={{ name: user.name, email: user.email, role: user.role ?? "operator" }}
+              canManageMembers={canManageMembers(membership)}
+            />
+            <SidebarInset className="min-h-0 overflow-hidden">
+              <SiteHeader />
+              <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
+            </SidebarInset>
+          </SlotsProvider>
         </SidebarProvider>
         <CreateInstanceDialog />
         <ImportInstanceDialog />

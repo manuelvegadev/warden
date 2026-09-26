@@ -24,7 +24,7 @@ export function Sparkline({
     <div className={className} aria-hidden>
       <ResponsiveContainer width="100%" height="100%">
         {single ? (
-          <AreaChart data={data} margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>
+          <AreaChart data={data} margin={{ top: 2, right: 0, bottom: 0, left: 0 }} accessibilityLayer={false}>
             <YAxis hide domain={domain as [number, number]} />
             <Area
               dataKey={keys[0]}
@@ -39,7 +39,7 @@ export function Sparkline({
             />
           </AreaChart>
         ) : (
-          <LineChart data={data} margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>
+          <LineChart data={data} margin={{ top: 2, right: 0, bottom: 0, left: 0 }} accessibilityLayer={false}>
             <YAxis hide domain={domain as [number, number]} />
             {keys.map((k, i) => (
               <Line

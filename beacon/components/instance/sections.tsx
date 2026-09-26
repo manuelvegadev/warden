@@ -6,6 +6,7 @@ import {
   Box,
   FileCode2,
   FolderTree,
+  LayoutDashboard,
   Puzzle,
   Settings,
   Shield,
@@ -23,6 +24,7 @@ import type { InstanceState } from "@/components/instance/instance-context";
 import { LaunchCommandCard } from "@/components/instance/launch-command-card";
 import { LiveView } from "@/components/instance/live-view";
 import { MetricsChart } from "@/components/instance/metrics-chart";
+import { Overview } from "@/components/instance/overview";
 import { PlayersTab } from "@/components/instance/players-tab";
 import { PluginsTab } from "@/components/instance/plugins-tab";
 import { PropertiesEditor } from "@/components/instance/properties-editor";
@@ -60,14 +62,18 @@ export interface Section {
    */
   needs?: InstanceAction;
   /**
-   * A viewer takes the whole page: no header tiles, no facts sidebar, stretched to the bottom.
-   * A fill section keeps the chrome and stretches to the bottom from `lg` up.
+   * How tall the section is (ADR-021): a viewer is as tall as the view at every width; a fill
+   * section from `lg` up, stacking at its own heights below; any other section as tall as its content.
    */
   layout?: "viewer" | "fill";
+  /** A form or a page of text, held to a readable width; everything else takes the page's. */
+  narrow?: boolean;
 }
 
 /** Single source of truth for instance sections: sidebar items, breadcrumb labels and the [section] route. */
 export const SECTIONS: Section[] = [
+  // The landing page: the instance at a glance (ADR-021).
+  { slug: "overview", group: "Server", label: "Overview", icon: LayoutDashboard, render: () => <Overview /> },
   // The console is worth every line of height the screen has.
   {
     slug: "console",
@@ -82,7 +88,7 @@ export const SECTIONS: Section[] = [
     group: "Server",
     label: "Metrics",
     icon: Activity,
-    // The header tiles chart the same four series, and the charts want the width and the height.
+    // The charts want the width and the height.
     layout: "viewer",
     render: (s) => (
       <MetricsChart
@@ -114,6 +120,7 @@ export const SECTIONS: Section[] = [
     slug: "properties",
     group: "Configuration",
     label: "Properties",
+    narrow: true,
     icon: SlidersHorizontal,
     needs: "config.write",
     render: (s) => (
@@ -149,6 +156,7 @@ export const SECTIONS: Section[] = [
     slug: "access",
     group: "Players",
     label: "Access",
+    narrow: true,
     icon: Shield,
     render: (s) => <AccessLists id={s.manifest.id} canManage={s.canManage} />,
   },
@@ -166,6 +174,7 @@ export const SECTIONS: Section[] = [
     slug: "backups",
     group: "Server",
     label: "Backups",
+    narrow: true,
     icon: Archive,
     render: (s) => <BackupsTab manifest={s.manifest} state={s.status.state} canManage={s.canManage} task={s.task} />,
   },
@@ -173,6 +182,7 @@ export const SECTIONS: Section[] = [
     slug: "settings",
     group: "Configuration",
     label: "Settings",
+    narrow: true,
     icon: Settings,
     needs: "settings.write",
     render: (s) => (

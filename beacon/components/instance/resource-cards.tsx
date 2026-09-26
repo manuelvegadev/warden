@@ -10,14 +10,14 @@ import type { MetricPoint } from "@/hooks/use-metrics-history";
 import type { InstanceState, MetricSample } from "@/lib/api";
 import { CPU_DOMAIN, hostShare, memCeiling, netCeiling, tpsDomain } from "@/lib/metrics-axis";
 
-const compact = (n: number) => {
+export const compact = (n: number) => {
   if (n >= 1 << 30) return `${(n / (1 << 30)).toFixed(1)}G`;
   if (n >= 1 << 20) return `${Math.round(n / (1 << 20))}M`;
   if (n >= 1024) return `${Math.round(n / 1024)}K`;
   return `${n}`;
 };
 
-const rate = (n: number) => (n >= 1 << 20 ? `${(n / (1 << 20)).toFixed(1)}M` : `${Math.round(n / 1024)}K`);
+export const rate = (n: number) => (n >= 1 << 20 ? `${(n / (1 << 20)).toFixed(1)}M` : `${Math.round(n / 1024)}K`);
 
 type Tile = {
   label: string;

@@ -10,11 +10,13 @@ import {
 } from "@warden/ui/components/breadcrumb";
 import { Separator } from "@warden/ui/components/separator";
 import { SidebarTrigger } from "@warden/ui/components/sidebar";
+import { cn } from "@warden/ui/lib/utils";
 import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
 import { Fragment } from "react";
 import { sectionBySlug } from "@/components/instance/sections";
 import { useInstances } from "@/components/instances-store";
+import { PageActions } from "@/components/slots";
 import { HOME } from "@/lib/instance-routes";
 
 const PAGES: Record<string, string> = {
@@ -45,9 +47,10 @@ export function SiteHeader() {
         orientation="vertical"
         className="mr-2 data-[orientation=vertical]:h-auto data-[orientation=vertical]:self-stretch"
       />
-      <Breadcrumb className="self-center">
-        <BreadcrumbList>
-          <BreadcrumbItem>
+      {/* One line whatever the width: a phone drops "Home" and truncates. */}
+      <Breadcrumb className="min-w-0 self-center">
+        <BreadcrumbList className="flex-nowrap">
+          <BreadcrumbItem className={cn(crumbs.length > 0 && "max-sm:hidden")}>
             {crumbs.length === 0 ? (
               <BreadcrumbPage>{HOME.label}</BreadcrumbPage>
             ) : (
@@ -56,18 +59,22 @@ export function SiteHeader() {
           </BreadcrumbItem>
           {crumbs.map((c, i) => (
             <Fragment key={c.href}>
-              <BreadcrumbSeparator />
-              <BreadcrumbItem>
+              <BreadcrumbSeparator className={cn(i === 0 && "max-sm:hidden")} />
+              <BreadcrumbItem className="min-w-0">
                 {i === crumbs.length - 1 ? (
-                  <BreadcrumbPage>{c.label}</BreadcrumbPage>
+                  <BreadcrumbPage className="truncate">{c.label}</BreadcrumbPage>
                 ) : (
-                  <BreadcrumbLink render={<Link href={c.href} />}>{c.label}</BreadcrumbLink>
+                  <BreadcrumbLink className="truncate" render={<Link href={c.href} />}>
+                    {c.label}
+                  </BreadcrumbLink>
                 )}
               </BreadcrumbItem>
             </Fragment>
           ))}
         </BreadcrumbList>
       </Breadcrumb>
+      {/* The page's own actions (PageActions.Fill), right of the breadcrumb. */}
+      <PageActions.Target className="ml-auto flex min-w-0 items-center gap-2 empty:hidden" />
     </header>
   );
 }

@@ -30,6 +30,7 @@ import { PowerControls } from "@/components/instance/controls";
 import { sectionGroupsFor } from "@/components/instance/sections";
 import { InstanceSwitcher } from "@/components/instance-switcher";
 import { useInstances } from "@/components/instances-store";
+import { StatusSlot } from "@/components/slots";
 import { Versions } from "@/components/versions";
 import { useInstallPrompt } from "@/hooks/use-install-prompt";
 import { can } from "@/lib/access";
@@ -120,6 +121,8 @@ export function AppSidebar({
             <NavItems items={secondary} />
           </SidebarGroupContent>
         </SidebarGroup>
+        {/* The open instance's status panel (ADR-021), filled by the instance page. */}
+        <StatusSlot.Target className="px-2 empty:hidden" />
       </SidebarContent>
 
       <SidebarFooter className="mt-3 gap-2">
