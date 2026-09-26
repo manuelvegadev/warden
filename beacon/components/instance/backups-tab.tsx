@@ -40,13 +40,14 @@ const TRIGGER_TONE: Record<BackupInfo["trigger"], string> = {
 const CONFIRM = {
   restore: {
     title: "Restore this backup?",
-    body: (name: string) =>
-      `Replaces the current worlds, plugins and configs with ${name}. A pre-restore backup is taken first so this can be undone.`,
+    body: (b: BackupInfo) =>
+      `Replaces the current worlds, plugins and configs with ${b.name}. A pre-restore backup is taken first so this can be undone.` +
+      (b.excluded?.length ? " This backup left the LOD data out: it is rebuilt as players explore." : ""),
     cta: "Restore",
   },
   delete: {
     title: "Delete this backup?",
-    body: (name: string) => `${name} will be removed permanently.`,
+    body: (b: BackupInfo) => `${b.name} will be removed permanently.`,
     cta: "Delete",
   },
 };
@@ -174,7 +175,7 @@ export function BackupsTab({
       <ConfirmDialog
         open={confirm !== null}
         title={confirm ? CONFIRM[confirm.kind].title : ""}
-        description={confirm ? CONFIRM[confirm.kind].body(confirm.backup.name) : ""}
+        description={confirm ? CONFIRM[confirm.kind].body(confirm.backup) : ""}
         confirmLabel={confirm ? CONFIRM[confirm.kind].cta : ""}
         destructive={confirm?.kind === "delete"}
         onClose={() => setConfirm(null)}

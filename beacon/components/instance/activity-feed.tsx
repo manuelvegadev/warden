@@ -1,6 +1,6 @@
 "use client";
 
-import { Headphones, type LucideIcon, Mic } from "lucide-react";
+import { Headphones, type LucideIcon, Mic, Mountain } from "lucide-react";
 import { PlayerName } from "@/components/instance/player-face";
 import type { ServerEvent } from "@/lib/api";
 import { formatWhen } from "@/lib/utils";
@@ -15,6 +15,7 @@ const EVENTS: Record<string, { describe: (e: ServerEvent) => string; icon?: Luci
   "voice.listen.stop": { describe: () => "stopped listening to voice chat from Beacon", icon: Headphones },
   "voice.speak.start": { describe: () => "started speaking from Beacon", icon: Mic },
   "voice.speak.stop": { describe: () => "stopped speaking from Beacon", icon: Mic },
+  "lod.pregen.done": { describe: (e) => e.text, icon: Mountain },
 };
 
 /** The kinds to ask the daemon for (`instances.events`). */

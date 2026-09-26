@@ -4,6 +4,7 @@ import { Input } from "@warden/ui/components/input";
 import { cn } from "@warden/ui/lib/utils";
 import { FileText, Search } from "lucide-react";
 import dynamic from "next/dynamic";
+import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { languageFor } from "@/components/instance/code-language";
@@ -25,9 +26,10 @@ const GROUP_ORDER = ["Server", "Paper", "Worlds", "Plugins"];
 
 /** Confined config editor: the daemon lists allowlisted files; this shows them grouped next to an editor. */
 export function FilesEditor({ id, running, canManage }: { id: string; running: boolean; canManage: boolean }) {
+  const params = useSearchParams();
   const [list, setList] = useState<ConfigFile[] | null>(null);
   const [query, setQuery] = useState("");
-  const [selected, setSelected] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(() => params.get("file"));
 
   useEffect(() => {
     files

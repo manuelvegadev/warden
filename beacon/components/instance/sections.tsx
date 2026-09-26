@@ -7,6 +7,7 @@ import {
   FileCode2,
   FolderTree,
   LayoutDashboard,
+  Mountain,
   Puzzle,
   Settings,
   Shield,
@@ -19,6 +20,7 @@ import { AccessLists } from "@/components/instance/access-lists";
 import { BackupsTab } from "@/components/instance/backups-tab";
 import { Console } from "@/components/instance/console";
 import { DeleteInstanceCard } from "@/components/instance/controls";
+import { DistantView } from "@/components/instance/distant-view/distant-view";
 import { FilesEditor } from "@/components/instance/files-editor";
 import type { InstanceState } from "@/components/instance/instance-context";
 import { LaunchCommandCard } from "@/components/instance/launch-command-card";
@@ -161,6 +163,16 @@ export const SECTIONS: Section[] = [
     render: (s) => (
       <PluginsTab id={s.manifest.id} mcVersion={s.manifest.mcVersion} canManage={s.canManage} task={s.task} />
     ),
+  },
+  {
+    slug: "distant-view",
+    group: "Configuration",
+    label: "Distant view",
+    narrow: true,
+    icon: Mountain,
+    // LOD plugins are plugins: only software that loads them (ADR-025).
+    hidden: (software) => !hasPlugins(software),
+    render: () => <DistantView />,
   },
   {
     slug: "backups",
