@@ -45,15 +45,19 @@ type UpgradeRecord struct {
 }
 
 type InstalledPlugin struct {
-	FileName    string    `json:"fileName"`
-	Source      string    `json:"source"` // hangar|modrinth|manual
-	ProjectID   string    `json:"projectId,omitempty"`
-	Name        string    `json:"name,omitempty"` // project title from the catalog
-	VersionID   string    `json:"versionId,omitempty"`
-	Version     string    `json:"version,omitempty"`
-	HashAlgo    string    `json:"hashAlgo,omitempty"`
-	Hash        string    `json:"hash,omitempty"`
-	Icon        string    `json:"icon,omitempty"` // file under <instance>/icons, fetched at install time
+	FileName  string `json:"fileName"`
+	Source    string `json:"source"` // hangar|modrinth|manual
+	ProjectID string `json:"projectId,omitempty"`
+	Name      string `json:"name,omitempty"` // project title from the catalog
+	VersionID string `json:"versionId,omitempty"`
+	Version   string `json:"version,omitempty"`
+	HashAlgo  string `json:"hashAlgo,omitempty"`
+	Hash      string `json:"hash,omitempty"`
+	Icon      string `json:"icon,omitempty"` // file under <instance>/icons, fetched at install time
+	// Unlisted: installed although the release does not list the server's Minecraft version (the
+	// admin chose it knowingly). Its updates are the newest listed release when one appears, else
+	// the newest release there is (ADR-022).
+	Unlisted    bool      `json:"unlisted,omitempty"`
 	InstalledAt time.Time `json:"installedAt"`
 }
 

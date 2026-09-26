@@ -63,6 +63,8 @@ type PluginUpdate struct {
 	FileName  string `json:"fileName"`
 	Version   string `json:"version"`
 	VersionID string `json:"versionId"`
+	// Unlisted: the update does not list the server's Minecraft version either.
+	Unlisted bool `json:"unlisted,omitempty"`
 }
 
 // InstalledPlugin returns the manifest record for a jar wardend installed or uploaded.
@@ -206,13 +208,18 @@ func (i *Instance) InstallPlugin(ctx context.Context, reg *catalog.Registry, sou
 		defer close(iconDone)
 		icon = i.fetchIcon(ctx, reg, source, hit.ID, hit.IconURL)
 	}()
-	versions, err := src.Versions(ctx, hit.ID, i.Manifest.MCVersion)
+	versions, err := reg.PluginVersions(ctx, source, hit.ID, i.Manifest.MCVersion)
 	if err != nil {
 		return err
 	}
+	// "latest" is the newest release listed for this Minecraft; a release that is not listed is
+	// installed only when asked for by its id — the panel confirms that choice first.
 	v, ok := catalog.FindVersion(versions, versionID)
 	if !ok {
-		return fmt.Errorf("no version %q of %s for Minecraft %s", versionID, hit.Name, i.Manifest.MCVersion)
+		if versionID == "" || versionID == "latest" {
+			return fmt.Errorf("%s lists no release for Minecraft %s — pick a release to install it anyway", hit.Name, i.Manifest.MCVersion)
+		}
+		return fmt.Errorf("no version %q of %s", versionID, hit.Name)
 	}
 	return i.installPluginVersion(ctx, reg, source, hit, v, ids, icon, iconDone, report)
 }
@@ -242,7 +249,7 @@ func (i *Instance) installPluginVersion(ctx context.Context, reg *catalog.Regist
 		<-iconDone
 	}
 	rec := InstalledPlugin{Source: source, ProjectID: hit.ID, Name: hit.Name, VersionID: v.ID, Version: v.Name,
-		HashAlgo: v.Hash.Algo, Hash: v.Hash.Value, Icon: icon}
+		HashAlgo: v.Hash.Algo, Hash: v.Hash.Value, Icon: icon, Unlisted: !v.Listed}
 	_, err = i.placePlugin(staged, fileName, rec, func(p InstalledPlugin) bool {
 		return p.Source == source && slices.Contains(ids, p.ProjectID)
 	})
@@ -453,8 +460,10 @@ func (i *Instance) Plugins() ([]PluginFile, error) {
 	return out, nil
 }
 
-// PluginUpdates compares each catalog-installed plugin with the newest compatible release. A few
-// sources are queried at a time; lookup failures are ignored.
+// PluginUpdates compares each catalog-installed plugin with the newest release listed for the
+// server's Minecraft version — or, for a plugin installed although it was not listed, the newest
+// listed release when there is one and the newest release there is otherwise. A few sources are
+// queried at a time; lookup failures are ignored.
 func (i *Instance) PluginUpdates(ctx context.Context, reg *catalog.Registry) []PluginUpdate {
 	i.mu.RLock()
 	records := slices.Clone(i.Manifest.Plugins)
@@ -466,8 +475,7 @@ func (i *Instance) PluginUpdates(ctx context.Context, reg *catalog.Registry) []P
 		out = []PluginUpdate{}
 	)
 	for _, rec := range records {
-		src, err := reg.PluginSource(rec.Source)
-		if err != nil || rec.ProjectID == "" {
+		if _, err := reg.PluginSource(rec.Source); err != nil || rec.ProjectID == "" {
 			continue
 		}
 		wg.Add(1)
@@ -475,13 +483,18 @@ func (i *Instance) PluginUpdates(ctx context.Context, reg *catalog.Registry) []P
 			defer wg.Done()
 			sem <- struct{}{}
 			defer func() { <-sem }()
-			versions, err := src.Versions(ctx, rec.ProjectID, i.Manifest.MCVersion)
+			versions, err := reg.PluginVersions(ctx, rec.Source, rec.ProjectID, i.Manifest.MCVersion)
 			if err != nil {
 				return
 			}
-			if latest, ok := catalog.FindVersion(versions, "latest"); ok && latest.ID != rec.VersionID {
+			latest, ok := catalog.FindVersion(versions, "latest")
+			if !ok && rec.Unlisted {
+				latest, ok = catalog.NewestRelease(versions)
+			}
+			if ok && latest.ID != rec.VersionID {
 				mu.Lock()
-				out = append(out, PluginUpdate{FileName: rec.FileName, Version: latest.Name, VersionID: latest.ID})
+				out = append(out, PluginUpdate{FileName: rec.FileName, Version: latest.Name, VersionID: latest.ID,
+					Unlisted: !latest.Listed})
 				mu.Unlock()
 			}
 		}()

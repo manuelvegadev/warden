@@ -35,19 +35,17 @@ type modrinthHit struct {
 	IconURL     string   `json:"icon_url"`
 	Downloads   int64    `json:"downloads"`
 	Categories  []string `json:"categories"`
+	Versions    []string `json:"versions"` // the Minecraft versions the project lists
 }
 
 func (h modrinthHit) hit() PluginHit {
 	return PluginHit{Source: "modrinth", ID: h.ProjectID, Name: h.Title, Author: h.Author, Description: h.Description,
-		IconURL: h.IconURL, Downloads: h.Downloads, Categories: h.Categories, URL: "https://modrinth.com/plugin/" + h.Slug}
+		IconURL: h.IconURL, Downloads: h.Downloads, Categories: h.Categories, URL: "https://modrinth.com/plugin/" + h.Slug,
+		MCVersions: h.Versions}
 }
 
-func (m *modrinth) Search(ctx context.Context, query, mc string, limit, offset int) (SearchResult, error) {
-	facets := `[["project_type:plugin"],["categories:paper"]`
-	if mc != "" {
-		facets += `,["versions:` + mc + `"]`
-	}
-	facets += `]`
+func (m *modrinth) Search(ctx context.Context, query string, limit, offset int) (SearchResult, error) {
+	facets := `[["project_type:plugin"],["categories:paper"]]`
 	params := q(map[string]string{"query": query, "limit": strconv.Itoa(limit), "offset": strconv.Itoa(offset), "facets": facets, "index": "relevance"})
 	if v, ok := m.cache.get("search:" + params); ok {
 		return v.(SearchResult), nil
@@ -133,15 +131,12 @@ type modrinthVersion struct {
 	} `json:"dependencies"`
 }
 
-func (m *modrinth) Versions(ctx context.Context, id, mc string) ([]PluginVersion, error) {
-	key := "versions:" + id + ":" + mc
+func (m *modrinth) Versions(ctx context.Context, id string) ([]PluginVersion, error) {
+	key := "versions:" + id
 	if v, ok := m.cache.get(key); ok {
 		return v.([]PluginVersion), nil
 	}
 	params := `loaders=["paper"]`
-	if mc != "" {
-		params += `&game_versions=["` + mc + `"]`
-	}
 	var raw []modrinthVersion
 	if err := m.getJSON(ctx, "/project/"+url.PathEscape(id)+"/version?"+url.PathEscape(params), &raw); err != nil {
 		return nil, err

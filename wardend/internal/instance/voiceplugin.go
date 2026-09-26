@@ -93,21 +93,14 @@ func (i *Instance) ensureVoicePlugin(ctx context.Context) string {
 // Bukkit build is one jar for every version it supports, and a version the catalog has not caught
 // up with is the ordinary case on a server that runs a fresh Minecraft.
 func (i *Instance) voicePluginVersion(ctx context.Context) (v catalog.PluginVersion, exact bool, err error) {
-	src, err := i.reg.PluginSource(voicePluginSource)
-	if err != nil {
-		return v, false, err
-	}
-	versions, err := src.Versions(ctx, voicePluginProject, i.Manifest.MCVersion)
+	versions, err := i.reg.PluginVersions(ctx, voicePluginSource, voicePluginProject, i.Manifest.MCVersion)
 	if err != nil {
 		return v, false, err
 	}
 	if v, ok := catalog.FindVersion(versions, ""); ok {
 		return v, true, nil
 	}
-	if versions, err = src.Versions(ctx, voicePluginProject, ""); err != nil {
-		return v, false, err
-	}
-	v, ok := catalog.FindVersion(versions, "")
+	v, ok := catalog.NewestRelease(versions)
 	if !ok {
 		return v, false, errors.New("the catalog lists no release of Simple Voice Chat")
 	}

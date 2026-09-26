@@ -31,8 +31,7 @@ func TestPluginSourcesLive(t *testing.T) {
 		t.Errorf("expected both sources, got %v", seen)
 	}
 	for _, c := range []struct{ src, id string }{{"hangar", "ViaVersion"}, {"modrinth", "luckperms"}} {
-		src, _ := reg.PluginSource(c.src)
-		vs, err := src.Versions(ctx, c.id, "1.21.8")
+		vs, err := reg.PluginVersions(ctx, c.src, c.id, "1.21.8")
 		if err != nil || len(vs) == 0 {
 			t.Fatalf("%s versions: %v (%d)", c.src, err, len(vs))
 		}

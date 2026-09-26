@@ -42,12 +42,12 @@ func (s *server) getPlugin(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) pluginVersions(w http.ResponseWriter, r *http.Request) {
-	src, err := s.Catalog.PluginSource(r.PathValue("source"))
-	if err != nil {
+	if _, err := s.Catalog.PluginSource(r.PathValue("source")); err != nil {
 		writeError(w, 404, "unknown_source", err.Error())
 		return
 	}
-	versions, err := src.Versions(r.Context(), r.PathValue("id"), r.URL.Query().Get("mc"))
+	// Every release, each marked with whether it lists ?mc= (ADR-022).
+	versions, err := s.Catalog.PluginVersions(r.Context(), r.PathValue("source"), r.PathValue("id"), r.URL.Query().Get("mc"))
 	if err != nil {
 		writeError(w, 502, "upstream_error", err.Error())
 		return

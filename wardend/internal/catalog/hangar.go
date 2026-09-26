@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/url"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -35,7 +34,8 @@ type hangarProject struct {
 	Stats       struct {
 		Downloads int64 `json:"downloads"`
 	} `json:"stats"`
-	Settings struct {
+	SupportedPlatforms map[string][]string `json:"supportedPlatforms"`
+	Settings           struct {
 		Tags  []string `json:"tags"`
 		Links []struct {
 			Links []struct {
@@ -71,6 +71,7 @@ func (p hangarProject) hit() PluginHit {
 		Source: "hangar", ID: p.Namespace.Slug, Name: p.Name, Author: p.Namespace.Owner, Description: p.Description,
 		IconURL: p.AvatarURL, Downloads: p.Stats.Downloads, Categories: cats,
 		URL: "https://hangar.papermc.io/" + p.Namespace.Owner + "/" + p.Namespace.Slug, SourceURL: p.sourceURL(),
+		MCVersions: p.SupportedPlatforms["PAPER"],
 	}
 }
 
@@ -78,14 +79,14 @@ func (h *hangar) getJSON(ctx context.Context, path string, v any) error {
 	return h.reg.getJSON(ctx, h.base+path, v)
 }
 
-func (h *hangar) Search(ctx context.Context, query, mc string, limit, offset int) (SearchResult, error) {
+func (h *hangar) Search(ctx context.Context, query string, limit, offset int) (SearchResult, error) {
 	var body struct {
 		Pagination struct {
 			Count int `json:"count"`
 		} `json:"pagination"`
 		Result []hangarProject `json:"result"`
 	}
-	params := q(map[string]string{"q": query, "platform": "PAPER", "version": mc, "limit": strconv.Itoa(limit), "offset": strconv.Itoa(offset), "sort": "-downloads"})
+	params := q(map[string]string{"q": query, "platform": "PAPER", "limit": strconv.Itoa(limit), "offset": strconv.Itoa(offset), "sort": "-downloads"})
 	if v, ok := h.cache.get("search:" + params); ok {
 		return v.(SearchResult), nil
 	}
@@ -148,8 +149,8 @@ type hangarVersion struct {
 	} `json:"pluginDependencies"`
 }
 
-func (h *hangar) Versions(ctx context.Context, id, mc string) ([]PluginVersion, error) {
-	key := "versions:" + id + ":" + mc
+func (h *hangar) Versions(ctx context.Context, id string) ([]PluginVersion, error) {
+	key := "versions:" + id
 	if v, ok := h.cache.get(key); ok {
 		return v.([]PluginVersion), nil
 	}
@@ -166,9 +167,6 @@ func (h *hangar) Versions(ctx context.Context, id, mc string) ([]PluginVersion, 
 			continue
 		}
 		mcs := v.PlatformDependencies["PAPER"]
-		if mc != "" && len(mcs) > 0 && !slices.Contains(mcs, mc) {
-			continue
-		}
 		pv := PluginVersion{
 			ID: v.Name, Name: v.Name, Channel: hangarChannel(v.Channel.Name), MCVersions: mcs,
 			FileName: d.FileInfo.Name, Size: d.FileInfo.SizeBytes, URL: d.DownloadURL, PublishedAt: v.CreatedAt,
