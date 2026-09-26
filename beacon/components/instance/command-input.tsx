@@ -237,8 +237,11 @@ export function CommandInput({
                   {(s.kind === "online" || s.kind === "player") && (
                     <PlayerFace name={s.value} className="size-4 shrink-0" />
                   )}
-                  <span className="text-foreground">{s.value.slice(0, current.length)}</span>
-                  <span className="text-muted-foreground">{s.value.slice(current.length)}</span>
+                  {/* One run of text: the row's gap belongs between the face and the name. */}
+                  <span className="truncate">
+                    <span className="text-foreground">{s.value.slice(0, current.length)}</span>
+                    <span className="text-muted-foreground">{s.value.slice(current.length)}</span>
+                  </span>
                 </span>
                 {s.kind && <span className="text-[10px] tracking-wide text-muted-foreground uppercase">{s.kind}</span>}
               </div>
