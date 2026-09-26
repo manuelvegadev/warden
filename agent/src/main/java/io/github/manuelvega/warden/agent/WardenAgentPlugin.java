@@ -19,6 +19,7 @@ public final class WardenAgentPlugin extends JavaPlugin {
     private VoiceSupport voice;
     private CommandCatalog catalog;
     private CommandCompleter completer;
+    private CommandRunner runner;
     private BukkitTask commandsTask;
     private BukkitTask playersTask;
     private BukkitTask chunksTask;
@@ -43,6 +44,9 @@ public final class WardenAgentPlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(catalog, this);
         completer = new CommandCompleter(this, client);
         client.on("complete", completer::onRequest);
+        // Plugin commands for the Distant view section (ADR-025), run with their output captured.
+        runner = new CommandRunner(this, client);
+        client.on("run", runner::onRequest);
         VoiceConsent consent = new VoiceConsent(this, cfg.voiceConsent());
         PlayerSampler sampler = new PlayerSampler(client, consent.asks() ? consent::state : null);
         getServer().getPluginManager().registerEvents(tracker, this);
@@ -85,6 +89,9 @@ public final class WardenAgentPlugin extends JavaPlugin {
         if (completer != null) {
             completer.shutdown();
         }
+        if (runner != null) {
+            runner.shutdown();
+        }
         if (voice != null) {
             voice.shutdown();
         }
@@ -105,6 +112,7 @@ public final class WardenAgentPlugin extends JavaPlugin {
         // What this agent answers beyond the stream, so wardend does not wait on an older one.
         JsonArray features = new JsonArray();
         features.add("complete");
+        features.add("run");
         o.add("features", features);
         JsonArray worlds = new JsonArray();
         for (World w : Bukkit.getWorlds()) {

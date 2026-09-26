@@ -8,7 +8,9 @@ loopback WebSocket:
   colour palette (the game's own map colours), gzip-compressed and content-hashed.
 
 It also completes console commands for Beacon (ADR-024): it sends the server's command list whenever
-it changes, and answers wardend's `complete` requests the way the server's own console does.
+it changes, and answers wardend's `complete` requests the way the server's own console does. It
+also runs plugin commands for wardend with their reply captured (`run`, ADR-025), so nothing reaches
+the console.
 
 Nothing is rendered in the server and no region file is read: chunks come from `ChunkSnapshot`
 (a thread-safe copy taken on the main thread, at most a few per tick) and are encoded on a worker
