@@ -10,6 +10,7 @@ import { Check, Copy, FileCode2, ListChecks, OctagonAlert, Pencil, TriangleAlert
 import dynamic from "next/dynamic";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { useInstance } from "@/components/instance/instance-context";
 import { MotdDialog } from "@/components/instance/motd-dialog";
 import { ServerListPreview } from "@/components/instance/motd-preview";
 import { SaveBar, SectionCard, SettingRow, useCopy } from "@/components/instance/section-card";
@@ -63,6 +64,7 @@ export function PropertiesEditor({
   memoryMb: number;
   running: boolean;
 }) {
+  const { restartToApply } = useInstance();
   const [props, setProps] = useState<ServerProperty[] | null>(null);
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [pending, setPending] = useState(false);
@@ -127,6 +129,7 @@ export function PropertiesEditor({
     try {
       const { restartRequired } = await instances.updateProperties(id, draft);
       toast.success(restartRequired ? "Saved — restart the server to apply" : "Saved");
+      if (restartRequired) restartToApply("server.properties");
       await load();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Save failed");

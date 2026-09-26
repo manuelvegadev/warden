@@ -36,6 +36,13 @@ export interface InstanceState {
   sendCommand: (command: string) => void;
   retryInstall: () => Promise<void>;
   /**
+   * Changes saved while the server runs that only apply once it restarts ("server.properties",
+   * "plugins"…), shown by the shell with a Restart button. Cleared as soon as the server stops.
+   */
+  pendingRestart: string[];
+  /** Records a change that waits for a restart; a no-op while the server is not running. */
+  restartToApply: (what: string) => void;
+  /**
    * A raw tap on every message the provider does not fold into state (today the live world view's
    * `world.*` stream, ADR-018). Subscribers get them directly, so the shell never re-renders per message.
    */
@@ -179,6 +186,38 @@ export function InstanceProvider({
     }
   }, [manifest.id]);
 
+  // What waits for a restart, kept per tab (sessionStorage) so a reload does not forget it. The
+  // effects run in order: read what the tab had, drop it if the server is down, then write back.
+  const pendingKey = `beacon.restart-pending.${manifest.id}`;
+  const [pendingRestart, setPendingRestart] = useState<string[]>([]);
+  useEffect(() => {
+    try {
+      const stored: unknown = JSON.parse(sessionStorage.getItem(pendingKey) ?? "[]");
+      if (Array.isArray(stored)) setPendingRestart(stored.filter((x): x is string => typeof x === "string"));
+    } catch {
+      /* private mode, or not JSON */
+    }
+  }, [pendingKey]);
+  // A server that stops picks every pending change up on its next start.
+  useEffect(() => {
+    if (status.state === "stopping" || status.state === "stopped" || status.state === "crashed") setPendingRestart([]);
+  }, [status.state]);
+  useEffect(() => {
+    try {
+      if (pendingRestart.length) sessionStorage.setItem(pendingKey, JSON.stringify(pendingRestart));
+      else sessionStorage.removeItem(pendingKey);
+    } catch {
+      /* private mode */
+    }
+  }, [pendingKey, pendingRestart]);
+  const running = status.state === "running" || status.state === "starting";
+  const runningRef = useRef(running);
+  runningRef.current = running;
+  const restartToApply = useCallback((what: string) => {
+    if (!runningRef.current) return;
+    setPendingRestart((prev) => (prev.includes(what) ? prev : [...prev, what]));
+  }, []);
+
   const value = useMemo<InstanceState>(
     () => ({
       manifest,
@@ -194,8 +233,24 @@ export function InstanceProvider({
       sendCommand,
       retryInstall,
       subscribe,
+      pendingRestart,
+      restartToApply,
     }),
-    [manifest, status, metrics, history, recent, task, connected, role, sendCommand, retryInstall, subscribe],
+    [
+      manifest,
+      status,
+      metrics,
+      history,
+      recent,
+      task,
+      connected,
+      role,
+      sendCommand,
+      retryInstall,
+      subscribe,
+      pendingRestart,
+      restartToApply,
+    ],
   );
 
   return (

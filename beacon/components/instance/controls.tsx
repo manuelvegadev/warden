@@ -48,7 +48,7 @@ const TRANSITION: Partial<Record<InstanceState, string>> = { stopping: "Stopping
  */
 export function PowerControls({ id, status }: { id: string; status: InstanceStatus }) {
   const { busy, run } = useRun();
-  const [confirming, setConfirming] = useState<"stop" | "restart" | "kill" | null>(null);
+  const [confirming, setConfirming] = useState<"stop" | "kill" | null>(null);
   const { state, players } = status;
   const stopped = state === "stopped" || state === "crashed";
   const live = state === "running" || state === "starting";
@@ -73,15 +73,7 @@ export function PowerControls({ id, status }: { id: string; status: InstanceStat
           >
             <Square /> Stop
           </Button>
-          <Button
-            size="sm"
-            variant="warning"
-            className="flex-1"
-            disabled={busy}
-            onClick={() => setConfirming("restart")}
-          >
-            <RotateCw /> Restart
-          </Button>
+          <RestartServerButton id={id} players={players} className="flex-1" />
         </>
       )}
       {transition && (
@@ -114,15 +106,6 @@ export function PowerControls({ id, status }: { id: string; status: InstanceStat
         onConfirm={() => void run("Stop", () => instances.stop(id))}
       />
       <ConfirmDialog
-        open={confirming === "restart"}
-        onClose={() => setConfirming(null)}
-        title="Restart the server?"
-        description={`${whoIsOnline(players)} The server saves the world, stops and starts again.`}
-        confirmLabel="Restart server"
-        destructive={players.length > 0}
-        onConfirm={() => void run("Restart", () => instances.restart(id))}
-      />
-      <ConfirmDialog
         open={confirming === "kill"}
         onClose={() => setConfirming(null)}
         title="Kill the server process?"
@@ -134,6 +117,38 @@ export function PowerControls({ id, status }: { id: string; status: InstanceStat
         onConfirm={() => void run("Kill", () => instances.kill(id))}
       />
     </div>
+  );
+}
+
+/** Restart, after a confirmation naming who would be disconnected: the sidebar's and the restart banner's. */
+export function RestartServerButton({
+  id,
+  players,
+  label = "Restart",
+  className,
+}: {
+  id: string;
+  players: string[];
+  label?: string;
+  className?: string;
+}) {
+  const { busy, run } = useRun();
+  const [confirming, setConfirming] = useState(false);
+  return (
+    <>
+      <Button size="sm" variant="warning" className={className} disabled={busy} onClick={() => setConfirming(true)}>
+        <RotateCw /> {label}
+      </Button>
+      <ConfirmDialog
+        open={confirming}
+        onClose={() => setConfirming(false)}
+        title="Restart the server?"
+        description={`${whoIsOnline(players)} The server saves the world, stops and starts again.`}
+        confirmLabel="Restart server"
+        destructive={players.length > 0}
+        onConfirm={() => void run("Restart", () => instances.restart(id))}
+      />
+    </>
   );
 }
 

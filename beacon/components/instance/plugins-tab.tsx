@@ -9,6 +9,7 @@ import { ArrowUpCircle, Power, Trash2, Upload } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { useInstance } from "@/components/instance/instance-context";
 import { PluginDetailsDialog, PluginNameButton, type PluginRef } from "@/components/instance/plugin-details-dialog";
 import { PluginIcon } from "@/components/instance/plugin-icon";
 import { PluginSourceBadge } from "@/components/instance/plugin-source-badge";
@@ -36,6 +37,8 @@ export function PluginsTab({
   canManage: boolean;
   task: Task | null;
 }) {
+  // Every plugin change loads on the next start: a running server waits for a restart.
+  const { restartToApply } = useInstance();
   const [installed, setInstalled] = useState<PluginFile[] | null>(null);
   const [updates, setUpdates] = useState<Map<string, PluginUpdate>>(new Map());
   const [selected, setSelected] = useState<PluginRef | null>(null);
@@ -64,15 +67,26 @@ export function PluginsTab({
   }, [refresh]);
   // The daemon broadcasts task progress over the socket; refresh the table when an install finishes.
   useEffect(() => {
-    if (task?.type === "plugin.install" && task.status === "done") refresh(true);
-  }, [task, refresh]);
+    if (task?.type === "plugin.install" && task.status === "done") {
+      refresh(true);
+      restartToApply("plugins");
+    }
+  }, [task, refresh, restartToApply]);
 
   const installedKeys = useMemo(
     () => new Set(installed?.flatMap((p) => (p.source?.projectId ? [`${p.source.source}:${p.source.projectId}`] : []))),
     [installed],
   );
 
-  const act = useAction(refresh);
+  const run = useAction(refresh);
+  const act = useCallback(
+    async (fn: () => Promise<string>, refreshAfter = true) => {
+      const ok = await run(fn, refreshAfter);
+      if (ok) restartToApply("plugins");
+      return ok;
+    },
+    [run, restartToApply],
+  );
 
   /** Uploads every .jar / .zip in the list (others are reported and skipped), then reloads once. */
   async function upload(files: Iterable<File> | null | undefined) {

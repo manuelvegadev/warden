@@ -6,6 +6,7 @@ import { Switch } from "@warden/ui/components/switch";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { useInstance } from "@/components/instance/instance-context";
 import { SaveBar, SectionCard, SettingRow } from "@/components/instance/section-card";
 import { useDraft } from "@/hooks/use-draft";
 import { instances, type JavaRuntime, java, type Manifest, type VoicePolicy } from "@/lib/api";
@@ -42,6 +43,7 @@ const VOICE_POLICY_LABELS: Record<VoicePolicy, string> = { notify: "Tell players
 
 /** Instance settings (PATCH /instances/{id}), laid out like Properties: sectioned cards of rows. */
 export function SettingsForm({ manifest, running }: { manifest: Manifest; running: boolean }) {
+  const { restartToApply } = useInstance();
   const router = useRouter();
   const [runtimes, setRuntimes] = useState<JavaRuntime[]>([]);
   // Only edits are state: the baseline is derived from the manifest, so an upgrade or another
@@ -72,6 +74,7 @@ export function SettingsForm({ manifest, running }: { manifest: Manifest; runnin
         voice: { policy: draft.voicePolicy },
       });
       toast.success(running ? "Saved — applies on the next restart" : "Saved");
+      restartToApply("the instance settings");
       reset();
       router.refresh();
     } catch (err) {

@@ -3,8 +3,10 @@
 import { Alert, AlertDescription, AlertTitle } from "@warden/ui/components/alert";
 import { Button } from "@warden/ui/components/button";
 import { cn } from "@warden/ui/lib/utils";
+import { RotateCw } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useState } from "react";
+import { RestartServerButton } from "@/components/instance/controls";
 import { useInstance } from "@/components/instance/instance-context";
 import { SaveBarSlot } from "@/components/instance/section-card";
 import { sectionBySlug } from "@/components/instance/sections";
@@ -12,16 +14,19 @@ import { StatusPanel } from "@/components/instance/status-panel";
 import { TaskBanner } from "@/components/instance/task-banner";
 import { StatusSlot } from "@/components/slots";
 
+/** "a", "a and b", "a, b and c". */
+const listOf = (xs: string[]) => (xs.length < 2 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs.at(-1)}`);
+
 /**
  * Instance page chrome (ADR-021): the status panel goes into the app sidebar, and the section
  * has the page to itself — no title, no tiles, no facts sidebar. The name lives in the instance
  * switcher and the breadcrumb, the figures in the status panel and the Overview, the power
- * controls in the app sidebar. A task in progress or a missing server jar is announced above the
- * section.
+ * controls in the app sidebar. A task in progress, a missing server jar, or changes waiting for a
+ * restart are announced above the section.
  */
 
 export function InstanceShell({ children }: { children: React.ReactNode }) {
-  const { manifest, status, task, retryInstall } = useInstance();
+  const { manifest, status, task, retryInstall, pendingRestart, canOperate } = useInstance();
 
   const { section } = useParams<{ section?: string }>();
   const current = section ? sectionBySlug(section) : undefined;
@@ -42,9 +47,19 @@ export function InstanceShell({ children }: { children: React.ReactNode }) {
       <StatusSlot.Fill>
         <StatusPanel />
       </StatusSlot.Fill>
-      {(task || notInstalled) && (
+      {(task || notInstalled || pendingRestart.length > 0) && (
         <div className="page-pad grid gap-3 border-b">
           <TaskBanner task={task} onRetryInstall={retryInstall} />
+          {pendingRestart.length > 0 && (
+            <Alert>
+              <RotateCw />
+              <AlertTitle>Restart to apply</AlertTitle>
+              <AlertDescription className="flex flex-wrap items-center justify-between gap-3">
+                <span>Changes to {listOf(pendingRestart)} take effect when the server restarts.</span>
+                {canOperate && <RestartServerButton id={manifest.id} players={status.players} label="Restart server" />}
+              </AlertDescription>
+            </Alert>
+          )}
           {notInstalled && (
             <Alert>
               <AlertTitle>Not installed</AlertTitle>
