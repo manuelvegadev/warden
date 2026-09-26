@@ -1,6 +1,7 @@
 # Panel UX plan — chrome, previews, plugins, dashboard
 
-Date: 2026-09-25 · Status: agreed; phases 1–3 done · Tracked in [`roadmap.md`](roadmap.md), Phase 8.
+Date: 2026-09-25 · Status: agreed; phases 1–3 done, phase 4 half done (4.1, 4.2) · Tracked in
+[`roadmap.md`](roadmap.md), Phase 8. **Resuming? Start at [Next step](#next-step).**
 
 This plan came out of a research pass over six areas: the file manager on phones, file previews,
 a UI/UX audit of the instance pages, a customisable home dashboard, console history, and plugins
@@ -138,20 +139,17 @@ the plan, not the specification.
    header grid, read-only SQLite (CoreProtect, LuckPerms SQLite, Distant Horizons).
    H2 and DuckDB are out of reach.
 
-### Phase 4 — Plugins (new ADR)
+### Phase 4 — Plugins
 
-- Search and version lists stop filtering by Minecraft version; releases that do not list the
-  instance's version are dimmed with "Not listed for 26.3" and install after a confirmation; the
-  installed record keeps the flag and updates honour it.
-- `catalog.Download`: HTTPS only and the host allowlist `docs/security.md` promises.
-- Plugin command completion: the Warden Agent answers live tab-completion for the typed line
-  (every plugin, arguments included); the commands in each jar's `plugin.yml` are the fallback
-  without the agent.
-- LOD integration for **Distant Horizons Support** and **Voxy Server Side**: install from the panel,
-  a form for their configuration, pre-generation with progress, pause during backups (`/dhs pause`),
-  disk usage, and a client-protocol compatibility note.
-- Later: install from URL with a recorded hash and a trust badge; link uploaded jars to a store by
-  hash; a GitHub releases source.
+| # | Item | Status |
+|---|---|---|
+| 4.1 | Search and version lists stop filtering by Minecraft version; releases that do not list the instance's version are dimmed ("not listed for 26.2 · up to 26.1.2") and install after a confirmation; the installed record keeps the flag and updates honour it. The search also runs as the admin types. | Done 2026-09-25, [ADR-022](adr/022-plugins-not-listed-for-the-server-version.md) |
+| 4.2 | Downloads: HTTPS only on every hop; what the sources host only from known hosts; Hangar external links to any host but only public addresses, shown and confirmed in the panel. | Done 2026-09-25, [ADR-023](adr/023-where-downloads-may-go.md) |
+| 4.3 | Plugin command completion in the console: the Warden Agent answers live tab-completion for the typed line (every plugin, arguments included); the commands in each jar's `plugin.yml` are the fallback without the agent. | **Next** — see [Next step](#next-step) |
+| 4.4 | LOD integration for **Distant Horizons Support** and **Voxy Server Side**: install from the panel, a form for their configuration, pre-generation with progress, pause during backups (`/dhs pause`), disk usage, and a client-protocol compatibility note. | To do |
+
+Later: install from URL with a recorded hash and a trust badge; link uploaded jars to a store by
+hash; a GitHub releases source.
 
 ### Phase 5 — Home dashboard (new ADR)
 
@@ -168,3 +166,49 @@ the plan, not the specification.
 
 The ADR also takes ownership of the detachable-pane contract (`use-detachable`, the `(popout)`
 routes), which no ADR documents today.
+
+## Next step
+
+**4.3 — plugin command completion.** Read this, then the files it names; nothing below has been
+built yet. It needs an ADR of its own (the next number after ADR-023), and it touches all three
+parts: the agent (Java), the daemon and Beacon.
+
+**What exists**
+
+- Completion today is a fixed grammar: `beacon/lib/command-grammar.ts` (vanilla commands plus
+  `PAPER_COMMANDS`), `beacon/lib/command-complete.ts` (the engine, with `node:test` tests beside
+  it), `beacon/hooks/use-command-completion.ts` (the hook the console input uses, with
+  `lib/mc/data.json` for items, blocks and the like). Console history (1.6) shares the arrow keys
+  with the suggestion list; keep its rules.
+- The Warden Agent (`agent/`, a Paper plugin embedded in wardend, ADR-018) is installed on every
+  server that can load it (`wardend/internal/instance/liveview.go`). It holds a WebSocket to
+  wardend (`agent/…/WardendClient.java`): JSON messages by `type`, handlers registered with
+  `client.on(type, …)`. On the daemon, `world.Service.SendToAgent` sends to it. Messages are
+  one-way today — nothing correlates a request with its answer.
+- `plugin.yml` is parsed into `mc.PluginMeta` (`wardend/internal/mc`), but its `commands:` block is
+  not read. `paper-plugin.yml` declares no commands: Paper plugins register theirs in code.
+
+**Design to settle in the ADR**
+
+- A request/response message pair between wardend and the agent (an id, a timeout, and an error
+  when the agent is not connected), and how Beacon asks: a REST call such as
+  `GET /instances/{id}/console/complete?line=…&caret=…` or a message on the instance socket.
+  Either way, as the admin types: debounce, abort what a newer keystroke replaces (the proxy
+  already hands aborts to the daemon, `08e18b6`), and remember recent answers — as the plugin
+  search does (`beacon/hooks/use-plugin-search.ts`).
+- On the agent: completion as the console sender through the server's command map (Bukkit
+  `CommandMap#tabComplete`, main thread — check how Paper's Brigadier commands appear there), with
+  a time limit so a slow plugin cannot stall the tick.
+- How live answers merge with the built-in grammar: vanilla stays local and instant; the agent
+  covers the plugin commands and their arguments, and could replace the grammar where both know a
+  command.
+- The fallback without the agent (Vanilla, Fabric, a server that is stopped or still starting):
+  command names, aliases, usage and description from each jar's `plugin.yml`, served with the
+  plugin listing or on their own.
+- What the console shows for a suggestion from a plugin (its name, the usage line).
+
+**Checks** — as for every change: `CONTRIBUTING.md`. The agent builds with `make agent`, and the
+daemon embeds it.
+
+After 4.3 comes 4.4 (LOD plugins; research the current DH Support and Voxy Server Side commands and
+config files first: the findings above are from 2026-09-25), then Phase 5.
