@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { parseConsoleLine } from "./console-parse.ts";
+import { logLines, parseConsoleLine } from "./console-parse.ts";
 
 const info = (text: string) => ({ ts: "2026-08-29T12:00:01", level: "INFO" as const, text });
 
@@ -55,4 +55,46 @@ test("levels and wardend lines", () => {
   assert.equal(s.message, "list");
   assert.equal(s.time, "12:00:01");
   assert.equal(parseConsoleLine({ ...info("[wardend]: Stopping"), level: "SYSTEM" }).kind, "system");
+});
+
+test("a log file's lines take their level from the prefix, Paper's or vanilla's", () => {
+  const lines = logLines(
+    "[12:00:01 INFO]: Starting minecraft server\n[12:00:02] [Server thread/WARN]: Can't keep up!\n[12:00:03 ERROR]: boom\n",
+  );
+  assert.deepEqual(
+    lines.map((l) => l.level),
+    ["INFO", "WARN", "ERROR"],
+  );
+});
+
+test("a stack trace folds into the entry that logged it", () => {
+  const lines = logLines(
+    [
+      "[12:00:03] [Server thread/ERROR]: Could not load plugin",
+      "org.bukkit.plugin.UnknownDependencyException: Unknown/missing dependency plugins: [LuckPerms]",
+      "\tat io.papermc.paper.plugin.Foo.bar(Foo.java:39)",
+      "Caused by: java.lang.IllegalStateException: nope",
+      "\t... 12 more",
+      "[12:00:04] [Server thread/INFO]: Done",
+    ].join("\r\n"),
+  );
+  assert.equal(lines.length, 2);
+  assert.equal(lines[0].level, "ERROR");
+  assert.equal(lines[0].text.split("\n").length, 5);
+  assert.equal(lines[1].text, "[12:00:04] [Server thread/INFO]: Done");
+});
+
+test("a file without prefixes (a crash report) keeps a line per entry, frames folded", () => {
+  const lines = logLines(
+    "---- Minecraft Crash Report ----\nTime: 2026-09-25\nDescription: Ticking entity\n\njava.lang.NullPointerException: x\n\tat a.b.C.d(C.java:1)\n",
+  );
+  assert.deepEqual(
+    lines.map((l) => l.text),
+    [
+      "---- Minecraft Crash Report ----",
+      "Time: 2026-09-25",
+      "Description: Ticking entity",
+      "java.lang.NullPointerException: x\n\tat a.b.C.d(C.java:1)",
+    ],
+  );
 });

@@ -182,6 +182,10 @@ export function PrettyConsole({ lines, className }: { lines: ConsoleLine[]; clas
 }
 
 const Row = memo(function Row({ line, wrap }: { line: ParsedLine; wrap: boolean }) {
+  // A stack trace folded into the entry that logged it (a log file's lines, `logLines`) stays
+  // collapsed behind its first line until asked for.
+  const [first, ...more] = line.message.split("\n");
+  const [open, setOpen] = useState(false);
   const meta = KIND_META[line.kind];
   const Icon = meta.icon;
   const isPlayer = PLAYER_KINDS.has(line.kind) && line.player;
@@ -233,7 +237,21 @@ const Row = memo(function Row({ line, wrap }: { line: ParsedLine; wrap: boolean 
         ) : isPlayer && line.message.startsWith(`${line.player} `) ? (
           line.message.slice((line.player as string).length + 1)
         ) : (
-          line.message
+          first
+        )}
+        {more.length > 0 && (
+          <>
+            {" "}
+            <button
+              type="button"
+              onClick={() => setOpen((o) => !o)}
+              aria-expanded={open}
+              className="rounded-sm px-1 text-[11px] text-muted-foreground hover:bg-white/10 hover:text-foreground"
+            >
+              {open ? "fold" : `+${more.length} lines`}
+            </button>
+            {open && <span className="block text-muted-foreground">{more.join("\n")}</span>}
+          </>
         )}
       </span>
       <CopyButton

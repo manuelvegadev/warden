@@ -95,3 +95,40 @@ export function parseConsoleLine(line: ConsoleLine): ParsedLine {
   if (source) return { ...withSource, kind: "plugin", message };
   return { ...withSource, kind: "info", message };
 }
+
+// The level in a log file's prefix: Paper "[12:00:01 WARN]: ", vanilla "[12:00:01] [Server thread/WARN]: ".
+const fileLevelRe = /^\[\d{2}:\d{2}:\d{2}(?: ([A-Z]+))?\](?: \[[^\]]*?\/([A-Z]+)\])?/;
+const LEVELS = new Set<ConsoleLine["level"]>(["INFO", "WARN", "ERROR", "FATAL", "DEBUG"]);
+// Lines that belong to the entry above them: a stack trace's frames and causes…
+const frameRe = /^\s|^Caused by: |^\.\.\. \d+ more/;
+// …and the exception named on the line right after the log entry that reported it.
+const exceptionRe = /^[a-z][\w$]*(?:\.[\w$]+)+(?:Exception|Error|Throwable)\b/;
+
+/**
+ * A log file read as console lines, for the pretty view (`logs/*.log`, `*.log.gz`, crash
+ * reports): the level taken from each line's prefix, and every line that continues an entry — a
+ * stack trace, most of all — folded into that entry, joined by newlines, so it can collapse.
+ * Lines before the first entry, and files without prefixes, are entries of their own.
+ */
+export function logLines(text: string): ConsoleLine[] {
+  const out: ConsoleLine[] = [];
+  // Whether the entry above is a logged line (it has a prefix) with nothing blank since.
+  let afterLogged = false;
+  for (const raw of text.split("\n")) {
+    const line = raw.replace(/\r$/, "");
+    if (line === "") {
+      afterLogged = false;
+      continue;
+    }
+    const last = out[out.length - 1];
+    const m = fileLevelRe.exec(line);
+    if (!m && last && (frameRe.test(line) || (afterLogged && exceptionRe.test(line)))) {
+      last.text += `\n${line}`;
+      continue;
+    }
+    const level = (m?.[2] ?? m?.[1]) as ConsoleLine["level"] | undefined;
+    out.push({ ts: "", level: level && LEVELS.has(level) ? level : "INFO", text: line });
+    afterLogged = Boolean(m);
+  }
+  return out;
+}

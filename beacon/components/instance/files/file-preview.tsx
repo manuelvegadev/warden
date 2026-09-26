@@ -2,12 +2,17 @@
 
 import { Button } from "@warden/ui/components/button";
 import { cn } from "@warden/ui/lib/utils";
-import { ArrowLeft, Download, Pencil, Trash2, X } from "lucide-react";
+import { ArrowLeft, Download, Eye, Pencil, PencilLine, Trash2, X } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { languageFor } from "@/components/instance/code-language";
 import { DetachControls } from "@/components/instance/detach-controls";
 import { FileIcon } from "@/components/instance/files/file-icon";
+import { AudioPlayer } from "@/components/instance/files/views/audio-player";
+import { EulaView } from "@/components/instance/files/views/eula-view";
+import { ImageView } from "@/components/instance/files/views/image-view";
+import { JsonEditor } from "@/components/instance/files/views/json-editor";
+import { LogView } from "@/components/instance/files/views/log-view";
 import { CopyButton, SaveBar } from "@/components/instance/section-card";
 import { WrapToggle } from "@/components/instance/wrap-toggle";
 import { useDetachable } from "@/hooks/use-detachable";
@@ -15,6 +20,7 @@ import { useEditorWrap } from "@/hooks/use-editor-wrap";
 import { useTextDraft } from "@/hooks/use-text-draft";
 import { useUnsavedWarning } from "@/hooks/use-unsaved-warning";
 import { FS_EDIT_LIMIT, type FsContent, type FsEntry, formatBytes, fs } from "@/lib/api";
+import { type FileView, isGzipped, viewFor } from "@/lib/file-views";
 import { formatDateTime, mono } from "@/lib/utils";
 
 // CodeMirror is heavy; load it with the section, not with the app shell.
@@ -23,11 +29,14 @@ const CodeEditor = dynamic(() => import("../code-editor").then((m) => m.CodeEdit
   loading: () => <Loading />,
 });
 
+type Mode = "view" | "edit";
+
 /**
  * The last column of the browser: what the chosen file is, and the file itself — an editor for
- * text, the picture for an image, a download for anything else. Mounted with the path as its key,
- * so a different file is a fresh instance. Detachable like the console: full screen, or its own
- * window (`popout` is set by that window's route).
+ * text, and for the files that have one a richer view beside it (lib/file-views.ts: a log, JSON,
+ * the EULA), a viewer for a picture, a player for a sound, a download for anything else. Mounted
+ * with the path as its key, so a different file is a fresh instance. Detachable like the console:
+ * full screen, or its own window (`popout` is set by that window's route).
  */
 export function FilePreview({
   id,
@@ -63,7 +72,6 @@ export function FilePreview({
   const [error, setError] = useState<string | null>(null);
   const detach = useDetachable(`/file/${id}?path=${encodeURIComponent(path)}`, `file-${id}-${path}`, popout);
   const [wrap, setWrap] = useEditorWrap(path);
-  const editing = content?.kind === "text" && content.text !== undefined;
 
   useEffect(() => {
     let cancelled = false;
@@ -74,6 +82,14 @@ export function FilePreview({
       cancelled = true;
     };
   }, [id, path, entry.size]);
+
+  const textual = content?.kind === "text" && content.text !== undefined;
+  const view = content ? viewFor(path, content.kind) : null;
+  // A view and the editor side by side when the file is both; a view alone when it cannot be
+  // edited here (a gzipped log, a log over the limit, a picture, a sound).
+  const toggles = view !== null && textual && !isGzipped(path);
+  const [mode, setMode] = useState<Mode>("view");
+  const showing: Mode = view === null || (toggles && mode === "edit") ? "edit" : "view";
 
   return (
     <div ref={detach.rootRef} className={cn("flex h-full min-w-0 flex-col", detach.fullscreen && "bg-background")}>
@@ -96,7 +112,29 @@ export function FilePreview({
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          {editing && <WrapToggle wrap={wrap} onChange={setWrap} />}
+          {toggles && (
+            <fieldset className="mr-1 flex rounded-md border p-0.5">
+              <legend className="sr-only">Show the file as</legend>
+              {(
+                [
+                  ["view", Eye, "View"],
+                  ["edit", PencilLine, "Text"],
+                ] as const
+              ).map(([m, Icon, label]) => (
+                <Button
+                  key={m}
+                  size="sm"
+                  variant={mode === m ? "secondary" : "ghost"}
+                  className="h-7 gap-1.5 px-2"
+                  aria-pressed={mode === m}
+                  onClick={() => setMode(m)}
+                >
+                  <Icon className="size-3.5" /> <span className="max-sm:hidden">{label}</span>
+                </Button>
+              ))}
+            </fieldset>
+          )}
+          {textual && showing === "edit" && <WrapToggle wrap={wrap} onChange={setWrap} />}
           <Button
             variant="ghost"
             size="icon-sm"
@@ -144,34 +182,37 @@ export function FilePreview({
 
       {error && <p className="px-4 py-3 text-sm text-destructive">{error}</p>}
       {!error && content === null && <Loading />}
-      {content?.kind === "text" && content.text !== undefined && (
-        <TextDraft
+      {content && textual && content.text !== undefined && (
+        <TextFile
           id={id}
           path={path}
+          size={content.size}
           initial={content.text}
+          view={view}
+          showing={showing}
           running={running}
           canManage={editable}
           wrap={wrap}
           onSaved={onSaved}
         />
       )}
-      {content?.kind === "text" && content.text === undefined && (
+      {/* Views of files the editor does not hold: a gzipped log, a log over the limit, a picture, a sound. */}
+      {content && !textual && view === "log" && <LogView id={id} path={path} size={content.size} />}
+      {view === "image" && (
+        <ImageView id={id} path={path} src={fs.contentUrl(id, path)} name={entry.name} canManage={editable} />
+      )}
+      {content && view === "audio" && (
+        <AudioPlayer src={fs.contentUrl(id, path)} name={entry.name} size={content.size} />
+      )}
+      {content?.kind === "text" && !textual && view === null && (
         <Notice>
           This file is {formatBytes(content.size)}, more than the {formatBytes(FS_EDIT_LIMIT)} the editor opens.
           Download it to read it.
         </Notice>
       )}
-      {content?.kind === "image" && (
-        <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto bg-[radial-gradient(var(--border)_1px,transparent_1px)] bg-[size:12px_12px] p-4">
-          {/* biome-ignore lint/performance/noImgElement: a file served by the daemon, not a static asset */}
-          <img
-            src={fs.contentUrl(id, path)}
-            alt={entry.name}
-            className="max-h-full max-w-full [image-rendering:pixelated]"
-          />
-        </div>
+      {content?.kind === "binary" && view === null && (
+        <Notice>Not a text file. Download it to open it with something else.</Notice>
       )}
-      {content?.kind === "binary" && <Notice>Not a text file. Download it to open it with something else.</Notice>}
     </div>
   );
 }
@@ -186,11 +227,18 @@ function Notice({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** Editor plus save bar for one text file; the first load reuses the text the preview already fetched. */
-function TextDraft({
+/**
+ * A text file: one draft, shown in the editor or in the file's view (the JSON editor edits the same
+ * draft), and one save bar under both. The first load reuses the text the preview already fetched;
+ * the editor stays mounted behind a view, so switching keeps its undo history.
+ */
+function TextFile({
   id,
   path,
+  size,
   initial,
+  view,
+  showing,
   running,
   canManage,
   wrap,
@@ -198,7 +246,10 @@ function TextDraft({
 }: {
   id: string;
   path: string;
+  size: number;
   initial: string;
+  view: FileView | null;
+  showing: Mode;
   running: boolean;
   canManage: boolean;
   wrap: boolean;
@@ -218,9 +269,10 @@ function TextDraft({
   useUnsavedWarning(draft.dirty);
 
   if (draft.original === null) return <Loading />;
+  const viewing = showing === "view";
   return (
     <>
-      <div className="flex min-h-0 flex-1 flex-col p-3">
+      <div className={cn("flex min-h-0 flex-1 flex-col p-3", viewing && "hidden")}>
         <CodeEditor
           value={draft.text}
           onChange={draft.setText}
@@ -231,7 +283,13 @@ function TextDraft({
           className="min-h-0 flex-1"
         />
       </div>
-      {canManage && (
+      {viewing && view === "json" && <JsonEditor text={draft.text} onChange={draft.setText} readOnly={!canManage} />}
+      {viewing && view === "eula" && (
+        <EulaView id={id} text={draft.original} canManage={canManage} onChanged={draft.reload} />
+      )}
+      {/* A log reads the file itself: its tail, and what the server appends. */}
+      {viewing && view === "log" && <LogView id={id} path={path} size={size} />}
+      {canManage && !(viewing && (view === "log" || view === "eula")) && (
         <SaveBar
           dirty={draft.dirty}
           pending={draft.pending}

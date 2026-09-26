@@ -714,7 +714,7 @@ export interface FsListing {
 }
 
 /** What the preview does with a file, read off the daemon's Content-Type. */
-export type FsKind = "text" | "image" | "binary";
+export type FsKind = "text" | "image" | "audio" | "binary";
 
 export interface FsContent {
   kind: FsKind;
@@ -743,10 +743,36 @@ export const fs = {
     const res = await apiResponse(fsContent(instanceId, path), { method });
     const type = res.headers.get("content-type") ?? "";
     const size = Number(res.headers.get("content-length") ?? knownSize);
-    const kind: FsKind = type.startsWith("text/") ? "text" : type.startsWith("image/") ? "image" : "binary";
+    const kind: FsKind = type.startsWith("text/")
+      ? "text"
+      : type.startsWith("image/")
+        ? "image"
+        : type.startsWith("audio/")
+          ? "audio"
+          : "binary";
     if (method === "GET" && kind === "text" && size <= FS_EDIT_LIMIT) return { kind, size, text: await res.text() };
     await res.body?.cancel();
     return { kind, size };
+  },
+  /** The whole file as bytes: a gzipped log to decompress in the browser. */
+  bytes: async (instanceId: string, path: string) => (await apiResponse(fsContent(instanceId, path))).arrayBuffer(),
+  /**
+   * Part of a file through a Range request (`bytes=-N` for the last N, `bytes=N-` from N): the
+   * bytes and the file's size. Null bytes when nothing lies past the start — the file has not
+   * grown, or it was replaced by a shorter one, which `total` tells apart.
+   */
+  range: async (instanceId: string, path: string, range: string) => {
+    const res = await apiResponse(fsContent(instanceId, path), { headers: { Range: range } }).catch((e) => {
+      if (e instanceof ApiError && e.status === 416) return null;
+      throw e;
+    });
+    if (!res) {
+      const head = await apiResponse(fsContent(instanceId, path), { method: "HEAD" });
+      return { bytes: null, total: Number(head.headers.get("content-length") ?? 0) };
+    }
+    // 206 names the size after the slash; a 200 (no range support, or the whole file asked for) is the size.
+    const total = Number(res.headers.get("content-range")?.split("/")[1] ?? res.headers.get("content-length") ?? 0);
+    return { bytes: await res.arrayBuffer(), total };
   },
   write: (instanceId: string, path: string, content: string) =>
     api<{ restartRequired: boolean }>(fsContent(instanceId, path), {
