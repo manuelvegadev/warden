@@ -65,10 +65,18 @@ func (i *Instance) backupPaths(scope string) []string {
 	return out
 }
 
-// archive writes one backup with the given trigger and scope and returns its sidecar info.
+// archive writes one backup with the given trigger and scope and returns its sidecar info. LOD
+// stores are left out, or archived as snapshots when the instance keeps them (ADR-025).
 func (i *Instance) archive(ctx context.Context, trigger, scope string, progress func(int)) (backup.Info, error) {
 	now := time.Now().UTC()
-	info := backup.Info{Trigger: trigger, Scope: scope, Paths: i.backupPaths(scope), MCVersion: i.Manifest.MCVersion, Build: i.Manifest.Build, CreatedAt: now}
+	paths := i.backupPaths(scope)
+	skip, excluded, extra, cleanup, err := i.lodBackupPlan(ctx, paths, i.LOD().BackupIncludeData)
+	defer cleanup()
+	if err != nil {
+		return backup.Info{}, fmt.Errorf("LOD data: %w", err)
+	}
+	info := backup.Info{Trigger: trigger, Scope: scope, Paths: paths, Skip: skip, Excluded: excluded, Extra: extra,
+		MCVersion: i.Manifest.MCVersion, Build: i.Manifest.Build, CreatedAt: now}
 	return backup.Create(ctx, i.ServerDir(), filepath.Join(i.backupsDir(), backup.Name(trigger, now)), info, progress)
 }
 

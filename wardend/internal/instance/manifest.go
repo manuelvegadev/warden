@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/manuelvega/warden/wardend/internal/lod"
 )
 
 // Manifest is the content of instance.json. See docs/adr/006-multi-instance.md.
@@ -30,6 +32,7 @@ type Manifest struct {
 	Backups       BackupSettings    `json:"backups"`
 	LiveView      *LiveView         `json:"liveView,omitempty"` // ADR-018; nil = never enabled
 	Voice         *VoiceSettings    `json:"voice,omitempty"`    // ADR-019; nil = notify
+	LOD           *lod.Settings     `json:"lod,omitempty"`      // ADR-025
 	Upgrades      []UpgradeRecord   `json:"upgrades,omitempty"` // newest last
 	CreatedAt     time.Time         `json:"createdAt"`
 }

@@ -10,6 +10,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"os"
@@ -25,15 +26,30 @@ const Ext = ".tar.zst"
 
 // Info is the sidecar (<name>.json) written next to each archive.
 type Info struct {
-	Name      string    `json:"name"`    // archive file name
-	Trigger   string    `json:"trigger"` // manual | schedule | pre-upgrade | pre-restore
-	Scope     string    `json:"scope"`   // full | worlds
-	Size      int64     `json:"size"`
-	SHA256    string    `json:"sha256"`
-	Paths     []string  `json:"paths"`
+	Name    string   `json:"name"`    // archive file name
+	Trigger string   `json:"trigger"` // manual | schedule | pre-upgrade | pre-restore
+	Scope   string   `json:"scope"`   // full | worlds
+	Size    int64    `json:"size"`
+	SHA256  string   `json:"sha256"`
+	Paths   []string `json:"paths"`
+	// Excluded are paths under Paths genuinely missing from the archive (LOD stores left out with
+	// nothing to replace them, ADR-025).
+	Excluded []string `json:"excluded,omitempty"`
+	// Skip are paths left out of the walk beyond Excluded, without being reported as missing: a
+	// store's database replaced by an Extra (its snapshot), still present in the archive under the
+	// same name. Not serialised: it is Create's business, not the sidecar's.
+	Skip []string `json:"-"`
+	// Extra are files archived under Rel from a local Path (a store's snapshot), after Paths.
+	Extra     []Extra   `json:"-"`
 	MCVersion string    `json:"mcVersion,omitempty"`
 	Build     int       `json:"build,omitempty"`
 	CreatedAt time.Time `json:"createdAt"`
+}
+
+// Extra is one file archived under a path of the server directory from somewhere else.
+type Extra struct {
+	Rel  string // slash-separated path in the archive
+	Path string // local file
 }
 
 // Name builds "<trigger>-<UTC time>.tar.zst".
@@ -48,6 +64,11 @@ func Name(trigger string, at time.Time) string {
 // zstd at its default level: world region files are already zlib-compressed, so a slow level
 // would burn CPU for no size gain; zstd still beats gzip several times over on this data.
 func Create(ctx context.Context, root, dest string, info Info, progress func(pct int)) (out Info, err error) {
+	for _, x := range info.Extra {
+		if !underAny(x.Rel, info.Paths) {
+			return info, fmt.Errorf("backup: extra %q is not under any archived path", x.Rel)
+		}
+	}
 	if err := os.MkdirAll(filepath.Dir(dest), 0o750); err != nil {
 		return info, err
 	}
@@ -68,11 +89,26 @@ func Create(ctx context.Context, root, dest string, info Info, progress func(pct
 		return info, err
 	}
 	tw := tar.NewWriter(zw)
-	cw := &countingWriter{w: tw, progress: newProgress(totalSize(root, info.Paths), progress)}
+	// Skip ∪ Excluded is left out of the walk; Extra files (replacing some of Skip) are archived
+	// afterwards and counted towards the total up front so progress never overshoots 100.
+	walkSkip := append(append([]string(nil), info.Skip...), info.Excluded...)
+	total := totalSize(root, info.Paths, walkSkip)
+	for _, x := range info.Extra {
+		if st, err := os.Stat(x.Path); err == nil {
+			total += st.Size()
+		}
+	}
+	cw := &countingWriter{w: tw, progress: newProgress(total, progress)}
 	for _, rel := range info.Paths {
-		if err = addPath(ctx, tw, cw, root, rel); err != nil {
+		if err = addPath(ctx, tw, cw, root, rel, walkSkip); err != nil {
 			break
 		}
+	}
+	for _, x := range info.Extra {
+		if err != nil {
+			break
+		}
+		err = addFile(tw, cw, x.Path, x.Rel)
 	}
 	for _, c := range []io.Closer{tw, zw, f} {
 		if cerr := c.Close(); err == nil {
@@ -205,14 +241,23 @@ func Extract(ctx context.Context, archive, root string, progress func(pct int)) 
 	return nil
 }
 
-// addPath appends one file or directory tree. Symlinks and special files are skipped.
-func addPath(ctx context.Context, tw *tar.Writer, cw *countingWriter, root, rel string) error {
+// addPath appends one file or directory tree, leaving out excluded paths (and anything under
+// them). Symlinks and special files are skipped.
+func addPath(ctx context.Context, tw *tar.Writer, cw *countingWriter, root, rel string, excluded []string) error {
 	return filepath.WalkDir(filepath.Join(root, rel), func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 		if err := ctx.Err(); err != nil {
 			return err
+		}
+		relPath, _ := filepath.Rel(root, p)
+		relPath = filepath.ToSlash(relPath)
+		if underAny(relPath, excluded) {
+			if d.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
 		}
 		if !d.Type().IsRegular() && !d.IsDir() {
 			return nil
@@ -225,8 +270,7 @@ func addPath(ctx context.Context, tw *tar.Writer, cw *countingWriter, root, rel 
 		if err != nil {
 			return err
 		}
-		relPath, _ := filepath.Rel(root, p)
-		hdr.Name = filepath.ToSlash(relPath)
+		hdr.Name = relPath
 		if d.IsDir() {
 			hdr.Name += "/"
 		}
@@ -246,6 +290,39 @@ func addPath(ctx context.Context, tw *tar.Writer, cw *countingWriter, root, rel 
 	})
 }
 
+// underAny reports whether rel is one of roots, or nested under one of them.
+func underAny(rel string, roots []string) bool {
+	for _, r := range roots {
+		if rel == r || strings.HasPrefix(rel, r+"/") {
+			return true
+		}
+	}
+	return false
+}
+
+// addFile archives one local file under rel.
+func addFile(tw *tar.Writer, cw *countingWriter, path, rel string) error {
+	info, err := os.Stat(path)
+	if err != nil {
+		return err
+	}
+	hdr, err := tar.FileInfoHeader(info, "")
+	if err != nil {
+		return err
+	}
+	hdr.Name = rel
+	if err := tw.WriteHeader(hdr); err != nil {
+		return err
+	}
+	src, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer src.Close()
+	_, err = io.Copy(cw, src)
+	return err
+}
+
 // WorldDirs lists the top-level directories under root that hold a Minecraft world (level.dat).
 func WorldDirs(root string) []string {
 	entries, _ := os.ReadDir(root)
@@ -260,11 +337,21 @@ func WorldDirs(root string) []string {
 	return out
 }
 
-func totalSize(root string, paths []string) int64 {
+func totalSize(root string, paths, excluded []string) int64 {
 	var n int64
 	for _, rel := range paths {
 		_ = filepath.WalkDir(filepath.Join(root, rel), func(p string, d fs.DirEntry, err error) error {
-			if err == nil && d.Type().IsRegular() {
+			if err != nil {
+				return nil
+			}
+			relPath, _ := filepath.Rel(root, p)
+			if underAny(filepath.ToSlash(relPath), excluded) {
+				if d.IsDir() {
+					return filepath.SkipDir
+				}
+				return nil
+			}
+			if d.Type().IsRegular() {
 				if info, err := d.Info(); err == nil {
 					n += info.Size()
 				}
@@ -292,7 +379,11 @@ func (p *progress) add(n int) {
 	if p.fn == nil || p.total <= 0 || time.Since(p.last) < 500*time.Millisecond {
 		return
 	}
-	if pct := int(p.done * 100 / p.total); pct != p.lastPct {
+	pct := int(p.done * 100 / p.total)
+	if pct > 100 {
+		pct = 100
+	}
+	if pct != p.lastPct {
 		p.lastPct = pct
 		p.fn(pct)
 	}
