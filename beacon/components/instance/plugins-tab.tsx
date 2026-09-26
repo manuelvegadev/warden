@@ -187,11 +187,13 @@ export function PluginsTab({
                         <Badge
                           variant="outline"
                           className={update.unlisted ? badgeTone.amber : badgeTone.emerald}
-                          title={
-                            update.unlisted
-                              ? `${update.version} is available; it does not list Minecraft ${mcVersion} either`
-                              : `${update.version} is available`
-                          }
+                          title={[
+                            `${update.version} is available`,
+                            update.unlisted && `it does not list Minecraft ${mcVersion} either`,
+                            update.external && `it downloads from ${update.external}`,
+                          ]
+                            .filter(Boolean)
+                            .join("; ")}
                         >
                           <ArrowUpCircle className="size-3" /> {update.version}
                         </Badge>
@@ -199,7 +201,17 @@ export function PluginsTab({
                     </div>
                   </TableCell>
                   <TableCell>
-                    <PluginSourceBadge source={p.source?.source ?? "manual"} />
+                    <div className="flex items-center gap-2">
+                      <PluginSourceBadge source={p.source?.source ?? "manual"} />
+                      {p.source?.external && (
+                        <Badge
+                          variant="outline"
+                          title={`Downloaded from ${p.source.external}, outside Hangar; no hash was published to verify it`}
+                        >
+                          external
+                        </Badge>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell className={`${mono} text-right`}>{formatBytes(p.size)}</TableCell>
                   <TableCell className="text-muted-foreground" title={p.source?.installedAt}>
@@ -220,6 +232,7 @@ export function PluginsTab({
                                 }
                               >
                                 <ArrowUpCircle className="size-4" /> Update to {update.version}
+                                {update.external && ` (from ${update.external})`}
                               </DropdownMenuItem>
                             )}
                             <DropdownMenuItem

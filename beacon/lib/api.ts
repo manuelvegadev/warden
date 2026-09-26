@@ -295,6 +295,17 @@ export interface PluginVersion {
   publishedAt: string;
   /** The release lists the server's Minecraft version (or lists none). */
   listed: boolean;
+  /** A Hangar link to a file hosted elsewhere, with no hash to check it against (ADR-023). */
+  external?: boolean;
+}
+
+/** The host a URL points at, or the URL itself when it does not parse. */
+export function hostOf(url: string) {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return url;
+  }
 }
 
 export interface InstalledPluginRecord {
@@ -306,6 +317,8 @@ export interface InstalledPluginRecord {
   version?: string;
   /** Installed although it did not list the server's Minecraft version. */
   unlisted?: boolean;
+  /** The host a Hangar external link downloaded it from. */
+  external?: string;
   installedAt: string;
 }
 
@@ -337,6 +350,8 @@ export interface PluginUpdate {
   versionId: string;
   /** The update does not list the server's Minecraft version either. */
   unlisted?: boolean;
+  /** The host the update downloads from, when it is a Hangar external link. */
+  external?: string;
 }
 
 export interface LaunchCommand {

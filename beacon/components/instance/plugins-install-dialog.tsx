@@ -28,7 +28,7 @@ import {
 import { PluginIcon } from "@/components/instance/plugin-icon";
 import { CATALOG_SOURCES, PluginSourceBadge } from "@/components/instance/plugin-source-badge";
 import { usePluginSearch } from "@/hooks/use-plugin-search";
-import { compactNum, type PluginHit, type PluginVersion, plugins } from "@/lib/api";
+import { compactNum, hostOf, type PluginHit, type PluginVersion, plugins } from "@/lib/api";
 import { mono } from "@/lib/utils";
 
 const SOURCE_FILTERS: Record<string, string> = {
@@ -121,7 +121,13 @@ export function InstallPluginsDialog({
   }
   const ready = queue.length > 0 && queue.every((p) => p.versions !== null && p.versionId);
   const chosen = (p: Pending) => p.versions?.find((v) => v.id === p.versionId);
-  const unlisted = queue.filter((p) => chosen(p)?.listed === false);
+  // Releases installing asks about first: not listed for this Minecraft, or hosted outside Hangar.
+  const doubtful = queue.flatMap((p) => {
+    const v = chosen(p);
+    return v && (!v.listed || v.external) ? [{ name: p.hit.name, v }] : [];
+  });
+  const anyUnlisted = doubtful.some((d) => !d.v.listed);
+  const anyExternal = doubtful.some((d) => d.v.external);
 
   async function installAll() {
     setConfirming(false);
@@ -255,7 +261,14 @@ export function InstallPluginsDialog({
                 {queue.map((p) => (
                   <div key={keyOf(p.hit)} className="flex items-center gap-3 px-3 py-2 text-sm">
                     <PluginIcon src={p.hit.iconUrl} className="size-7" />
-                    <span className="min-w-0 flex-1 truncate font-medium">{p.hit.name}</span>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate font-medium">{p.hit.name}</div>
+                      {chosen(p)?.external && (
+                        <div className="truncate text-xs text-muted-foreground">
+                          from {hostOf(chosen(p)?.url ?? "")}, outside Hangar · no hash
+                        </div>
+                      )}
+                    </div>
                     {p.versions === null ? (
                       <span className="text-xs text-muted-foreground">Loading versions…</span>
                     ) : (
@@ -301,7 +314,7 @@ export function InstallPluginsDialog({
               Cancel
             </Button>
             <Button
-              onClick={() => (unlisted.length ? setConfirming(true) : installAll())}
+              onClick={() => (doubtful.length ? setConfirming(true) : installAll())}
               disabled={!ready || installing}
             >
               <Download className="size-4" />
@@ -313,13 +326,34 @@ export function InstallPluginsDialog({
       <ConfirmDialog
         open={confirming}
         onClose={() => setConfirming(false)}
-        title={`Install ${unlisted.length === 1 ? "a release" : "releases"} not listed for ${mcVersion}?`}
+        title={
+          !anyExternal
+            ? `Install ${doubtful.length === 1 ? "a release" : "releases"} not listed for ${mcVersion}?`
+            : !anyUnlisted
+              ? "Download from outside Hangar?"
+              : "Install anyway?"
+        }
         description={
           <>
-            {unlisted.map((p) => `${p.hit.name} ${chosen(p)?.name ?? ""}`).join(", ")}{" "}
-            {unlisted.length === 1 ? "does" : "do"} not list Minecraft {mcVersion}. A plugin that has not caught up with
-            a new version often runs on it all the same; if it fails to load, the server log says why, and removing it
-            from Plugins undoes this.
+            {doubtful.map(({ name, v }) => (
+              <span key={`${name}:${v.id}`} className="mb-2 block">
+                <span className="font-medium text-foreground">
+                  {/* Some Hangar releases are named after the plugin itself. */}
+                  {v.name === name ? name : `${name} ${v.name}`}
+                </span>{" "}
+                {[
+                  !v.listed && `does not list Minecraft ${mcVersion}`,
+                  v.external && `downloads from ${hostOf(v.url)}, with no hash to check it against`,
+                ]
+                  .filter(Boolean)
+                  .join("; ")}
+                .
+              </span>
+            ))}
+            {anyUnlisted && "A plugin that has not caught up with a new Minecraft often runs on it all the same. "}
+            {anyExternal &&
+              "Warden checks that the file is a plugin jar, not who made it: install from hosts you trust. "}
+            If it fails to load, the server log says why; removing it from Plugins undoes this.
           </>
         }
         confirmLabel="Install anyway"
