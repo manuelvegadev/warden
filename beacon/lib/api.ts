@@ -148,6 +148,82 @@ export interface BackupInfo {
   mcVersion?: string;
   build?: number;
   createdAt: string;
+  excluded?: string[];
+}
+
+/** Distant view (ADR-025): the LOD plugins a server can run. */
+export type LodKind = "dhs" | "lss";
+export interface LodBrand {
+  plugin: string;
+  title: string;
+  command: string;
+  folder: string;
+  config: string;
+  project: { source: string; id: string };
+}
+export interface LodCompat {
+  clients?: string;
+  verified: boolean;
+  warning?: string;
+  link: string;
+}
+export interface LodProvider {
+  kind: LodKind;
+  title: string;
+  client: string;
+  pregen: boolean;
+  brands: LodBrand[];
+  installed?: { brand: LodBrand; fileName: string; version: string; enabled: boolean };
+  compat: LodCompat;
+  disk: { path: string; bytes: number }[];
+  storeStatus?: string;
+}
+export interface LodPregenStatus {
+  state: "running" | "resumed" | "done" | "stopped" | "unknown" | "none" | "";
+  progress: number;
+  done: number;
+  target: number;
+  cps: number;
+  elapsed?: string;
+  remaining?: string;
+  raw?: string[];
+}
+export interface LodPregen {
+  world: string;
+  x?: number;
+  z?: number;
+  radius?: number;
+  startedAt: string;
+  session: string;
+  resumedAt?: string;
+  status: LodPregenStatus;
+}
+export interface LodInfo {
+  supported: boolean;
+  agent: boolean;
+  /** The connected agent runs plugin commands: live actions (pre-generation, live settings) work. */
+  agentRuns: boolean;
+  worlds: string[];
+  backupIncludeData: boolean;
+  providers: LodProvider[];
+  pregens: LodPregen[] | null;
+}
+export interface LodKey {
+  name: string;
+  label: string;
+  help?: string;
+  type: "int" | "bool" | "enum";
+  default: number | boolean | string;
+  min?: number;
+  max?: number;
+  options?: string[];
+  live: boolean;
+}
+export interface LodConfig {
+  path: string;
+  exists: boolean;
+  keys: LodKey[];
+  values: Record<string, number | boolean | string>;
 }
 
 export interface UpgradeRecord {
@@ -712,6 +788,23 @@ export const backups = {
     api<void>(`/instances/${instanceId}/backups/${encodeURIComponent(name)}`, { method: "DELETE" }),
   downloadUrl: (instanceId: string, name: string) =>
     `/api/wardend/instances/${instanceId}/backups/${encodeURIComponent(name)}/download`,
+};
+
+export const lod = {
+  get: (id: string) => api<LodInfo>(`/instances/${id}/lod`),
+  config: (id: string, kind: LodKind) => api<LodConfig>(`/instances/${id}/lod/${kind}/config`),
+  saveConfig: (id: string, kind: LodKind, values: Record<string, number | boolean | string>) =>
+    api<{ applied: string[]; restart: string[] }>(`/instances/${id}/lod/${kind}/config`, {
+      method: "PUT",
+      body: JSON.stringify({ values }),
+    }),
+  deleteData: (id: string, kind: LodKind) => api<void>(`/instances/${id}/lod/${kind}/data`, { method: "DELETE" }),
+  settings: (id: string, backupIncludeData: boolean) =>
+    api<void>(`/instances/${id}/lod/settings`, { method: "PUT", body: JSON.stringify({ backupIncludeData }) }),
+  startPregen: (id: string, p: { world: string; x?: number; z?: number; radius?: number }) =>
+    post<void>(`/instances/${id}/lod/dhs/pregen`, p),
+  stopPregen: (id: string, world: string) =>
+    api<void>(`/instances/${id}/lod/dhs/pregen/${encodeURIComponent(world)}`, { method: "DELETE" }),
 };
 
 export const files = {
