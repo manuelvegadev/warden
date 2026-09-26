@@ -13,9 +13,12 @@ import {
 } from "@warden/ui/components/dialog";
 import { Input } from "@warden/ui/components/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@warden/ui/components/select";
+import { badgeTone } from "@warden/ui/lib/badge-tone";
+import { cn } from "@warden/ui/lib/utils";
 import { Download, ExternalLink, Search, X } from "lucide-react";
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import {
   IconLink,
   PluginDetailsDialog,
@@ -33,6 +36,24 @@ const SOURCE_FILTERS: Record<string, string> = {
 };
 const keyOf = (h: PluginHit) => `${h.source}:${h.id}`;
 
+/** How a release reads in the version picker; Modrinth ids are opaque, so the trigger needs it too. */
+const versionLabel = (v: PluginVersion) =>
+  [v.name, v.channel !== "release" && v.channel, !v.listed && "not listed"].filter(Boolean).join(" · ");
+
+/**
+ * The release a queued plugin starts on: the newest release listed for this Minecraft, else the
+ * newest listed build, else — nothing is listed — the newest release there is (installing it asks first).
+ */
+function defaultVersion(versions: PluginVersion[]) {
+  const listed = versions.filter((v) => v.listed);
+  return (
+    listed.find((v) => v.channel === "release") ??
+    listed[0] ??
+    versions.find((v) => v.channel === "release") ??
+    versions[0]
+  );
+}
+
 /** One queued plugin: the hit plus its compatible versions (loaded when queued) and the chosen one. */
 interface Pending {
   hit: PluginHit;
@@ -43,6 +64,9 @@ interface Pending {
 /**
  * Prism-Launcher style installer: search, tick results to queue them, pick a version per queued
  * plugin, then install the whole queue. Each install is a daemon task; progress arrives over the socket.
+ * Plugins that do not list this Minecraft version are not hidden (ADR-022): they keep their place,
+ * dimmed, and installing one asks first — a plugin that has not caught up with a new
+ * Minecraft often runs on it all the same.
  */
 export function InstallPluginsDialog({
   instanceId,
@@ -60,10 +84,11 @@ export function InstallPluginsDialog({
   const [searching, setSearching] = useState(false);
   const [queue, setQueue] = useState<Pending[]>([]);
   const [installing, setInstalling] = useState(false);
+  const [confirming, setConfirming] = useState(false);
   const [selected, setSelected] = useState<PluginRef | null>(null);
   const closeDetails = useCallback(() => setSelected(null), []);
 
-  // Both sources rank by downloads, so an empty query lists the most popular compatible plugins.
+  // Both sources rank by downloads, so an empty query lists the most popular plugins.
   const runSearch = useCallback(
     async (q: string, src: string) => {
       setSearching(true);
@@ -99,7 +124,7 @@ export function InstallPluginsDialog({
     plugins
       .versions(hit.source, hit.id, mcVersion)
       .then((versions) => {
-        const pick = versions.find((v) => v.channel === "release") ?? versions[0];
+        const pick = defaultVersion(versions);
         setQueue((q) => q.map((x) => (keyOf(x.hit) === key ? { ...x, versions, versionId: pick?.id ?? "" } : x)));
       })
       .catch((e) => {
@@ -108,8 +133,11 @@ export function InstallPluginsDialog({
       });
   }
   const ready = queue.length > 0 && queue.every((p) => p.versions !== null && p.versionId);
+  const chosen = (p: Pending) => p.versions?.find((v) => v.id === p.versionId);
+  const unlisted = queue.filter((p) => chosen(p)?.listed === false);
 
   async function installAll() {
+    setConfirming(false);
     setInstalling(true);
     try {
       await Promise.all(queue.map((p) => plugins.install(instanceId, p.hit.source, p.hit.id, p.versionId)));
@@ -139,8 +167,8 @@ export function InstallPluginsDialog({
           <DialogHeader>
             <DialogTitle>Install plugins</DialogTitle>
             <DialogDescription>
-              Search Hangar and Modrinth for Paper plugins compatible with Minecraft {mcVersion}. Tick the ones you
-              want, then install them all at once.
+              Search Hangar and Modrinth for Paper plugins. The ones that do not list Minecraft {mcVersion} are dimmed
+              and can still be installed. Tick the ones you want, then install them all at once.
             </DialogDescription>
           </DialogHeader>
 
@@ -175,23 +203,23 @@ export function InstallPluginsDialog({
               <p className="px-4 py-6 text-center text-sm text-muted-foreground">Loading popular plugins…</p>
             )}
             {hits && hits.length > 0 && !query.trim() && (
-              <p className="bg-muted/40 px-3 py-1.5 text-xs font-medium text-muted-foreground">
-                Most downloaded for Minecraft {mcVersion}
-              </p>
+              <p className="bg-muted/40 px-3 py-1.5 text-xs font-medium text-muted-foreground">Most downloaded</p>
             )}
             {hits?.length === 0 && (
-              <p className="px-4 py-6 text-center text-sm text-muted-foreground">
-                No plugins match “{query}” for {mcVersion}.
-              </p>
+              <p className="px-4 py-6 text-center text-sm text-muted-foreground">No plugins match “{query}”.</p>
             )}
             {hits?.map((h) => {
               const key = keyOf(h);
               const id = `queue-${key}`;
+              const notListed = h.listed === false;
               return (
                 <label
                   key={key}
                   htmlFor={id}
-                  className="flex cursor-pointer items-center gap-3 px-3 py-2.5 hover:bg-muted/50"
+                  className={cn(
+                    "flex cursor-pointer items-center gap-3 px-3 py-2.5 hover:bg-muted/50",
+                    notListed && "opacity-60 hover:opacity-100",
+                  )}
                 >
                   <Checkbox id={id} checked={queued.has(key)} onCheckedChange={(c) => toggle(h, c === true)} />
                   <PluginIcon src={h.iconUrl} className="size-9" />
@@ -202,6 +230,16 @@ export function InstallPluginsDialog({
                       </PluginNameButton>
                       <PluginSourceBadge source={h.source} />
                       {installed.has(key) && <Badge variant="outline">installed</Badge>}
+                      {notListed && (
+                        <Badge
+                          variant="outline"
+                          className={badgeTone.amber}
+                          title={h.newestMc ? `The newest Minecraft it lists is ${h.newestMc}` : undefined}
+                        >
+                          not listed for {mcVersion}
+                          {h.newestMc && ` · up to ${h.newestMc}`}
+                        </Badge>
+                      )}
                       <span className="text-xs text-muted-foreground">
                         by {h.author || "—"} · {compactNum(h.downloads)} downloads
                       </span>
@@ -226,18 +264,23 @@ export function InstallPluginsDialog({
                       <span className="text-xs text-muted-foreground">Loading versions…</span>
                     ) : (
                       <Select
+                        items={p.versions.map((v) => ({ value: v.id, label: versionLabel(v) }))}
                         value={p.versionId}
                         onValueChange={(v) =>
                           v && setQueue((q) => q.map((x) => (x === p ? { ...x, versionId: v } : x)))
                         }
                       >
-                        <SelectTrigger size="sm" className={`w-56 ${mono}`}>
+                        <SelectTrigger size="sm" className={`w-64 ${mono}`}>
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent fit="content">
                           {p.versions.map((v) => (
-                            <SelectItem key={v.id} value={v.id} className={mono}>
-                              {v.name} · {v.channel}
+                            <SelectItem
+                              key={v.id}
+                              value={v.id}
+                              className={cn(mono, !v.listed && "text-muted-foreground")}
+                            >
+                              {versionLabel(v)}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -261,13 +304,31 @@ export function InstallPluginsDialog({
             <Button variant="ghost" onClick={reset}>
               Cancel
             </Button>
-            <Button onClick={installAll} disabled={!ready || installing}>
+            <Button
+              onClick={() => (unlisted.length ? setConfirming(true) : installAll())}
+              disabled={!ready || installing}
+            >
               <Download className="size-4" />
               {installing ? "Installing…" : `Install ${queue.length || ""}`.trim()}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <ConfirmDialog
+        open={confirming}
+        onClose={() => setConfirming(false)}
+        title={`Install ${unlisted.length === 1 ? "a release" : "releases"} not listed for ${mcVersion}?`}
+        description={
+          <>
+            {unlisted.map((p) => `${p.hit.name} ${chosen(p)?.name ?? ""}`).join(", ")}{" "}
+            {unlisted.length === 1 ? "does" : "do"} not list Minecraft {mcVersion}. A plugin that has not caught up with
+            a new version often runs on it all the same; if it fails to load, the server log says why, and removing it
+            from Plugins undoes this.
+          </>
+        }
+        confirmLabel="Install anyway"
+        onConfirm={() => void installAll()}
+      />
       <PluginDetailsDialog selected={selected} onClose={closeDetails} />
     </>
   );

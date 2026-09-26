@@ -174,8 +174,25 @@ export function PluginsTab({
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <span className={mono}>{version ?? "—"}</span>
+                      {p.source?.unlisted && (
+                        <Badge
+                          variant="outline"
+                          className={badgeTone.amber}
+                          title={`Installed knowingly: this release does not list Minecraft ${mcVersion}`}
+                        >
+                          not listed
+                        </Badge>
+                      )}
                       {update && (
-                        <Badge variant="outline" className={badgeTone.emerald} title={`${update.version} is available`}>
+                        <Badge
+                          variant="outline"
+                          className={update.unlisted ? badgeTone.amber : badgeTone.emerald}
+                          title={
+                            update.unlisted
+                              ? `${update.version} is available; it does not list Minecraft ${mcVersion} either`
+                              : `${update.version} is available`
+                          }
+                        >
                           <ArrowUpCircle className="size-3" /> {update.version}
                         </Badge>
                       )}

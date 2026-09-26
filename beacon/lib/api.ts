@@ -276,6 +276,10 @@ export interface PluginHit {
   downloads: number;
   categories: string[];
   url: string;
+  /** Whether it lists the Minecraft version searched for (absent without one); not listed is not left out (ADR-022). */
+  listed?: boolean;
+  /** The newest Minecraft version it lists. */
+  newestMc?: string;
 }
 
 export interface PluginVersion {
@@ -289,6 +293,8 @@ export interface PluginVersion {
   url: string;
   dependencies: { name: string; required: boolean }[] | null;
   publishedAt: string;
+  /** The release lists the server's Minecraft version (or lists none). */
+  listed: boolean;
 }
 
 export interface InstalledPluginRecord {
@@ -298,6 +304,8 @@ export interface InstalledPluginRecord {
   name?: string;
   versionId?: string;
   version?: string;
+  /** Installed although it did not list the server's Minecraft version. */
+  unlisted?: boolean;
   installedAt: string;
 }
 
@@ -327,6 +335,8 @@ export interface PluginUpdate {
   fileName: string;
   version: string;
   versionId: string;
+  /** The update does not list the server's Minecraft version either. */
+  unlisted?: boolean;
 }
 
 export interface LaunchCommand {
