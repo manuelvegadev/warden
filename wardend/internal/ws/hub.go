@@ -41,11 +41,16 @@ type Hub struct {
 	origins  []string
 	mu       sync.RWMutex
 	clients  map[*client]struct{}
+	// commands gives a new subscriber the instance's console command list (ADR-024), nil when none.
+	commands func(instanceID string) any
 }
 
 func NewHub(verifier *auth.Verifier, mgr *instance.Manager, allowedOrigins []string) *Hub {
 	return &Hub{verifier: verifier, mgr: mgr, origins: OriginPatterns(allowedOrigins), clients: map[*client]struct{}{}}
 }
+
+// SetConsoleCommands wires the source of `console.commands` sent on subscribe; call it before serving.
+func (h *Hub) SetConsoleCommands(f func(instanceID string) any) { h.commands = f }
 
 // Broadcast implements bus.Broadcaster.
 func (h *Hub) Broadcast(instanceID, typ string, data any) {
@@ -150,6 +155,11 @@ func (c *client) reader(ctx context.Context, h *Hub) {
 			c.mu.Unlock()
 			c.send <- outbound{Type: "console.history", Instance: msg.Instance, Data: map[string]any{"lines": inst.History(1000)}}
 			c.send <- outbound{Type: "state", Instance: msg.Instance, Data: inst.Status()}
+			if h.commands != nil {
+				if cmds := h.commands(msg.Instance); cmds != nil {
+					c.send <- outbound{Type: "console.commands", Instance: msg.Instance, Data: cmds}
+				}
+			}
 		case "unsubscribe":
 			c.mu.Lock()
 			delete(c.subs, msg.Instance)

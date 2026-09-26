@@ -97,16 +97,20 @@ type instState struct {
 	hashes    map[string]map[[2]int32]string // world → chunk → stored hash; frames that match are dropped
 	pending   map[string][]chunkRef          // world → changed chunks not yet announced
 	flush     *time.Timer
+	features  map[string]bool                // what the agent announced in its hello
+	commands  []Command                      // the agent's last command list (ADR-024); nil until it sends one
+	waiters   map[string]chan completeResult // completion requests awaiting the agent's answer
 }
 
 // Service owns one agent connection per instance.
 type Service struct {
-	store  *store.Store
-	bc     bus.Broadcaster
-	tokens Tokens
-	sink   AgentSink
-	mu     sync.Mutex
-	inst   map[string]*instState
+	store   *store.Store
+	bc      bus.Broadcaster
+	tokens  Tokens
+	sink    AgentSink
+	mu      sync.Mutex
+	inst    map[string]*instState
+	nextReq uint64 // completion request ids, unique across agents
 }
 
 func NewService(st *store.Store, bc bus.Broadcaster, tokens Tokens) *Service {
@@ -155,6 +159,8 @@ type helloMsg struct {
 	Agent  string      `json:"agent"`
 	Server string      `json:"server"`
 	Worlds []WorldInfo `json:"worlds"`
+	// Features lists what the agent answers beyond the stream (FeatureComplete); older agents send none.
+	Features []string `json:"features"`
 }
 
 type playersMsg struct {
@@ -233,6 +239,9 @@ func (s *Service) HandleAgent(w http.ResponseWriter, r *http.Request) {
 			if json.Unmarshal(b, &env) != nil {
 				continue
 			}
+			if s.onAgentCommandText(id, st, env.Type, b) {
+				continue
+			}
 			if env.Type != "players" {
 				if s.sink != nil {
 					s.sink.OnAgentText(id, env.Type, b)
@@ -300,9 +309,15 @@ func (s *Service) attach(id string, conn *websocket.Conn, hello helloMsg, hashes
 	defer s.mu.Unlock()
 	if old := s.inst[id]; old != nil && old.conn != nil && old.conn != conn {
 		old.conn.Close(websocket.StatusPolicyViolation, "replaced by a newer agent")
+		failWaiters(old)
+	}
+	features := map[string]bool{}
+	for _, f := range hello.Features {
+		features[f] = true
 	}
 	st := &instState{conn: conn, agent: AgentInfo{Connected: true, Version: hello.Agent, Server: hello.Server},
-		worlds: hello.Worlds, players: []PlayerPos{}, hashes: hashes, pending: map[string][]chunkRef{}}
+		worlds: hello.Worlds, players: []PlayerPos{}, hashes: hashes, pending: map[string][]chunkRef{},
+		features: features, waiters: map[string]chan completeResult{}}
 	if st.worlds == nil {
 		st.worlds = []WorldInfo{}
 	}
@@ -324,9 +339,16 @@ func (s *Service) detach(id string, st *instState) {
 	st.conn = nil
 	st.agent.Connected = false
 	st.players = []PlayerPos{}
+	hadCommands := st.commands != nil
+	st.commands = nil
+	failWaiters(st)
 	s.mu.Unlock()
 	slog.Info("agent disconnected", "instance", id)
 	s.bc.Broadcast(id, "world.agent", st.agent)
+	// A server without its agent runs nothing the panel could complete.
+	if hadCommands {
+		s.bc.Broadcast(id, "console.commands", map[string]any{"commands": []Command{}})
+	}
 	s.bc.Broadcast(id, "world.players", map[string]any{"t": time.Now().UnixMilli(), "players": []PlayerPos{}})
 	if s.sink != nil {
 		s.sink.OnAgentDisconnected(id)

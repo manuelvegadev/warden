@@ -103,6 +103,7 @@ func NewRouter(d Deps) http.Handler {
 	inst("POST /api/v1/instances/{id}/kill", auth.ActionPower, s.killInstance)
 	inst("POST /api/v1/instances/{id}/command", auth.ActionConsoleSend, s.sendCommand)
 	read("GET /api/v1/instances/{id}/console", s.console)
+	inst("GET /api/v1/instances/{id}/console/complete", auth.ActionConsoleSend, s.completeCommand)
 	read("GET /api/v1/instances/{id}/logs", s.listLogs)
 	read("GET /api/v1/instances/{id}/logs/{file}", s.getLog)
 	read("GET /api/v1/instances/{id}/metrics", s.instanceMetrics)

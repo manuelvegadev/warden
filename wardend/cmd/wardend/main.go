@@ -115,6 +115,7 @@ func main() {
 	// Voice chat (ADR-019): the agent's voice frames are relayed to listening browsers.
 	vc := voice.NewService(st, hub, wv, verifier, cfg.AllowedOrigins)
 	wv.SetSink(vc)
+	hub.SetConsoleCommands(wv.ConsoleCommands)
 	mgr.SetAgent(cfg.AgentURL(), agent.Jar, reg.TraitsOf)
 	// Simple Voice Chat is fetched from the catalog on the first start of a server that loads plugins.
 	mgr.SetCatalog(reg)

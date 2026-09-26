@@ -105,6 +105,13 @@ func TestHubAuthAndBroadcast(t *testing.T) {
 	mgr := instance.NewManager(t.TempDir(), nil)
 	hub := NewHub(verifier, mgr, nil)
 	mgr.SetBroadcaster(hub)
+	// The console command list (ADR-024) goes to new subscribers, when there is one.
+	hub.SetConsoleCommands(func(id string) any {
+		if id == "srv" {
+			return map[string]any{"commands": []string{"lp"}}
+		}
+		return nil
+	})
 	srv := httptest.NewServer(hub)
 	defer srv.Close()
 	url := "ws" + strings.TrimPrefix(srv.URL, "http")
@@ -116,7 +123,7 @@ func TestHubAuthAndBroadcast(t *testing.T) {
 		t.Fatal("expected close on invalid token")
 	}
 
-	// Good token → auth.ok, subscribe → history + state, broadcast → console.
+	// Good token → auth.ok, subscribe → history + state + commands, broadcast → console.
 	inst, err := mgr.Create(&instance.Manifest{ID: "srv", Software: "paper", MCVersion: "1.21.8", Port: 25565})
 	if err != nil {
 		t.Fatal(err)
@@ -133,6 +140,9 @@ func TestHubAuthAndBroadcast(t *testing.T) {
 	}
 	if m := recv(t, c); m.Type != "state" || m.Instance != "srv" {
 		t.Fatalf("got %s/%s, want state/srv", m.Type, m.Instance)
+	}
+	if m := recv(t, c); m.Type != "console.commands" || m.Instance != "srv" {
+		t.Fatalf("got %s/%s, want console.commands/srv", m.Type, m.Instance)
 	}
 	hub.Broadcast("srv", "console", instance.Line{Text: "hello"})
 	if m := recv(t, c); m.Type != "console" {
