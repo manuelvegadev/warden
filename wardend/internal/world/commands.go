@@ -46,6 +46,12 @@ const CompleteTimeout = time.Second
 // MaxCompleteLine bounds the line sent to the agent (the agent refuses longer ones too).
 const MaxCompleteLine = 1024
 
+// FeatureRun is what an agent that runs plugin commands for wardend announces (ADR-025).
+const FeatureRun = "run"
+
+// RunTimeout bounds the wait for a command's reply; the agent collects for at most 2 s.
+const RunTimeout = 3 * time.Second
+
 var (
 	// ErrAgentUnavailable: no agent is connected, or it is too old to complete.
 	ErrAgentUnavailable = errors.New("no agent connected that can complete commands")
@@ -55,11 +61,12 @@ var (
 	ErrCompleteTimeout = errors.New("the server did not answer in time")
 )
 
-type completeResult struct {
+type agentResult struct {
 	Type        string       `json:"type"`
 	ID          string       `json:"id"`
 	Suggestions []Suggestion `json:"suggestions"`
 	Truncated   bool         `json:"truncated"`
+	Lines       []string     `json:"lines"`
 	Error       string       `json:"error"`
 }
 
@@ -68,19 +75,17 @@ type commandsMsg struct {
 	Commands []Command `json:"commands"`
 }
 
-// Complete asks the instance's agent for the completions of `line` (without its leading slash).
-// It returns when the agent answers, `ctx` ends (the browser moved on) or CompleteTimeout passes.
-func (s *Service) Complete(ctx context.Context, id, line string) (Completion, error) {
-	line = strings.TrimPrefix(line, "/")
+// request sends one request to the instance's agent and waits for the answer with its id.
+func (s *Service) request(ctx context.Context, id, feature string, msg map[string]string, timeout time.Duration) (agentResult, error) {
 	s.mu.Lock()
 	st := s.inst[id]
-	if st == nil || st.conn == nil || !st.features[FeatureComplete] {
+	if st == nil || st.conn == nil || !st.features[feature] {
 		s.mu.Unlock()
-		return Completion{}, ErrAgentUnavailable
+		return agentResult{}, ErrAgentUnavailable
 	}
 	s.nextReq++
 	reqID := strconv.FormatUint(s.nextReq, 10)
-	ch := make(chan completeResult, 1)
+	ch := make(chan agentResult, 1)
 	st.waiters[reqID] = ch
 	s.mu.Unlock()
 	defer func() {
@@ -89,33 +94,75 @@ func (s *Service) Complete(ctx context.Context, id, line string) (Completion, er
 		s.mu.Unlock()
 	}()
 
-	if err := s.SendToAgent(id, map[string]string{"type": "complete", "id": reqID, "line": line}); err != nil {
-		return Completion{}, ErrAgentUnavailable
+	msg["id"] = reqID
+	if err := s.SendToAgent(id, msg); err != nil {
+		return agentResult{}, ErrAgentUnavailable
 	}
-	timer := time.NewTimer(CompleteTimeout)
+	timer := time.NewTimer(timeout)
 	defer timer.Stop()
 	select {
 	case <-ctx.Done():
-		return Completion{}, ctx.Err()
+		return agentResult{}, ctx.Err()
 	case <-timer.C:
-		return Completion{}, ErrCompleteTimeout
+		return agentResult{}, ErrCompleteTimeout
 	case r := <-ch:
 		switch r.Error {
 		case "":
+			return r, nil
 		case "superseded":
-			return Completion{}, ErrSuperseded
+			return r, ErrSuperseded
 		case "timeout":
-			return Completion{}, ErrCompleteTimeout
+			return r, ErrCompleteTimeout
 		case "unavailable":
-			return Completion{}, ErrAgentUnavailable
+			return r, ErrAgentUnavailable
 		default:
-			return Completion{}, errors.New("completion failed: " + r.Error)
+			return r, errors.New("the agent failed: " + r.Error)
 		}
-		if r.Suggestions == nil {
-			r.Suggestions = []Suggestion{}
-		}
-		return Completion{Suggestions: r.Suggestions, Truncated: r.Truncated}, nil
 	}
+}
+
+// Complete asks the instance's agent for the completions of `line` (without its leading slash).
+// It returns when the agent answers, `ctx` ends (the browser moved on) or CompleteTimeout passes.
+func (s *Service) Complete(ctx context.Context, id, line string) (Completion, error) {
+	r, err := s.request(ctx, id, FeatureComplete,
+		map[string]string{"type": "complete", "line": strings.TrimPrefix(line, "/")}, CompleteTimeout)
+	if err != nil {
+		return Completion{}, err
+	}
+	if r.Suggestions == nil {
+		r.Suggestions = []Suggestion{}
+	}
+	return Completion{Suggestions: r.Suggestions, Truncated: r.Truncated}, nil
+}
+
+// Run has the instance's agent run one console command with its reply captured (ADR-025): nothing
+// reaches the console or the log. It returns the reply's lines as plain text.
+func (s *Service) Run(ctx context.Context, id, command string) ([]string, error) {
+	r, err := s.request(ctx, id, FeatureRun,
+		map[string]string{"type": "run", "command": strings.TrimPrefix(strings.TrimSpace(command), "/")}, RunTimeout)
+	if err != nil {
+		return nil, err
+	}
+	if r.Lines == nil {
+		r.Lines = []string{}
+	}
+	return r.Lines, nil
+}
+
+// AgentConnected reports whether the instance's agent is connected.
+func (s *Service) AgentConnected(id string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	st := s.inst[id]
+	return st != nil && st.conn != nil && st.agent.Connected
+}
+
+// AgentRuns reports whether the instance's connected agent runs plugin commands (FeatureRun).
+func (s *Service) AgentRuns(id string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	st := s.inst[id]
+	return st != nil && st.conn != nil && st.features[FeatureRun]
 }
 
 // ConsoleCommands is the hub's `console.commands` payload for a new subscriber, or nil while no
@@ -146,8 +193,8 @@ func (s *Service) onAgentCommandText(id string, st *instState, typ string, b []b
 		s.mu.Unlock()
 		s.bc.Broadcast(id, "console.commands", map[string]any{"commands": msg.Commands})
 		return true
-	case "complete.result":
-		var r completeResult
+	case "complete.result", "run.result":
+		var r agentResult
 		if json.Unmarshal(b, &r) != nil {
 			return true
 		}
@@ -169,7 +216,7 @@ func (s *Service) onAgentCommandText(id string, st *instState, typ string, b []b
 func failWaiters(st *instState) {
 	for _, ch := range st.waiters {
 		select {
-		case ch <- completeResult{Error: "unavailable"}:
+		case ch <- agentResult{Error: "unavailable"}:
 		default:
 		}
 	}

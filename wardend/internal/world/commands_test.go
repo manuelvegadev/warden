@@ -42,28 +42,32 @@ func fakeAgent(t *testing.T, features string) (*Service, *recorder, *websocket.C
 	return svc, rec, c
 }
 
-// answerNext reads the next `complete` request and writes back `reply` with the request's id.
-func answerNext(t *testing.T, c *websocket.Conn, reply map[string]any) (line string) {
+// answerNextOf reads the next request of the given type and writes back `reply` with its id.
+func answerNextOf(t *testing.T, c *websocket.Conn, typ string, reply map[string]any) (req map[string]string) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	_, b, err := c.Read(ctx)
 	if err != nil {
 		t.Error(err)
-		return ""
+		return nil
 	}
-	var req struct{ Type, ID, Line string }
-	if json.Unmarshal(b, &req) != nil || req.Type != "complete" || req.ID == "" {
+	if json.Unmarshal(b, &req) != nil || req["type"] != typ || req["id"] == "" {
 		t.Errorf("request %s", b)
-		return ""
+		return nil
 	}
 	if reply != nil {
-		reply["type"] = "complete.result"
-		reply["id"] = req.ID
+		reply["type"] = typ + ".result"
+		reply["id"] = req["id"]
 		out, _ := json.Marshal(reply)
 		c.Write(ctx, websocket.MessageText, out)
 	}
-	return req.Line
+	return req
+}
+
+// answerNext answers the next `complete` request and returns its line.
+func answerNext(t *testing.T, c *websocket.Conn, reply map[string]any) string {
+	return answerNextOf(t, c, "complete", reply)["line"]
 }
 
 func TestCompleteRelaysTheAgentsAnswer(t *testing.T) {
@@ -171,5 +175,62 @@ func TestCommandListFollowsTheAgent(t *testing.T) {
 	}
 	if svc.ConsoleCommands("inst") != nil {
 		t.Fatal("list kept after the agent left")
+	}
+}
+
+func TestRunReturnsWhatTheCommandReplied(t *testing.T) {
+	svc, _, c := fakeAgent(t, `["complete","run"]`)
+	got := make(chan string, 1)
+	go func() {
+		got <- answerNextOf(t, c, "run", map[string]any{"lines": []string{"Generation progress: 50.00%"}})["command"]
+	}()
+	lines, err := svc.Run(context.Background(), "inst", "/dhs pregen status world")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cmd := <-got; cmd != "dhs pregen status world" {
+		t.Fatalf("the agent got %q", cmd)
+	}
+	if len(lines) != 1 || lines[0] != "Generation progress: 50.00%" {
+		t.Fatalf("lines %v", lines)
+	}
+}
+
+func TestRunNeedsAnAgentThatRuns(t *testing.T) {
+	svc, _, _ := fakeAgent(t, `["complete"]`)
+	if _, err := svc.Run(context.Background(), "inst", "dhs reload"); !errors.Is(err, ErrAgentUnavailable) {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestRunFailsWithTheAgentsError(t *testing.T) {
+	svc, _, c := fakeAgent(t, `["run"]`)
+	go answerNextOf(t, c, "run", map[string]any{"error": "timeout"})
+	if _, err := svc.Run(context.Background(), "inst", "dhs reload"); !errors.Is(err, ErrCompleteTimeout) {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestAgentRunsOnlyWhenTheAgentAnnouncesRun(t *testing.T) {
+	for _, tc := range []struct {
+		features string
+		runs     bool
+	}{
+		{`["complete","run"]`, true},
+		{`["complete"]`, false},
+		{`[]`, false},
+	} {
+		t.Run(tc.features, func(t *testing.T) {
+			svc, _, _ := fakeAgent(t, tc.features)
+			if !svc.AgentConnected("inst") {
+				t.Fatal("the agent should be connected")
+			}
+			if got := svc.AgentRuns("inst"); got != tc.runs {
+				t.Fatalf("AgentRuns = %v, want %v", got, tc.runs)
+			}
+			if svc.AgentRuns("other") || svc.AgentConnected("other") {
+				t.Fatal("an instance without an agent neither runs nor is connected")
+			}
+		})
 	}
 }

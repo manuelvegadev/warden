@@ -97,9 +97,9 @@ type instState struct {
 	hashes    map[string]map[[2]int32]string // world → chunk → stored hash; frames that match are dropped
 	pending   map[string][]chunkRef          // world → changed chunks not yet announced
 	flush     *time.Timer
-	features  map[string]bool                // what the agent announced in its hello
-	commands  []Command                      // the agent's last command list (ADR-024); nil until it sends one
-	waiters   map[string]chan completeResult // completion requests awaiting the agent's answer
+	features  map[string]bool             // what the agent announced in its hello
+	commands  []Command                   // the agent's last command list (ADR-024); nil until it sends one
+	waiters   map[string]chan agentResult // requests awaiting the agent's answer
 }
 
 // Service owns one agent connection per instance.
@@ -317,7 +317,7 @@ func (s *Service) attach(id string, conn *websocket.Conn, hello helloMsg, hashes
 	}
 	st := &instState{conn: conn, agent: AgentInfo{Connected: true, Version: hello.Agent, Server: hello.Server},
 		worlds: hello.Worlds, players: []PlayerPos{}, hashes: hashes, pending: map[string][]chunkRef{},
-		features: features, waiters: map[string]chan completeResult{}}
+		features: features, waiters: map[string]chan agentResult{}}
 	if st.worlds == nil {
 		st.worlds = []WorldInfo{}
 	}

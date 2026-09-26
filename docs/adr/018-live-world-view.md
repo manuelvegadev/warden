@@ -140,6 +140,13 @@ The same socket carries the console's command list and completions (ADR-024): `h
 `"features":["complete"]`, the agent sends `commands` when its command map changes, and wardend's
 `complete` requests are answered with `complete.result` carrying the request's `id`.
 
+It also runs plugin commands for the Distant view (ADR-025): `hello` announces
+`"features":["complete","run"]`, and wardend's `{"type":"run","id","command"}` is run on the main
+thread with its reply captured — nothing reaches the console or the log — and answered
+`{"type":"run.result","id","lines":[…]}` or `{"type":"run.result","id","error"}`, with the same
+correlation, timeout and "no agent" handling as `complete`. An agent that does not announce `run`
+gets no `run` request.
+
 Binary frames carry one chunk, little-endian:
 
 ```
