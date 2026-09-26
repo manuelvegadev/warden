@@ -81,7 +81,7 @@
 
 ## Phase 8 — Panel UX, previews and dashboard ([plan](panel-ux-plan.md), agreed 2026-09-25)
 - [x] 8.1 UI fixes (Beacon only, 2026-09-25): every folder column on phones; power controls under the instance switcher with Stop/Restart confirmations; full-height pages; Console, Config files and Metrics fill the page; console history on ArrowUp; editor word-wrap toggle; a player always shown as face + name; small fixes (Members breadcrumb, keyboard player rows, dates, nested `<main>`, host network label, TPS hidden where unsupported)
-- [ ] 8.2 Instance chrome: Overview section as the landing page, a status strip replacing the tiles and right sidebar; Metrics with ranges, server-side buckets, the 1-minute rollup `docs/api.md` promises, gaps and more series
+- [x] 8.2 Instance chrome (ADR-021, 2026-09-25): Overview section as the landing page, a status panel at the foot of the app sidebar replacing the header, tiles and right sidebar, "Restart to apply" after changes that need it; Metrics with ranges up to 7 days, daemon-side buckets with peaks, the 1-minute rollup past 24 h, gaps and stopped stretches shown, a shared crosshair, Players and Disk charts
 - [ ] 8.3 Previews: `Range` through the proxy; a View/Edit toggle — log view, JSON tables with faces, properties form, EULA card, image viewer, audio; then `/fs/jar`, `/fs/archive`, `/fs/nbt`, region grid, read-only SQLite
 - [ ] 8.4 Plugins: releases for other Minecraft versions shown dimmed and installable; HTTPS and host allowlist in `Download`; plugin command completion through the agent; Distant Horizons Support and Voxy Server Side integration
 - [ ] 8.5 Home dashboard: resizable columns of modules (react-resizable-panels), edit mode, per-user layouts, mobile stacking

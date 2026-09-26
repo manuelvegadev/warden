@@ -1,6 +1,6 @@
 # Panel UX plan — chrome, previews, plugins, dashboard
 
-Date: 2026-09-25 · Status: agreed; phase 1 done · Tracked in [`roadmap.md`](roadmap.md), Phase 8.
+Date: 2026-09-25 · Status: agreed; phases 1–2 done · Tracked in [`roadmap.md`](roadmap.md), Phase 8.
 
 This plan came out of a research pass over six areas: the file manager on phones, file previews,
 a UI/UX audit of the instance pages, a customisable home dashboard, console history, and plugins
@@ -54,9 +54,11 @@ the plan, not the specification.
    Start is one click; **Stop and Restart always confirm**, naming how many players will be
    disconnected. Kill sits in a `⋯` menu with a confirmation; Delete moves to the instance's
    Settings as a danger zone.
-2. **Instance chrome: an Overview section plus a status strip** (audit options D1 + D2). Overview
-   becomes the instance's landing page; a one-line strip in the header (uptime, players, TPS, CPU,
-   RAM, each with a popover) replaces the tiles and the right sidebar on every other section.
+2. **Instance chrome: an Overview section plus a status panel** (audit options D1 + D2). Overview
+   becomes the instance's landing page; a small card at the foot of the app sidebar (state and
+   uptime, players, TPS, CPU, RAM — a row each, with a popover) replaces the tiles and the right
+   sidebar on every other section. (First built as a strip beside the breadcrumb; moved to the
+   sidebar the same day, ADR-021.)
 3. **A customisable home dashboard**, Twitch Stream Manager style: columns of stacked modules,
    resized by dragging the divider between them, with modules added, removed and reordered in an
    edit mode. Built on **react-resizable-panels v4** (the shadcn *Resizable* component) with a
@@ -100,12 +102,12 @@ the plan, not the specification.
   own (`save-off`, whitelist commands), are not part of it.
 - Pure logic in `beacon/lib/command-history.ts` with `node:test` tests.
 
-### Phase 2 — Instance chrome and metrics (new ADR)
+### Phase 2 — Instance chrome and metrics (ADR-021, done 2026-09-25)
 
 - The **Overview** section as the default route: larger resource tiles, status, players online,
   recent activity, next backup.
-- The **status strip** in the header; tiles and right sidebar removed from every other section;
-  the page header reduced now that the name lives in the switcher and the breadcrumb.
+- The **status panel** at the foot of the app sidebar; tiles, right sidebar and page header
+  removed from every section, now that the name lives in the switcher and the breadcrumb.
 - **Metrics:** range picker (15m · 1h · 6h · 24h · 7d, in the URL; the daemon accepts a `d`
   suffix); server-side buckets with avg/min/max (`?points=`); a 1-minute rollup past 24 h, which
   makes `docs/api.md` true; gaps drawn as gaps; stopped periods shaded; a shared crosshair;
