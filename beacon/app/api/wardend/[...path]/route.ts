@@ -31,6 +31,9 @@ async function proxy(req: NextRequest, ctx: { params: Promise<{ path: string[] }
       method: req.method,
       body: hasBody ? req.body : undefined,
       headers,
+      // A request the browser gives up on (a search a newer keystroke replaced) is dropped at the
+      // daemon too, which cancels its calls to Hangar and Modrinth.
+      signal: req.signal,
       // @ts-expect-error -- required by undici for streaming request bodies; not in the DOM lib types
       duplex: "half",
     });
