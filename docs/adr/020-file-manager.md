@@ -56,11 +56,52 @@ move and delete.
   uploaded into that directory (an element-scoped drop hook, `hooks/use-drop-zone.ts`, next to
   the window-level one).
 - The preview pane: text in CodeMirror (YAML, JSON, properties, TOML, shell, Markdown, XML, INI,
-  JavaScript, SQL, or plain) with the same draft/save cycle as the other editors, images inline,
-  everything else download-only. The daemon decides which is which from the extension and the
-  first bytes (`Content-Type`). The editor uses the panel's code font at 13 px with a 1.6 leading
-  and a palette of its own on the console's ground (`code-editor-theme.ts`); like the console,
-  the pane can go full screen or open in its own window (`/file/{id}?path=`).
+  JavaScript, SQL, or plain) with the same draft/save cycle as the other editors, a line-wrap
+  switch remembered per kind of file (off for logs and data), pictures, a player for sounds,
+  everything else download-only. The daemon decides which is which from the extension and the first bytes
+  (`Content-Type`). The editor uses the panel's code font at 13 px with a 1.6 leading and a
+  palette of its own on the console's ground (`code-editor-theme.ts`); like the console, the pane
+  can go full screen or open in its own window (`/file/{id}?path=`).
+- **Views** (revised 2026-09-25): a file that reads better as something other than text gets a
+  view, and a *View / Text* switch in its header when it is also editable text. A text file has
+  one draft and one save bar whichever way it is shown; the editor stays mounted behind the view.
+  Which file gets which view is one pure function (`lib/file-views.ts`):
+  - **Logs** — `*.log`, the gzipped `*.log.gz` the server rotates (gunzipped in the browser) and
+    crash reports — read like the console: the level from each line's prefix, the kind filters,
+    a search, stack traces folded into the line that logged them (`logLines`). A log over the
+    editor's limit shows its last 2 MB (a `Range` request); `latest.log` follows new lines.
+  - **JSON** — every `.json` and `.mcmeta`, the server's own lists as much as any other — in a
+    visual editor (`lib/json-edit.ts`): objects and arrays fold, a value is changed by clicking it
+    (a boolean flips), a key renamed the same way, each entry's menu changes its type or deletes
+    it, a container's + adds to it. Every edit rewrites the draft in the file's own indentation.
+    A file with integers beyond what JavaScript holds exactly (a seed) stays read-only there.
+  - `eula.txt` as whether the EULA is accepted, with the button that accepts it.
+    `server.properties` is text here; its form is the Properties section.
+  - **Pictures** on a checkerboard, fitted or at whole-number zooms, sharp while they are pixel
+    art (256 px or less, or zoomed in), with their size; a 64×64 PNG can become the server icon
+    and a 64×64 or 64×32 one be looked at as a skin in 3D. **Sounds** in a player of the panel's
+    own (not the browser's): the waveform, decoded with Web Audio, is the seek bar; play and
+    pause, time, loop, volume and speed.
+  - **What the daemon reads out of binaries**, read-only, through `/fs/jar`, `/fs/archive`,
+    `/fs/nbt` and `/fs/sqlite` (docs/api.md):
+    - a **jar** as the plugin or mod it is — the first descriptor found (`paper-plugin.yml` before
+      `plugin.yml`, then Velocity, BungeeCord, Fabric, Quilt, NeoForge, Forge), its version,
+      authors, dependencies, commands and permissions, the manifest, the Java its classes need —
+      with the descriptor itself and the files inside. YAML scalars are kept as written, so a
+      version `1.10` is not the number 1.1; TOML descriptors are shown as text (no TOML parser);
+    - a **zip** (datapack, resource pack) as its files, one opening beside the list, a pack's
+      description and format on top;
+    - an **NBT** document — level.dat, playerdata, maps, structures, schematics; gzip, zlib or raw —
+      as a tree of typed tags, big arrays and lists shown in part, with the facts of level.dat or a
+      player's file first. The decoder is our own (`mc/nbt.go`, table-tested) rather than a library:
+      the format is small and stable, and the Go libraries for it had gone unmaintained;
+    - a **region** file as its 32×32 chunks, from the 8 KiB header alone (a Range request, parsed
+      in the browser), shaded by when each was last saved;
+    - a **SQLite** database (CoreProtect, LuckPerms with SQLite storage) as its tables and pages of
+      rows, opened `mode=ro` with `query_only`; rows are not counted. H2 and DuckDB files are not
+      readable here.
+  The BFF forwards `Range` and the conditional headers, so tails, seeking and 304s reach
+  `http.ServeContent`.
 - **Phones** (under 768 px, `useIsMobile`): the same columns, each `min(85%, 22rem)` wide so the
   parent peeks in at the left, snapping to their right edge as the strip is swiped. The strip
   scrolls to its end whenever the open directory changes; a tap on a column shown only in part

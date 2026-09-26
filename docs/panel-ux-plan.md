@@ -1,6 +1,6 @@
 # Panel UX plan — chrome, previews, plugins, dashboard
 
-Date: 2026-09-25 · Status: agreed; phases 1–2 done · Tracked in [`roadmap.md`](roadmap.md), Phase 8.
+Date: 2026-09-25 · Status: agreed; phases 1–3 done · Tracked in [`roadmap.md`](roadmap.md), Phase 8.
 
 This plan came out of a research pass over six areas: the file manager on phones, file previews,
 a UI/UX audit of the instance pages, a customisable home dashboard, console history, and plugins
@@ -114,7 +114,7 @@ the plan, not the specification.
   Players and Disk charts (already stored).
 - "Restart to apply" calls to action on Properties, Plugins and Settings.
 
-### Phase 3 — Previews and structured editing (revises ADR-020)
+### Phase 3 — Previews and structured editing (revises ADR-020, done 2026-09-25)
 
 1. The proxy forwards `Range`, `If-Range`, `If-None-Match`, `If-Modified-Since` upstream and
    `Content-Range`, `Accept-Ranges`, `Content-Length` back.
@@ -123,12 +123,14 @@ the plan, not the specification.
    | File | View | Edit |
    |---|---|---|
    | `*.log`, `*.log.gz`, `crash-reports/*.txt` | Log view on `PrettyConsole`: level colours, level chips, search, folded stack traces, follow on `latest.log`, tail by range for big files | Editor (`.gz` read-only) |
-   | `whitelist.json`, `ops.json`, `banned-*.json`, `usercache.json` | Tables with faces, "Manage in Access" | Editor |
-   | `server.properties` | `PropertiesEditor` form | Editor |
+   | Every `.json` and `.mcmeta` (the server's lists too) | Visual JSON editor: edit values in place, rename keys, change types, add and delete entries — the same draft as the text | Editor |
    | `eula.txt` | Accepted / Accept card | Editor |
-   | Other JSON | Collapsible tree, Pretty action | Editor |
    | Images | Checkerboard, integer zoom, dimensions, pixelated only when upscaling; `server-icon.png` card with *Use as server icon*; skins in 3D | — |
-   | Audio | `<audio>` (daemon keeps `audio/*` in `ContentType`) | — |
+   | Audio | The panel's own player: waveform as the seek bar, loop, volume, speed (daemon serves `audio/*`) | — |
+
+   (Revised on review: first built with tables for the server's lists and the Properties form for
+   `server.properties`; replaced by one JSON editor for every JSON file, and `server.properties`
+   stays text in Files.)
 
 3. With daemon endpoints (in `docs/api.md`): `GET /fs/jar` (full `plugin.yml`/`paper-plugin.yml`,
    manifest, minimum Java), `GET /fs/archive[&entry=]` (jars, datapacks, resource packs,
