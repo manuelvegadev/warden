@@ -1,6 +1,7 @@
 # ADR-005: Sources for downloading servers and plugins
 
-Date: 2026-08-28 · Status: accepted
+Date: 2026-08-28 · Status: accepted · Version filtering **revised by** ADR-022: the sources no
+longer filter by Minecraft version; the registry marks what each server's version lists.
 
 ## Context
 We want to create instances from the UI ("like Prism Launcher"): choose software (Paper first), Minecraft version, build, and then install plugins by searching a catalog. Everything was verified with real calls on 2026-08-28 (see `docs/external-apis.md`).
