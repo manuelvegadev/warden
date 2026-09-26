@@ -42,7 +42,7 @@ Browser ──WSS + single-use ticket (1st message)─────────�
 7. **Daemon hardening**:
    - Rate limit on `/auth/login` (5/min per IP) and progressive per-user lockout; audit of logins and of every command sent (`events`).
    - File paths canonicalized and confined to `servers/<id>/server/`; no symlinks outside; size limits on uploads.
-   - External downloads: HTTPS only, allowed hosts (`fill-data.papermc.io`, `hangarcdn.papermc.io`, `cdn.modrinth.com`, `github.com` for `externalUrl`), hash verification, timeouts.
+   - External downloads (ADR-023): HTTPS only on every redirect hop; what the sources host only from known hosts (`fill-data.papermc.io`, `api.purpurmc.org`, `meta.fabricmc.net`, `piston-data.mojang.com`, `launcher.mojang.com`, `github.com` and `release-assets`/`objects.githubusercontent.com` for Java runtimes, `cdn.modrinth.com`, `hangarcdn.papermc.io`), verified against the published hash; Hangar `externalUrl` links from any host but only to public addresses, checked on the address dialed (no loopback, private, link-local or CGNAT), shown to the admin and confirmed before installing; timeouts.
    - `warden` user without a shell, `systemd` with `NoNewPrivileges`, `ProtectSystem`, `ReadWritePaths`.
    - Headers: `X-Content-Type-Options`, `Referrer-Policy`, strict CSP on the panel.
    - Secrets never in an `instance.json` readable by others: `rcon.password` is generated per instance and RCON listens only on `127.0.0.1`.
