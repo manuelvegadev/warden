@@ -277,7 +277,9 @@ func (r *Registry) Download(ctx context.Context, url string, sum Checksum, dest 
 	return os.Rename(tmp.Name(), dest)
 }
 
-// cache is a tiny TTL cache for provider responses.
+// cache is a tiny TTL cache for provider responses. The panel searches as the admin types, so every
+// prefix of every query lands here: it holds at most cacheMax entries, dropping the expired ones
+// first and then those closest to expiring.
 type cache struct {
 	mu    sync.Mutex
 	ttl   time.Duration
@@ -288,6 +290,8 @@ type cacheItem struct {
 	exp time.Time
 	val any
 }
+
+const cacheMax = 512
 
 func newCache(ttl time.Duration) *cache { return &cache{ttl: ttl, items: map[string]cacheItem{}} }
 
@@ -303,6 +307,30 @@ func (c *cache) get(key string) (any, bool) {
 
 func (c *cache) set(key string, val any) {
 	c.mu.Lock()
-	c.items[key] = cacheItem{exp: time.Now().Add(c.ttl), val: val}
-	c.mu.Unlock()
+	defer c.mu.Unlock()
+	now := time.Now()
+	if _, ok := c.items[key]; !ok && len(c.items) >= cacheMax {
+		c.evict(now)
+	}
+	c.items[key] = cacheItem{exp: now.Add(c.ttl), val: val}
+}
+
+// evict makes room for one entry. Called with the lock held on a full cache.
+func (c *cache) evict(now time.Time) {
+	for k, it := range c.items {
+		if now.After(it.exp) {
+			delete(c.items, k)
+		}
+	}
+	if len(c.items) < cacheMax {
+		return
+	}
+	var soonest string
+	var exp time.Time
+	for k, it := range c.items {
+		if soonest == "" || it.exp.Before(exp) {
+			soonest, exp = k, it.exp
+		}
+	}
+	delete(c.items, soonest)
 }
