@@ -890,9 +890,10 @@ export const fs = {
 };
 
 export const plugins = {
-  search: (q: string, mc: string, source: string) =>
+  search: (q: string, mc: string, source: string, signal?: AbortSignal) =>
     api<{ hits: PluginHit[]; total: number }>(
       `/catalog/plugins/search?q=${encodeURIComponent(q)}&mc=${encodeURIComponent(mc)}&source=${source}`,
+      { signal },
     ),
   get: (source: string, id: string) => api<PluginHit>(`/catalog/plugins/${source}/${encodeURIComponent(id)}`),
   versions: (source: string, id: string, mc: string) =>

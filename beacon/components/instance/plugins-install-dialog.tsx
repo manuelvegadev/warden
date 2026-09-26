@@ -11,12 +11,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@warden/ui/components/dialog";
-import { Input } from "@warden/ui/components/input";
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@warden/ui/components/input-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@warden/ui/components/select";
 import { badgeTone } from "@warden/ui/lib/badge-tone";
 import { cn } from "@warden/ui/lib/utils";
-import { Download, ExternalLink, Search, X } from "lucide-react";
-import { type FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { Download, ExternalLink, Loader2, Search, X } from "lucide-react";
+import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import {
@@ -27,6 +27,7 @@ import {
 } from "@/components/instance/plugin-details-dialog";
 import { PluginIcon } from "@/components/instance/plugin-icon";
 import { CATALOG_SOURCES, PluginSourceBadge } from "@/components/instance/plugin-source-badge";
+import { usePluginSearch } from "@/hooks/use-plugin-search";
 import { compactNum, type PluginHit, type PluginVersion, plugins } from "@/lib/api";
 import { mono } from "@/lib/utils";
 
@@ -62,7 +63,7 @@ interface Pending {
 }
 
 /**
- * Prism-Launcher style installer: search, tick results to queue them, pick a version per queued
+ * Prism-Launcher style installer: search as you type, tick results to queue them, pick a version per queued
  * plugin, then install the whole queue. Each install is a daemon task; progress arrives over the socket.
  * Plugins that do not list this Minecraft version are not hidden (ADR-022): they keep their place,
  * dimmed, and installing one asks first — a plugin that has not caught up with a new
@@ -78,37 +79,23 @@ export function InstallPluginsDialog({
   installed: Set<string>;
 }) {
   const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
-  const [source, setSource] = useState("all");
-  const [hits, setHits] = useState<PluginHit[] | null>(null);
-  const [searching, setSearching] = useState(false);
+  const { query, setQuery, source, setSource, results, searching, searchNow } = usePluginSearch(mcVersion, open);
+  const hits = results?.hits ?? null;
   const [queue, setQueue] = useState<Pending[]>([]);
   const [installing, setInstalling] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [selected, setSelected] = useState<PluginRef | null>(null);
   const closeDetails = useCallback(() => setSelected(null), []);
 
-  // Both sources rank by downloads, so an empty query lists the most popular plugins.
-  const runSearch = useCallback(
-    async (q: string, src: string) => {
-      setSearching(true);
-      try {
-        setHits((await plugins.search(q.trim(), mcVersion, src)).hits);
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Search failed");
-      } finally {
-        setSearching(false);
-      }
-    },
-    [mcVersion],
-  );
+  // A new answer starts at its top, not where the previous list was scrolled to.
+  const list = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (open) runSearch("", "all");
-  }, [open, runSearch]);
+    if (results) list.current?.scrollTo({ top: 0 });
+  }, [results]);
 
   function search(e: FormEvent) {
     e.preventDefault();
-    runSearch(query, source);
+    searchNow();
   }
 
   const queued = useMemo(() => new Set(queue.map((p) => keyOf(p.hit))), [queue]);
@@ -153,8 +140,6 @@ export function InstallPluginsDialog({
   function reset() {
     setOpen(false);
     setQueue([]);
-    setHits(null);
-    setQuery("");
   }
 
   return (
@@ -172,15 +157,20 @@ export function InstallPluginsDialog({
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={search} className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_9rem_auto]">
-            <Input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search plugins…"
-              className="min-w-0"
-              type="search"
-              autoFocus
-            />
+          <form onSubmit={search} className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_9rem]">
+            <InputGroup className="min-w-0">
+              <InputGroupAddon>
+                {searching ? <Loader2 className="animate-spin" aria-label="Searching" /> : <Search />}
+              </InputGroupAddon>
+              <InputGroupInput
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search plugins…"
+                aria-label="Search plugins"
+                type="search"
+                autoFocus
+              />
+            </InputGroup>
             <Select items={SOURCE_FILTERS} value={source} onValueChange={(v) => v && setSource(v)}>
               <SelectTrigger className="w-full">
                 <SelectValue />
@@ -193,20 +183,26 @@ export function InstallPluginsDialog({
                 ))}
               </SelectContent>
             </Select>
-            <Button type="submit" variant="outline" disabled={searching}>
-              <Search className="size-4" /> {searching ? "Searching…" : "Search"}
-            </Button>
           </form>
 
-          <div className="min-h-0 flex-1 divide-y overflow-y-auto rounded-md border">
+          <div
+            ref={list}
+            aria-busy={searching}
+            className={cn(
+              "min-h-0 flex-1 divide-y overflow-y-auto rounded-md border transition-opacity",
+              searching && hits && "opacity-70",
+            )}
+          >
             {hits === null && (
               <p className="px-4 py-6 text-center text-sm text-muted-foreground">Loading popular plugins…</p>
             )}
-            {hits && hits.length > 0 && !query.trim() && (
+            {results && results.hits.length > 0 && !results.query && (
               <p className="bg-muted/40 px-3 py-1.5 text-xs font-medium text-muted-foreground">Most downloaded</p>
             )}
             {hits?.length === 0 && (
-              <p className="px-4 py-6 text-center text-sm text-muted-foreground">No plugins match “{query}”.</p>
+              <p className="px-4 py-6 text-center text-sm text-muted-foreground">
+                No plugins match “{results?.query}”.
+              </p>
             )}
             {hits?.map((h) => {
               const key = keyOf(h);
