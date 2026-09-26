@@ -285,7 +285,8 @@ Server → client:
 users(id, username, password_hash, role, created_at)
 sessions(token, user_id, expires_at)
 api_tokens(id, user_id, name, token_hash, created_at)
-metrics(instance_id, ts, cpu, mem_rss, disk_used, net_rx, net_tx, tps1, players)  -- 7-day retention, downsampled to 1 min after 24 h
+metrics(instance_id, ts, cpu, mem_rss, disk_used, net_rx, net_tx, tps1, players)  -- every 2 s for 24 h, then rolled up into metrics_1m
+metrics_1m(instance_id, ts, cpu, mem_rss, net_rx, net_tx, tps1, cpu_max, mem_rss_max, tps1_min, disk_used, players, samples)  -- one row per minute, averages and peaks, kept 7 days
 players(instance_id, uuid, name, first_seen, last_seen, play_time_s)
 sessions_mc(instance_id, uuid, joined_at, left_at, ip)
 events(instance_id, ts, kind, player_uuid, text)

@@ -35,7 +35,17 @@ type Sample struct {
 	NetRx    int64       `json:"netRx"` // bytes/s on host interfaces (Linux has no per-process counters without eBPF)
 	NetTx    int64       `json:"netTx"`
 	TPS      *[3]float64 `json:"tps,omitempty"` // 1m, 5m, 15m from Paper's `tps`
+	// Set on bucketed history (Bucket) and on minutes rolled up past a day: the peaks behind the
+	// averages above. Live samples carry none.
+	CPUMax    *float64 `json:"cpuMax,omitempty"`
+	MemRSSMax *int64   `json:"memRssMax,omitempty"`
+	TPSMin    *float64 `json:"tpsMin,omitempty"`
+	// How many raw samples this one stands for; 0 means one.
+	samples int
 }
+
+// Weight is how many raw samples a history sample stands for: a rolled-up minute is about thirty.
+func (s Sample) Weight() int { return max(s.samples, 1) }
 
 type Sampler struct {
 	mgr      *instance.Manager
@@ -79,6 +89,7 @@ func (s *Sampler) Run(ctx context.Context) {
 	defer t.Stop()
 	prune := time.NewTicker(time.Hour)
 	defer prune.Stop()
+	s.compact(ctx)
 	for {
 		select {
 		case <-ctx.Done():
@@ -86,10 +97,28 @@ func (s *Sampler) Run(ctx context.Context) {
 		case <-t.C:
 			s.tick(ctx)
 		case <-prune.C:
-			if s.st != nil {
-				_ = s.st.Prune(ctx, time.Now().Add(-7*24*time.Hour))
-			}
+			s.compact(ctx)
 		}
+	}
+}
+
+// Retention: every sample for a day, then one row per minute (Store.Rollup) until the week is out.
+const (
+	rawRetention = 24 * time.Hour
+	Retention    = 7 * 24 * time.Hour
+)
+
+// compact rolls the samples older than a day up into minutes and drops what is older than the week.
+func (s *Sampler) compact(ctx context.Context) {
+	if s.st == nil {
+		return
+	}
+	now := time.Now()
+	if err := s.st.Rollup(ctx, now.Add(-rawRetention)); err != nil {
+		slog.Warn("metrics rollup", "err", err)
+	}
+	if err := s.st.Prune(ctx, now.Add(-Retention)); err != nil {
+		slog.Warn("metrics prune", "err", err)
 	}
 }
 
@@ -222,7 +251,8 @@ func (s *Sampler) History(ctx context.Context, id string, since time.Time) []Sam
 		if rows, err := s.st.Metrics(ctx, id, since); err == nil {
 			out := make([]Sample, 0, len(rows))
 			for _, r := range rows {
-				sm := Sample{TS: r.TS, CPU: r.CPU, MemRSS: r.MemRSS, DiskUsed: r.DiskUsed, Players: r.Players, NetRx: r.NetRx, NetTx: r.NetTx}
+				sm := Sample{TS: r.TS, CPU: r.CPU, MemRSS: r.MemRSS, DiskUsed: r.DiskUsed, Players: r.Players, NetRx: r.NetRx, NetTx: r.NetTx,
+					CPUMax: r.CPUMax, MemRSSMax: r.MemRSSMax, TPSMin: r.TPS1Min, samples: r.Samples}
 				if r.TPS1 != nil {
 					sm.TPS = &[3]float64{*r.TPS1, 0, 0}
 				}
