@@ -74,7 +74,9 @@ export function InstanceShell({ children }: { children: React.ReactNode }) {
         </div>
       )}
       <div className={cn("page-pad min-w-0 flex-1", fills && "flex min-h-0 flex-col")}>
-        <div className={cn("w-full", current?.narrow && "max-w-5xl", fills && "flex min-h-0 flex-1 flex-col")}>
+        <div
+          className={cn("@container w-full", current?.narrow && "max-w-5xl", fills && "flex min-h-0 flex-1 flex-col")}
+        >
           <SaveBarSlot.Provider value={viewer ? null : saveSlot}>{children}</SaveBarSlot.Provider>
         </div>
       </div>

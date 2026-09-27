@@ -36,7 +36,7 @@ import {
 import { PlayerName } from "@/components/instance/player-face";
 import { SectionCard } from "@/components/instance/section-card";
 import { useVoice, useVoiceStatus, VoiceControls, VoicePresencePill } from "@/components/instance/voice-listen";
-import { useDetachable } from "@/hooks/use-detachable";
+import { type DisplayMode, useDetachable } from "@/hooks/use-detachable";
 import { useStoredFlag, useStoredPreference } from "@/hooks/use-stored-preference";
 import type { WsMessage } from "@/hooks/use-wardend-socket";
 import { instances, type LiveViewInfo, type PlayerPos, skins, type WorldClock } from "@/lib/api";
@@ -123,9 +123,10 @@ const PHASES = {
 
 /**
  * The live world view (ADR-018): the terrain around each player as flat-coloured blocks, the players
- * themselves, updated as the agent streams. `popout` is the pop-out window variant.
+ * themselves, updated as the agent streams. `mode` picks how it is shown (ADR-026); it already fills
+ * whatever container it is given, in every mode.
  */
-export function LiveView({ popout }: { popout?: boolean }) {
+export function LiveView({ mode = "section" }: { mode?: DisplayMode }) {
   const { manifest, status, subscribe } = useInstance();
   const id = manifest.id;
   const [info, setInfo] = useState<LiveViewInfo | null>(null);
@@ -208,7 +209,7 @@ export function LiveView({ popout }: { popout?: boolean }) {
   const { rootRef, fullscreen, toggleFullscreen, openPopout, showPopout } = useDetachable(
     `/map/${id}`,
     `beacon-map-${id}`,
-    popout,
+    mode,
   );
 
   const receivePlayers = useCallback((next: PlayerPos[], now: number, clocks?: Record<string, WorldClock>) => {

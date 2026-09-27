@@ -17,7 +17,7 @@ export default async function ConsolePopout({ params }: { params: Promise<{ id: 
       <InstanceProvider initial={detail} role={role}>
         <title>{`${detail.manifest.name} · Console`}</title>
         <div className="h-svh p-3">
-          <Console popout />
+          <Console mode="popout" />
         </div>
       </InstanceProvider>
     </WardendConfigProvider>

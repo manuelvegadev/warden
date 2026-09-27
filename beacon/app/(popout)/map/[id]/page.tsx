@@ -17,7 +17,7 @@ export default async function MapPopout({ params }: { params: Promise<{ id: stri
       <InstanceProvider initial={detail} role={role}>
         <title>{`${detail.manifest.name} · Live view`}</title>
         <div className="h-svh p-3">
-          <LiveView popout />
+          <LiveView mode="popout" />
         </div>
       </InstanceProvider>
     </WardendConfigProvider>

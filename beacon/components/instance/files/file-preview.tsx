@@ -76,7 +76,11 @@ export function FilePreview({
   const editable = canManage && !entry.protected;
   const [content, setContent] = useState<FsContent | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const detach = useDetachable(`/file/${id}?path=${encodeURIComponent(path)}`, `file-${id}-${path}`, popout);
+  const detach = useDetachable(
+    `/file/${id}?path=${encodeURIComponent(path)}`,
+    `file-${id}-${path}`,
+    popout ? "popout" : "section",
+  );
   const [wrap, setWrap] = useEditorWrap(path);
 
   useEffect(() => {

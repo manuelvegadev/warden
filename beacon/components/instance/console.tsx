@@ -19,7 +19,7 @@ import { DetachControls } from "@/components/instance/detach-controls";
 import { useConsoleCommands, useConsoleLines, useInstance } from "@/components/instance/instance-context";
 import { Logs } from "@/components/instance/logs";
 import { useCommandHistory } from "@/hooks/use-command-history";
-import { useDetachable } from "@/hooks/use-detachable";
+import { type DisplayMode, useDetachable } from "@/hooks/use-detachable";
 import { useKnownPlayers } from "@/hooks/use-known-players";
 import { useStoredPreference } from "@/hooks/use-stored-preference";
 import { useWakeLock } from "@/hooks/use-wake-lock";
@@ -142,11 +142,12 @@ function RawConsole({ lines, className }: { lines: ConsoleLine[]; className?: st
 }
 
 /**
- * Live console of the current instance (reads the instance context). `popout` is the pop-out
- * window variant: fills its container and has no pop-out button of its own.
+ * Live console of the current instance (reads the instance context). `mode` picks how it is shown
+ * (ADR-026): `section` stretches to the bottom of the Console section, `fill` fills whatever
+ * container holds it (a dashboard module), `popout` fills its own window and has no pop-out button
+ * of its own.
  */
-/** `fill` stretches the console to the bottom of its section; `popout` is its own window's. */
-export function Console({ popout, fill }: { popout?: boolean; fill?: boolean }) {
+export function Console({ mode = "section" }: { mode?: DisplayMode }) {
   const { manifest, status, sendCommand, canOperate } = useInstance();
   const lines = useConsoleLines();
   const commands = useConsoleCommands();
@@ -168,17 +169,13 @@ export function Console({ popout, fill }: { popout?: boolean; fill?: boolean }) 
   const { rootRef, fullscreen, toggleFullscreen, openPopout, fillHeight, showPopout } = useDetachable(
     `/console/${instanceId}`,
     `beacon-console-${instanceId}`,
-    popout,
+    mode,
   );
-  // Filling in place (the Console section) stretches from `lg` up, where the section is as tall as
-  // the view; below it, stacked on a phone, the console keeps its fixed height.
-  const viewClass = fillHeight
-    ? "min-h-0 flex-1"
-    : fill
-      ? "h-[min(60vh,640px)] lg:h-auto lg:min-h-80 lg:flex-1"
-      : "h-[min(60vh,640px)]";
+  // `section` stretches from `lg` up, where the Console section is as tall as the view; stacked on
+  // a phone it keeps a fixed height. `fill` and `popout` fill whatever holds them.
+  const viewClass = fillHeight ? "min-h-0 flex-1" : "h-[min(60vh,640px)] lg:h-auto lg:min-h-80 lg:flex-1";
 
-  const [mode, pickMode] = useStoredPreference<ConsoleMode>(MODE_KEY, "pretty", CONSOLE_MODES);
+  const [viewMode, pickViewMode] = useStoredPreference<ConsoleMode>(MODE_KEY, "pretty", CONSOLE_MODES);
 
   function submit(command: string) {
     const cmd = command.trim();
@@ -202,7 +199,7 @@ export function Console({ popout, fill }: { popout?: boolean; fill?: boolean }) 
       className={cn(
         "flex flex-col gap-2",
         fillHeight && "h-full",
-        fill && !fillHeight && "lg:min-h-0 lg:flex-1",
+        mode === "section" && !fillHeight && "lg:min-h-0 lg:flex-1",
         fullscreen && "bg-background p-3",
       )}
     >
@@ -218,10 +215,10 @@ export function Console({ popout, fill }: { popout?: boolean; fill?: boolean }) 
               <Button
                 key={m}
                 size="sm"
-                variant={mode === m ? "secondary" : "ghost"}
+                variant={viewMode === m ? "secondary" : "ghost"}
                 className="h-7 gap-1.5 px-2"
-                aria-pressed={mode === m}
-                onClick={() => pickMode(m)}
+                aria-pressed={viewMode === m}
+                onClick={() => pickViewMode(m)}
               >
                 <Icon className="size-3.5" /> {label}
               </Button>
@@ -251,7 +248,7 @@ export function Console({ popout, fill }: { popout?: boolean; fill?: boolean }) 
           />
         </div>
       </div>
-      {mode === "pretty" ? (
+      {viewMode === "pretty" ? (
         <PrettyConsole lines={lines} className={viewClass} />
       ) : (
         <RawConsole lines={lines} className={viewClass} />

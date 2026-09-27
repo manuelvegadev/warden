@@ -83,7 +83,7 @@ export const SECTIONS: Section[] = [
     label: "Console",
     icon: Terminal,
     layout: "fill",
-    render: () => <Console fill />,
+    render: () => <Console />,
   },
   {
     slug: "metrics",
@@ -92,7 +92,7 @@ export const SECTIONS: Section[] = [
     icon: Activity,
     // The charts want the width and the height.
     layout: "viewer",
-    render: () => <MetricsView fill />,
+    render: () => <MetricsView />,
   },
   {
     slug: "map",
