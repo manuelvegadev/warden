@@ -7,7 +7,8 @@ import Database from "better-sqlite3";
 // Opened on first use, never at import: `next build` evaluates these modules while prerendering and
 // the build must not need the database or the runtime secrets.
 
-/** Tables that are ours, not Better Auth's — `auth migrate` knows nothing about them. */
+/** Tables that are ours, not Better Auth's — `auth migrate` knows nothing about them: `instanceAccess`
+ * (ADR-017) and `dashboardLayout` (ADR-026). */
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS instanceAccess (
   id             TEXT PRIMARY KEY,
@@ -21,6 +22,11 @@ CREATE TABLE IF NOT EXISTS instanceAccess (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS instanceAccess_unique ON instanceAccess (userId, nodeId, instanceId);
 CREATE INDEX IF NOT EXISTS instanceAccess_instance ON instanceAccess (nodeId, instanceId);
+CREATE TABLE IF NOT EXISTS dashboardLayout (
+  userId    TEXT PRIMARY KEY,
+  layout    TEXT NOT NULL,
+  updatedAt TEXT NOT NULL
+);
 `;
 
 /** Creates the tables `auth migrate` knows nothing about. Idempotent; also used by the tests. */

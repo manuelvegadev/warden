@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 import { type NextRequest, NextResponse } from "next/server";
 import { INSTANCE_ROLES, isInstanceRole } from "@/lib/access";
 import { auth } from "@/lib/auth";
+import { deleteLayout } from "@/lib/dashboard-layout-store";
 import { getDb } from "@/lib/db";
 import { badRequest, forbidden, jsonError } from "@/lib/http";
 import { type Membership, requireMemberManager, revokeLiveSessions } from "@/lib/members";
@@ -72,6 +73,7 @@ export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ userId:
     return jsonError(400, "remove_failed", e instanceof Error ? e.message : "Could not remove the member");
   }
   removeAllGrants(getDb(), target.userId);
+  deleteLayout(getDb(), target.userId);
   await revokeLiveSessions(target.userId);
   return new NextResponse(null, { status: 204 });
 }
