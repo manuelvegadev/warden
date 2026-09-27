@@ -1,6 +1,6 @@
 # Panel UX plan — chrome, previews, plugins, dashboard
 
-Date: 2026-09-25 · Status: agreed; phases 1–4 done · Tracked in
+Date: 2026-09-25 · Status: agreed; phases 1–4 done; phase 5: 5.1–5.2 done ([ADR-026](adr/026-overview-dashboard.md)), 5.3–5.4 open · Tracked in
 [`roadmap.md`](roadmap.md), Phase 8. **Resuming? Start at [Next step](#next-step).**
 
 This plan came out of a research pass over six areas: the file manager on phones, file previews,
@@ -60,10 +60,11 @@ the plan, not the specification.
    uptime, players, TPS, CPU, RAM — a row each, with a popover) replaces the tiles and the right
    sidebar on every other section. (First built as a strip beside the breadcrumb; moved to the
    sidebar the same day, ADR-021.)
-3. **A customisable home dashboard**, Twitch Stream Manager style: columns of stacked modules,
-   resized by dragging the divider between them, with modules added, removed and reordered in an
-   edit mode. Built on **react-resizable-panels v4** (the shadcn *Resizable* component) with a
-   small drag layer; layouts stored per user in Beacon's database.
+3. **A customisable dashboard**, Twitch Stream Manager style: columns of stacked modules, resized
+   by dragging the divider between them, with modules added, removed and reordered in an edit mode.
+   Built on **react-resizable-panels v4** (the shadcn *Resizable* component) with a small drag
+   layer; layouts stored per user in Beacon's database. (First built as Beacon's Home; it went to
+   each instance's Overview the same day, ADR-026, and Home stayed as it was.)
 4. **Previews get a View / Edit toggle** in the file header, one mechanism for every file type that
    has a richer view than text.
 5. **A player is always shown as face + name**, everywhere the panel names one.
@@ -151,46 +152,46 @@ the plan, not the specification.
 Later: install from URL with a recorded hash and a trust badge; link uploaded jars to a store by
 hash; a GitHub releases source.
 
-### Phase 5 — Home dashboard (new ADR)
+### Phase 5 — Overview dashboard ([ADR-026](adr/026-overview-dashboard.md), 5.1–5.2 done 2026-09-26)
 
-1. Embeddability refactors: a `fill` mode separate from `popout` in `useDetachable`; Metrics split
+1. ~~Embeddability refactors: a `fill` mode separate from `popout` in `useDetachable`; Metrics split
    into four charts; container queries instead of viewport breakpoints; one `InstanceProvider` per
-   instance.
-2. MVP: columns of modules on react-resizable-panels; edit mode (add, remove, drag to reorder,
+   instance.~~ Done — Metrics instead gained a `charts` filter on the one component, rather than
+   splitting into four; container queries map `sm:`→`@md:` (not `@sm:` — below 768 px there is no app
+   sidebar, so `@sm:` would turn on far too early), `md:`→`@lg:`, `lg:`→`@3xl:`, `xl:`→`@5xl:`.
+2. ~~MVP: columns of modules on react-resizable-panels; edit mode (add, remove, drag to reorder,
    resize by dividers); one layout per user in a `dashboardLayout` table with versioned module
    kinds; a single stacked column on phones; a default preset that reproduces today's Home; one
-   Live view per dashboard.
-3. More modules: activity feed, log tail, backups summary, plugin updates, properties quick
-   toggles, pinned file, whitelist quick-add; one shared WebSocket.
+   Live view per dashboard.~~ Done — on each instance's Overview rather than Home: every module has
+   its server there, so there is no server selector, and the preset is the Overview it replaced; the
+   canvas fits the screen and never scrolls.
+3. More modules: log tail, plugin updates, properties quick toggles, a pinned file, whitelist
+   quick-add.
 4. Named layouts and organisation-wide presets.
 
-The ADR also takes ownership of the detachable-pane contract (`use-detachable`, the `(popout)`
-routes), which no ADR documents today.
+The ADR also took ownership of the detachable-pane contract (`use-detachable`, the `(popout)`
+routes), which no ADR had documented before.
 
 ## Next step
 
-**Phase 5 — the home dashboard.** Nothing of it is built yet. It needs an ADR of its own (the next
-number after ADR-025), which also takes ownership of the detachable-pane contract
-(`use-detachable`, the `(popout)` routes), which no ADR documents today.
+**Phase 5.3 — more modules.** The embeddability refactors and the MVP (plan 5.1–5.2) are built and
+specified in [ADR-026](adr/026-overview-dashboard.md), which also took ownership of the
+detachable-pane contract (`use-detachable`, the `(popout)` routes).
 
-**What exists to build on** (from the plan's own Phase 5 section)
+**What exists to build on**
 
-- `useDetachable` and the `(popout)` routes already detach a pane; a `fill` mode is needed
-  alongside `popout`.
-- Metrics is one component today; splitting it into four charts is part of the embeddability
-  refactor.
-- Viewport breakpoints are used where container queries should be, and instance pages do not yet
-  have one `InstanceProvider` per instance.
+- `useDetachable`'s `mode: "section" | "fill" | "popout"`; container queries on every module and
+  reused section component; `MetricsChart`'s `charts` filter; the Overview's modules read the
+  instance page's own `InstanceProvider`.
+- The `dashboardLayout` table and its `GET`/`PUT`/`DELETE` routes (`beacon/app/api/dashboard-layout`),
+  the pure layout logic (`beacon/lib/dashboard-layout.ts`, `dashboard-layout-store.ts`,
+  `dashboard-edit.ts`) and the module registry (`beacon/lib/dashboard-modules.ts`,
+  `beacon/components/dashboard/`).
 
 **Scope from the plan:**
 
-1. The embeddability refactors above.
-2. An MVP: columns of modules on react-resizable-panels; edit mode (add, remove, drag to reorder,
-   resize by dividers); one layout per user in a `dashboardLayout` table with versioned module
-   kinds; a single stacked column on phones; a default preset that reproduces today's Home; one
-   Live view per dashboard.
-3. More modules: activity feed, log tail, backups summary, plugin updates, properties quick
-   toggles, pinned file, whitelist quick-add; one shared WebSocket.
+3. More modules: log tail, plugin updates, properties quick toggles, a pinned file, whitelist
+   quick-add.
 4. Named layouts and organisation-wide presets.
 
 **Checks** — as for every change: `CONTRIBUTING.md`.

@@ -84,5 +84,5 @@ server next stops (kept per tab in `sessionStorage`).
   each minute by the samples it stands for.
 - The pending-restart notice is the panel's memory, not the daemon's: another browser, or a change
   made outside Beacon, does not raise it.
-- The Overview is where the customisable home dashboard (roadmap 8.5) can grow from: the same
-  modules, arranged by the user.
+- The Overview became the customisable dashboard (roadmap 8.5, ADR-026): the same cards, as modules
+  each user arranges.

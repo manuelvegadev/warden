@@ -56,6 +56,18 @@ docs/                   research, ADRs, API
 2. Pick a version → `POST /instances/{id}/plugins` → task downloads to `server/plugins/`, verifies hash, adds an entry to `instance.json.plugins[]`.
 3. UI shows "restart required".
 
+## Beacon's own data
+
+Beside Better Auth's own tables, Beacon keeps a couple of its own in the same SQLite file, created
+idempotently by `lib/db.ts`: `instanceAccess` (a user's role on an instance, ADR-017) and
+`dashboardLayout` (one row per user — `userId`, the layout as JSON, `updatedAt` — the columns of
+the Overview dashboard, ADR-026).
+
+An instance's Overview is that dashboard: a canvas that fits the screen, of 1–4 resizable columns
+holding 0–6 modules each — the instance's cards (and, if wanted, the daemon's and host's tiles) as
+tall as their content, Console, Metrics and Live view filling what is left — added, removed and
+reordered in edit mode, saved per user (the same on every instance) with a preset reset.
+
 ## Security
 - JWT signed with a secret generated on first startup (`<data>/secret.key`), 12 h expiry, refresh by re-login.
 - File paths always resolved and checked to be inside `servers/<id>/server/` (anti path-traversal).
