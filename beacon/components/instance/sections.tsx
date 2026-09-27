@@ -16,6 +16,7 @@ import {
   Users,
 } from "lucide-react";
 import dynamic from "next/dynamic";
+import { OverviewDashboard } from "@/components/dashboard/dashboard";
 import { AccessLists } from "@/components/instance/access-lists";
 import { BackupsTab } from "@/components/instance/backups-tab";
 import { Console } from "@/components/instance/console";
@@ -26,7 +27,6 @@ import type { InstanceState } from "@/components/instance/instance-context";
 import { LaunchCommandCard } from "@/components/instance/launch-command-card";
 import { LiveView } from "@/components/instance/live-view";
 import { MetricsView } from "@/components/instance/metrics-chart";
-import { Overview } from "@/components/instance/overview";
 import { PlayersTab } from "@/components/instance/players-tab";
 import { PluginsTab } from "@/components/instance/plugins-tab";
 import { PropertiesEditor } from "@/components/instance/properties-editor";
@@ -74,8 +74,15 @@ export interface Section {
 
 /** Single source of truth for instance sections: sidebar items, breadcrumb labels and the [section] route. */
 export const SECTIONS: Section[] = [
-  // The landing page: the instance at a glance (ADR-021).
-  { slug: "overview", group: "Server", label: "Overview", icon: LayoutDashboard, render: () => <Overview /> },
+  // The landing page: the instance at a glance (ADR-021), arranged by each user (ADR-026), fitting the view.
+  {
+    slug: "overview",
+    group: "Server",
+    label: "Overview",
+    icon: LayoutDashboard,
+    layout: "viewer",
+    render: () => <OverviewDashboard />,
+  },
   // The console is worth every line of height the screen has.
   {
     slug: "console",

@@ -7,72 +7,52 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ACTIVITY_KINDS, ActivityFeed } from "@/components/instance/activity-feed";
 import { useInstance } from "@/components/instance/instance-context";
-import { PlayersOnlineCard, ServerFactsCard, StatusCard } from "@/components/instance/instance-facts";
-import { ResourceCards } from "@/components/instance/resource-cards";
-import { CopyButton, SectionCard } from "@/components/instance/section-card";
-import { useServerAddress } from "@/components/wardend-config";
-import { type BackupInfo, backups, formatBytes, hasTps, instances, type ServerEvent } from "@/lib/api";
+import { SectionCard } from "@/components/instance/section-card";
+import { type BackupInfo, backups, formatBytes, instances, type ServerEvent } from "@/lib/api";
 import { instanceHref } from "@/lib/instance-routes";
 import { formatWhen } from "@/lib/utils";
 
 /**
- * The instance's landing page (ADR-021): the resources over the last hour, its state and who is on,
- * what it runs, the latest activity and where backups stand. Every other section is a tool and has
- * the page to itself; this is the one that reads like a dashboard.
+ * The "Recent activity" block of the Overview: joins, leaves, chat, advancements and voice sessions.
+ * With `fill` it takes the height its dashboard column leaves it, showing as many as fit.
  */
-export function Overview() {
-  const { manifest, status, metrics, history, canManage, task } = useInstance();
-  const address = useServerAddress(manifest.port);
+export function RecentActivity({ fill }: { fill?: boolean }) {
+  const { manifest, status } = useInstance();
   const id = manifest.id;
 
   const [events, setEvents] = useState<ServerEvent[]>([]);
   const onlineKey = status.players.join(",");
+  // Enough to fill a tall dashboard column; the card cuts what does not fit.
+  const limit = fill ? 40 : 12;
   // biome-ignore lint/correctness/useExhaustiveDependencies: onlineKey re-reads the feed on join/leave
   useEffect(() => {
     instances
-      .events(id, ACTIVITY_KINDS, 12)
+      .events(id, ACTIVITY_KINDS, limit)
       .then(setEvents)
       .catch(() => {});
-  }, [id, onlineKey]);
+  }, [id, onlineKey, limit]);
 
   return (
-    <div className="grid gap-6">
-      <div className="grid gap-2">
-        <span className="text-xs text-muted-foreground">Last hour</span>
-        <ResourceCards
-          metrics={metrics}
-          history={history}
-          state={status.state}
-          tps={status.tps}
-          showTps={hasTps(manifest.software)}
-          memoryMb={manifest.memoryMb}
-        />
-      </div>
+    <SectionCard
+      title="Recent activity"
+      subtitle="Joins, leaves, chat, advancements and voice sessions from Beacon."
+      action={<SeeAll href={instanceHref(id, "players")}>Players</SeeAll>}
+      fill={fill}
+    >
+      <ActivityFeed events={events} />
+    </SectionCard>
+  );
+}
 
-      <div className="grid gap-3 md:grid-cols-3">
-        <StatusCard
-          status={status}
-          address={<CopyButton value={address} label={address} showLabel className="-mr-2 h-6 font-mono text-xs" />}
-        />
-        <PlayersOnlineCard status={status} />
-        <ServerFactsCard manifest={manifest} metrics={metrics} />
-      </div>
-
-      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-        <SectionCard
-          title="Recent activity"
-          subtitle="Joins, leaves, chat, advancements and voice sessions from Beacon."
-          action={<SeeAll href={instanceHref(id, "players")}>Players</SeeAll>}
-        >
-          <ActivityFeed events={events} />
-        </SectionCard>
-        <BackupsSummary
-          id={id}
-          canManage={canManage}
-          busy={task?.type === "backup" && (task.status === "pending" || task.status === "running")}
-        />
-      </div>
-    </div>
+/** The Overview's backups block: the newest backup, when the schedule runs next, and a "back up now" button. */
+export function BackupsSummaryCard() {
+  const { manifest, canManage, task } = useInstance();
+  return (
+    <BackupsSummary
+      id={manifest.id}
+      canManage={canManage}
+      busy={task?.type === "backup" && (task.status === "pending" || task.status === "running")}
+    />
   );
 }
 

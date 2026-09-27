@@ -5,6 +5,7 @@ import { Button } from "@warden/ui/components/button";
 import { Card, CardContent } from "@warden/ui/components/card";
 import { Label } from "@warden/ui/components/label";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@warden/ui/components/tooltip";
+import { cn } from "@warden/ui/lib/utils";
 import { Check, ChevronDown, Copy, Loader2, RefreshCw, Save, Undo2 } from "lucide-react";
 import { createContext, useContext, useId, useState } from "react";
 import { createPortal } from "react-dom";
@@ -13,7 +14,8 @@ import { toast } from "sonner";
 /**
  * Titled card with divided rows — the shared "settings list" chrome used by the Properties and
  * Access tabs. Optional: status badges next to the title, an action on the right, a first row
- * (e.g. an add form) and collapsible body.
+ * (e.g. an add form) and collapsible body. With `fill` (a dashboard module) it takes the height it
+ * is given, and its card cuts what does not fit.
  */
 export function SectionCard({
   id,
@@ -24,6 +26,7 @@ export function SectionCard({
   topRow,
   collapsible,
   defaultOpen = true,
+  fill,
   children,
 }: {
   id?: string;
@@ -34,6 +37,7 @@ export function SectionCard({
   topRow?: React.ReactNode;
   collapsible?: boolean;
   defaultOpen?: boolean;
+  fill?: boolean;
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(defaultOpen);
@@ -78,12 +82,19 @@ export function SectionCard({
   }
 
   return (
-    <div id={id} className="grid grid-cols-1 gap-3">
+    <div id={id} className={cn("grid grid-cols-1 gap-3", fill && "h-full grid-rows-[auto_minmax(0,1fr)]")}>
       <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
         {heading}
         {action}
       </div>
-      <Card className="gap-0 py-0">
+      <Card
+        className={cn(
+          "gap-0 py-0",
+          // Filling a given height, a long list is cut at the card's foot, fading out, rather than
+          // scrolling: the section behind the heading's link has the rest.
+          fill && "min-h-0 [mask-image:linear-gradient(to_bottom,black_80%,transparent)]",
+        )}
+      >
         <CardContent className="divide-y px-0 py-0">
           {topRow}
           {children}
