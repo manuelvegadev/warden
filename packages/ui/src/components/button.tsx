@@ -19,6 +19,12 @@ const buttonVariants = cva(
         // Like destructive, a notch down: for an action that interrupts but undoes itself (a restart).
         warning:
           "bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 focus-visible:border-amber-500/40 focus-visible:ring-amber-500/20 dark:bg-amber-500/20 dark:text-amber-500 dark:hover:bg-amber-500/30 dark:focus-visible:ring-amber-500/40",
+        // Outlined, the colour in the label and a tint on hover: destructive or warning as a segment of
+        // a ButtonGroup, where every segment shares the outline variant's border.
+        "destructive-outline":
+          "border-border bg-background text-destructive hover:bg-destructive/10 hover:text-destructive dark:border-input dark:bg-input/30 dark:hover:bg-destructive/20",
+        "warning-outline":
+          "border-border bg-background text-amber-600 hover:bg-amber-500/10 hover:text-amber-600 dark:border-input dark:bg-input/30 dark:text-amber-500 dark:hover:bg-amber-500/20 dark:hover:text-amber-500",
         link: "text-primary underline-offset-4 hover:underline",
       },
       size: {
