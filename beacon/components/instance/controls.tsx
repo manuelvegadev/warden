@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@warden/ui/components/button";
+import { ButtonGroup } from "@warden/ui/components/button-group";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -43,8 +44,9 @@ const TRANSITION: Partial<Record<InstanceState, string>> = { stopping: "Stopping
 
 /**
  * The server's power controls, under the instance switcher in the app sidebar — away from the
- * page, where a Stop next to a section's own toolbar read as that section's. Start is one click;
- * Stop and Restart ask first, naming who would be disconnected; Kill waits in the overflow menu.
+ * page, where a Stop next to a section's own toolbar read as that section's — joined into one
+ * button group. Start is one click; Stop and Restart ask first, naming who would be disconnected;
+ * Kill waits in the overflow menu.
  */
 export function PowerControls({ id, status }: { id: string; status: InstanceStatus }) {
   const { busy, run } = useRun();
@@ -56,45 +58,47 @@ export function PowerControls({ id, status }: { id: string; status: InstanceStat
   const transition = TRANSITION[state];
 
   return (
-    <div className="flex items-center gap-1.5">
-      {stopped && (
-        <Button size="sm" className="flex-1" disabled={busy} onClick={() => run("Start", () => instances.start(id))}>
-          <Play /> Start
-        </Button>
-      )}
-      {live && (
-        <>
-          <Button
-            size="sm"
-            variant="destructive"
-            className="flex-1"
-            disabled={busy}
-            onClick={() => setConfirming("stop")}
-          >
-            <Square /> Stop
+    <>
+      <ButtonGroup className="w-full">
+        {stopped && (
+          <Button size="sm" className="flex-1" disabled={busy} onClick={() => run("Start", () => instances.start(id))}>
+            <Play /> Start
           </Button>
-          <RestartServerButton id={id} players={players} className="flex-1" />
-        </>
-      )}
-      {transition && (
-        <Button size="sm" variant="outline" className="flex-1" disabled>
-          <Loader2 className="animate-spin" /> {transition}
-        </Button>
-      )}
-      {killable && (
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={<Button variant="outline" size="icon-sm" aria-label="More power actions" title="More" />}
-          >
-            <MoreHorizontal />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="min-w-44">
-            <DropdownMenuItem className="text-destructive" onClick={() => setConfirming("kill")}>
-              <ServerCrash /> Kill process
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      )}
+        )}
+        {live && (
+          <>
+            <Button
+              size="sm"
+              variant="destructive-outline"
+              className="flex-1"
+              disabled={busy}
+              onClick={() => setConfirming("stop")}
+            >
+              <Square /> Stop
+            </Button>
+            <RestartServerButton id={id} players={players} variant="warning-outline" className="flex-1" />
+          </>
+        )}
+        {transition && (
+          <Button size="sm" variant="outline" className="flex-1" disabled>
+            <Loader2 className="animate-spin" /> {transition}
+          </Button>
+        )}
+        {killable && (
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={<Button variant="outline" size="icon-sm" aria-label="More power actions" title="More" />}
+            >
+              <MoreHorizontal />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-44">
+              <DropdownMenuItem className="text-destructive" onClick={() => setConfirming("kill")}>
+                <ServerCrash /> Kill process
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+      </ButtonGroup>
 
       <ConfirmDialog
         open={confirming === "stop"}
@@ -116,7 +120,7 @@ export function PowerControls({ id, status }: { id: string; status: InstanceStat
         destructive
         onConfirm={() => void run("Kill", () => instances.kill(id))}
       />
-    </div>
+    </>
   );
 }
 
@@ -125,18 +129,20 @@ export function RestartServerButton({
   id,
   players,
   label = "Restart",
+  variant = "warning",
   className,
 }: {
   id: string;
   players: string[];
   label?: string;
+  variant?: "warning" | "warning-outline";
   className?: string;
 }) {
   const { busy, run } = useRun();
   const [confirming, setConfirming] = useState(false);
   return (
     <>
-      <Button size="sm" variant="warning" className={className} disabled={busy} onClick={() => setConfirming(true)}>
+      <Button size="sm" variant={variant} className={className} disabled={busy} onClick={() => setConfirming(true)}>
         <RotateCw /> {label}
       </Button>
       <ConfirmDialog
