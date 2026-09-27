@@ -2,7 +2,10 @@ import * as React from "react";
 
 const MOBILE_BREAKPOINT = 768;
 
-export function useIsMobile() {
+/** `undefined` until the first effect runs (no `window` to measure yet, e.g. during SSR); a caller
+ * that would otherwise render one layout and then flash into the other once this resolves should
+ * use this instead of `useIsMobile` and render nothing (or a neutral placeholder) while unknown. */
+export function useIsMobileState(): boolean | undefined {
   const [isMobile, setIsMobile] = React.useState<boolean | undefined>(undefined);
 
   React.useEffect(() => {
@@ -15,5 +18,9 @@ export function useIsMobile() {
     return () => mql.removeEventListener("change", onChange);
   }, []);
 
-  return !!isMobile;
+  return isMobile;
+}
+
+export function useIsMobile(): boolean {
+  return !!useIsMobileState();
 }
